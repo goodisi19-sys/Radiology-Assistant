@@ -2,12 +2,14 @@ from __future__ import annotations
 import os, sys, re, sqlite3, zipfile, json, base64, brotli, hashlib, datetime, io, xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Iterable
-from PySide6.QtCore import Qt, QStringListModel, QStandardPaths, QTimer
+from PySide6.QtCore import Qt, QStringListModel, QStandardPaths, QTimer, QEvent
 from PySide6.QtGui import QAction, QFont, QTextCharFormat, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QPlainTextEdit, QTextEdit, QLineEdit, QListWidget, QListWidgetItem,
     QPushButton, QLabel, QFileDialog, QMessageBox, QToolBar, QFontComboBox, QSpinBox,
     QCompleter, QInputDialog, QStatusBar, QTabWidget, QTreeWidget, QTreeWidgetItem, QDialog)
+
+from report_format import format_line, format_report
 
 APP_NAME = "Radiology Assistant"
 
@@ -309,6 +311,7 @@ class MainWindow(QMainWindow):
         self.editor.setPlaceholderText("Начните составлять протокол МРТ…")
         self.editor.textChanged.connect(self.update_status)
         self.editor.textChanged.connect(self.update_suggestions)
+        self.editor.installEventFilter(self)
         self.completer=QCompleter(self.editor)
         self.completer.setWidget(self.editor)
         self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
@@ -392,7 +395,9 @@ class MainWindow(QMainWindow):
         lib.addAction(self.action("Обновить список фраз","",self.refresh_phrases))
         lib.addAction(self.action("Верифицировать стандарт","Ctrl+Shift+V",self.verify_current))
         lib.addAction(self.action("Резервная копия базы","",self.backup_database))
+        bar.addAction(self.action("Оформить текст","Ctrl+Shift+F",self.format_all_text))
         edit = self.menuBar().addMenu("Правка")
+        edit.addAction(self.action("Оформить предложения","Ctrl+Shift+F",self.format_all_text))
         edit.addAction(self.action("Найти…","Ctrl+F",self.find_text))
         edit.addAction(self.action("Заменить…","Ctrl+H",self.replace_text))
         edit.addAction(self.action("Отменить","Ctrl+Z",self.editor.undo))
@@ -445,6 +450,7 @@ class MainWindow(QMainWindow):
         if not path: path,_=QFileDialog.getSaveFileName(self,"Сохранить протокол","","Документ Word (*.docx);;Текст (*.txt)")
         if not path: return
         try:
+            self.format_all_text()
             if path.lower().endswith(".docx"): self.export_to_path(path)
             else: Path(path).write_text(self.editor.toPlainText(),encoding="utf-8")
             self.current_file=path; self.editor.document().setModified(False); self.update_status()
@@ -459,6 +465,7 @@ class MainWindow(QMainWindow):
         path,_=QFileDialog.getSaveFileName(self,"Экспорт в DOCX","","Документ Word (*.docx)")
         if not path: return
         try:
+            self.format_all_text()
             from docx import Document
             from docx.shared import Pt
             doc=Document()
@@ -492,7 +499,7 @@ class MainWindow(QMainWindow):
             def insert_line(*_):
                 item=listing.currentItem()
                 if item:
-                    self.editor.textCursor().insertText(item.text()+" ")
+                    self.editor.textCursor().insertText(format_report(item.text())+" ")
                     self.editor.setFocus()
             search.textChanged.connect(populate)
             listing.itemDoubleClicked.connect(insert_line)
@@ -559,6 +566,49 @@ class MainWindow(QMainWindow):
         self.template_count.setText(f"Протоколов в базе: {total} | Найдено: {len(rows)}")
         if query: self.template_list.expandAll()
 
+    def eventFilter(self, obj, event):
+        if obj is getattr(self, "editor", None) and event.type() == QEvent.Type.KeyPress:
+            if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and not (
+                event.modifiers() & (Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier)
+            ):
+                QTimer.singleShot(0, self.format_previous_line)
+        return super().eventFilter(obj, event)
+
+    def format_previous_line(self):
+        block = self.editor.textCursor().block().previous()
+        if not block.isValid():
+            return
+        current = block.text()
+        formatted = format_line(current)
+        if formatted != current:
+            cursor = QTextCursor(block)
+            cursor.select(QTextCursor.SelectionType.BlockUnderCursor)
+            cursor.insertText(formatted)
+
+    def format_all_text(self):
+        doc = self.editor.document()
+        saved_cursor = self.editor.textCursor()
+        old_position = saved_cursor.position()
+        changed = False
+        saved_cursor.beginEditBlock()
+        block = doc.firstBlock()
+        while block.isValid():
+            next_block = block.next()
+            current = block.text()
+            updated = format_line(current)
+            if current != updated:
+                edit = QTextCursor(block)
+                edit.select(QTextCursor.SelectionType.BlockUnderCursor)
+                edit.insertText(updated)
+                changed = True
+            block = next_block
+        saved_cursor.endEditBlock()
+        saved_cursor.setPosition(min(old_position, doc.characterCount() - 1))
+        self.editor.setTextCursor(saved_cursor)
+        self.statusBar().showMessage(
+            "Предложения оформлены" if changed else "Текст уже оформлен", 3000
+        )
+
     def insert_template(self, *_):
         item=self.template_list.currentItem()
         if not item: return
@@ -569,15 +619,15 @@ class MainWindow(QMainWindow):
             title,content=result
             cursor=self.editor.textCursor()
             if not self.editor.toPlainText().strip():
-                self.editor.setPlainText(content)
+                self.editor.setPlainText(format_report(content))
             else:
-                cursor.insertText(content + "\n")
+                cursor.insertText(format_report(content) + "\n")
             self.editor.setFocus()
             self.statusBar().showMessage("Вставлен протокол: " + title,4000)
     def insert_selected(self, *_):
         item=self.phrases.currentItem()
         if item:
-            phrase=item.text(); self.editor.textCursor().insertText(phrase+" ")
+            phrase=item.text(); self.editor.textCursor().insertText(format_report(phrase)+" ")
             self.library.used(phrase); self.refresh_phrases(); self.editor.setFocus()
     def accept_completion(self, phrase):
         cursor = self.editor.textCursor()
