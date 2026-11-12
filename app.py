@@ -54,7 +54,7 @@ class PhraseLibrary:
             (prefix.strip() + "%", limit)).fetchall()]
 
     def add(self, text: str, source: str, category: str):
-        text = re.sub(r"\\s+", " ", text).strip(" •-—\t\r\n")
+        text = re.sub(r"\s+", " ", text).strip(" •-—\t\r\n")
         if len(text) < 18 or len(text) > 900:
             return False
         self.db.execute("""INSERT INTO phrases(text,count,source,category) VALUES(?,1,?,?)
