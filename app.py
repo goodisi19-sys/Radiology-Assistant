@@ -185,6 +185,7 @@ class MainWindow(QMainWindow):
         self.build_ui()
         self.refresh_categories()
         self.refresh_phrases()
+        self.refresh_templates()
         self.update_status()
 
     def build_ui(self):
