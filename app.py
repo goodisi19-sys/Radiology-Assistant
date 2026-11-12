@@ -41,6 +41,7 @@ class PhraseLibrary:
         self.db.execute("CREATE TABLE IF NOT EXISTS verified_standards(id INTEGER PRIMARY KEY, title TEXT, category TEXT, content TEXT, digest TEXT UNIQUE, uses INTEGER DEFAULT 1, verified_at TEXT)")
         self.db.commit()
         self.load_bundled_templates()
+        self.load_extra_protocols()
 
     def load_bundled_templates(self):
         count = self.db.execute("SELECT COUNT(*) FROM templates WHERE source=?", ("Встроенная библиотека МРТ",)).fetchone()[0]
@@ -118,6 +119,14 @@ class PhraseLibrary:
         self.db.execute("""INSERT INTO phrases(text,count,source,category) VALUES(?,1,?,?)
             ON CONFLICT(text) DO UPDATE SET count=count+1""", (text, source, category or "Общее"))
         return True
+
+    def load_extra_protocols(self):
+        source=bundled_data_path("protocols_extra.json")
+        if not source.exists(): return
+        for record in json.loads(source.read_text(encoding="utf-8")):
+            self.import_full_protocol(record["title"],record["folder"],record["content"],
+                "Google Drive: "+record.get("source_id",""))
+        self.db.commit()
 
     def import_full_protocol(self, title, folder, content, source):
         normalized = re.sub(r"\\s+", " ", content).strip()
