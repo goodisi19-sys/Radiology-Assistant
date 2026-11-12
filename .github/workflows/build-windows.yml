@@ -1,0 +1,45 @@
+name: Build Windows app
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Build portable executable
+        run: |
+          pyinstaller --noconfirm --clean --onefile --windowed --name RadiologyAssistant app.py
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path package | Out-Null
+          Copy-Item dist/RadiologyAssistant.exe package/
+          @"
+          Radiology Assistant
+          Запустите RadiologyAssistant.exe.
+          База фраз создаётся локально при первом запуске.
+          Для импорта используйте меню Библиотека → Импорт шаблонов.
+          "@ | Set-Content package/ИНСТРУКЦИЯ.txt -Encoding UTF8
+          Compress-Archive -Path package/* -DestinationPath RadiologyAssistant-Windows.zip
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RadiologyAssistant-Windows
+          path: RadiologyAssistant-Windows.zip
+          if-no-files-found: error
