@@ -1,5 +1,5 @@
 from __future__ import annotations
-import os, sys, re, sqlite3, zipfile, json, base64, brotli, hashlib, datetime
+import os, sys, re, sqlite3, zipfile, json, base64, brotli, hashlib, datetime, io, xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Iterable
 from PySide6.QtCore import Qt, QStringListModel, QStandardPaths, QTimer
@@ -42,6 +42,7 @@ class PhraseLibrary:
         self.db.commit()
         self.load_bundled_templates()
         self.load_extra_protocols()
+        self.load_drive_odt_protocols()
 
     def load_bundled_templates(self):
         count = self.db.execute("SELECT COUNT(*) FROM templates WHERE source=?", ("Встроенная библиотека МРТ",)).fetchone()[0]
@@ -126,6 +127,31 @@ class PhraseLibrary:
         for record in json.loads(source.read_text(encoding="utf-8")):
             self.import_full_protocol(record["title"],record["folder"],record["content"],
                 "Google Drive: "+record.get("source_id",""))
+        self.db.commit()
+
+    def load_drive_odt_protocols(self):
+        """Read bundled ODT template archives. Never import from excluded sources."""
+        namespace = {"text":"urn:oasis:names:tc:opendocument:xmlns:text:1.0"}
+        for source in sorted(bundled_data_path(".").glob("drive_odt_*.json")):
+            try:
+                records=json.loads(source.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            for record in records:
+                folder=record.get("folder","")
+                title=record.get("title","")
+                if any(key in (folder+"/"+title).casefold() for key in ("мибс","2006")):
+                    continue
+                try:
+                    blob=base64.b64decode(record["b64"])
+                    with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+                        root=ET.fromstring(archive.read("content.xml"))
+                    lines=["".join(node.itertext()).strip() for node in root.findall(".//text:p",namespace)]
+                    content="\\n".join(line for line in lines if line)
+                    self.import_full_protocol(Path(title).stem,folder,content,
+                        "Google Drive: "+record.get("id",""))
+                except Exception:
+                    continue
         self.db.commit()
 
     def import_full_protocol(self, title, folder, content, source):
