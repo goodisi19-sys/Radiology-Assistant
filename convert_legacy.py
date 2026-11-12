@@ -21,8 +21,8 @@ with TemporaryDirectory() as tmp:
                 if len(content)<35:
                     errors.append(rec["title"]+": empty or unconvertible")
                     continue
-                content=re.sub(r"\\r\\n?", "\\n", content)
-                key=re.sub(r"\\s+"," ",content).strip()
+                content=re.sub(r"\r\n?", "\n", content)
+                key=re.sub(r"\s+"," ",content).strip()
                 if key in seen: continue
                 seen.add(key)
                 protocols.append({"title":Path(rec["title"]).stem,
