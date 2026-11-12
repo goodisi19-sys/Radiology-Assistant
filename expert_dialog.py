@@ -32,7 +32,7 @@ class ExpertDialog(QDialog):
         self.source_text = self.target.selectedText().replace('\u2029', '\n')
         layout = QVBoxLayout(self)
         intro = QLabel('Профессиональная редактура по вашему запросу — фрагмента или всего протокола.\n'
-            'CPU, 16 ГБ ОЗУ: Qwen2.5-3B-Instruct Q4_K_M (~2 ГБ). Первый ответ может занять несколько минут.')
+            'Для 16 ГБ ОЗУ: Qwen2.5-7B-Instruct Q4_K_M (~4,7 ГБ) качественнее, 3B — быстрее. CPU может отвечать несколько минут.')
         intro.setWordWrap(True); layout.addWidget(intro)
         self.server = self.path_row(layout, 'Движок llama-server.exe', 'expert_server', 'Движок (*)')
         self.model = self.path_row(layout, 'Модель GGUF', 'expert_model', 'Модель (*.gguf)')
