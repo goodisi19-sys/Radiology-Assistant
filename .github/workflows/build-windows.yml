@@ -22,12 +22,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Assemble bundled MRI protocols
+      - name: Verify bundled MRI protocol catalog
         shell: pwsh
         run: |
-          $parts = Get-ChildItem protocols.json.br.b64.part* | Sort-Object Name
-          $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ''
-          Set-Content protocols.json.br.b64 $encoded -NoNewline
+          if (!(Test-Path protocols.json.br.b64)) { throw "Missing de-identified MRI protocol catalog" }
       - name: Build portable executable
         run: |
           pyinstaller --noconfirm --clean --onefile --windowed --add-data "protocols.json.br.b64;." --name RadiologyAssistant app.py
