@@ -9,7 +9,16 @@ errors=[]
 with TemporaryDirectory() as tmp:
     target=Path(tmp)/"input.doc"
     for path in sorted(Path(".").glob("drive_doc_*.json")):
-        records=json.loads(path.read_text(encoding="utf-8"))
+        raw = path.read_text(encoding="utf-8").strip()
+        if not raw:
+            print(f"WARN {path}: empty DOC source batch; no templates available")
+            continue
+        try:
+            records = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"Invalid DOC batch {path}: {exc}") from exc
+        if not isinstance(records, list):
+            raise RuntimeError(f"Invalid DOC batch {path}: expected an array")
         for rec in records:
             if any(k in (rec["folder"]+"/"+rec["title"]).casefold() for k in ("мибс","2006")):
                 continue
