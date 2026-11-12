@@ -345,15 +345,30 @@ class MainWindow(QMainWindow):
         self.apply_style()
 
     def apply_style(self):
+        # Explicit foreground colors prevent invisible text with Windows dark themes.
         self.setStyleSheet("""
-        QMainWindow { background: #f4f6f8; }
-        QTextEdit { background: white; border: 1px solid #cbd3dc; padding: 24px; selection-background-color: #c8def5; }
-        QLineEdit { padding: 8px; border: 1px solid #cbd3dc; border-radius: 5px; background: white; }
-        QListWidget { background: white; border: 1px solid #cbd3dc; }
+        QMainWindow, QWidget { background-color: #f4f6f8; color: #202b38; }
+        QMenuBar, QMenu, QToolBar, QStatusBar { background-color: #f4f6f8; color: #202b38; }
+        QMenuBar::item:selected, QMenu::item:selected { background-color: #dcecff; color: #183b60; }
+        QTabWidget::pane { border: 1px solid #cbd3dc; background-color: #f4f6f8; }
+        QTabBar::tab { background-color: #e5ebf2; color: #202b38; padding: 7px 12px; }
+        QTabBar::tab:selected { background-color: white; color: #142b43; }
+        QTextEdit, QPlainTextEdit { background-color: white; color: #202b38;
+            border: 1px solid #cbd3dc; padding: 12px;
+            selection-background-color: #c8def5; selection-color: #142b43; }
+        QLineEdit, QSpinBox, QFontComboBox { padding: 6px; border: 1px solid #cbd3dc;
+            border-radius: 5px; background-color: white; color: #202b38;
+            selection-background-color: #c8def5; selection-color: #142b43; }
+        QListWidget, QTreeWidget { background-color: white; color: #202b38;
+            alternate-background-color: #f6f8fb; border: 1px solid #cbd3dc;
+            selection-background-color: #dcecff; selection-color: #183b60; }
         QListWidget::item { padding: 8px; border-bottom: 1px solid #edf0f3; }
-        QListWidget::item:selected { background: #dcecff; color: #183b60; }
-        QPushButton { padding: 8px 14px; border: 1px solid #aebdca; border-radius: 5px; background: #ffffff; }
-        QPushButton:hover { background: #eaf2fa; }
+        QListWidget::item:selected, QTreeWidget::item:selected {
+            background-color: #dcecff; color: #183b60; }
+        QPushButton { padding: 8px 14px; border: 1px solid #aebdca;
+            border-radius: 5px; background-color: white; color: #202b38; }
+        QPushButton:hover { background-color: #eaf2fa; }
+        QLabel { color: #202b38; }
         """)
     def action(self, name, shortcut, fn):
         a = QAction(name, self); a.setShortcut(shortcut); a.triggered.connect(fn); return a
