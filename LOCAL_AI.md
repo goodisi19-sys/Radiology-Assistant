@@ -12,7 +12,11 @@ llama.cpp CPU и выбранная локальная модель. Для пр
 1. Распакуйте весь архив RadiologyAssistant-Windows: папка `local-ai` должна
    остаться рядом с RadiologyAssistant.exe. Движок определяется автоматически.
 2. Один раз скачайте модель из официального репозитория Qwen:
-   https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF/resolve/main/qwen2.5-7b-instruct-q4_k_m.gguf
+   https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF/tree/main
+   Нужны обе части в одной папке с исходными именами:
+   `qwen2.5-7b-instruct-q4_k_m-00001-of-00002.gguf` и
+   `qwen2.5-7b-instruct-q4_k_m-00002-of-00002.gguf`.
+   В окне помощника выберите первую часть; llama.cpp подхватит вторую.
    Сохраните её в удобной папке. Модель не включена в архив приложения.
 3. Выделите описание и нажмите «Рентгенолог — экспертный помощник»
    (Ctrl+Alt+E), затем выберите GGUF. Пути запоминаются в вашей SQLite.
