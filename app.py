@@ -305,6 +305,7 @@ class MainWindow(QMainWindow):
             menu.addAction(self.action(n,k,f))
         lib = self.menuBar().addMenu("Библиотека")
         lib.addAction(self.action("Импорт шаблонов…","",self.import_templates))
+        lib.addAction(self.action("Импорт папки с подпапками…","",self.import_folder))
         lib.addAction(self.action("Обновить список фраз","",self.refresh_phrases))
         lib.addAction(self.action("Верифицировать стандарт","Ctrl+Shift+V",self.verify_current))
         lib.addAction(self.action("Резервная копия базы","",self.backup_database))
@@ -382,6 +383,16 @@ class MainWindow(QMainWindow):
             for line in self.editor.toPlainText().splitlines(): doc.add_paragraph(line)
             doc.save(path); self.statusBar().showMessage("Экспортировано: "+path,5000)
         except Exception as e: QMessageBox.critical(self,"Ошибка экспорта",str(e))
+    def import_folder(self):
+        folder=QFileDialog.getExistingDirectory(self,"Выберите корневую папку протоколов")
+        if not folder: return
+        try:
+            fragments,full=self.library.import_files([folder])
+            self.refresh_categories(); self.refresh_phrases(); self.refresh_templates()
+            QMessageBox.information(self,"Импорт",f"Новых полных протоколов: {full}\\nФрагментов: {fragments}")
+        except Exception as exc:
+            QMessageBox.critical(self,"Ошибка импорта",str(exc))
+
     def import_templates(self):
         paths=QFileDialog.getOpenFileNames(self,"Выберите DOCX/TXT или ZIP с шаблонами","","Шаблоны (*.docx *.txt *.zip)")
         if not paths[0]: return
@@ -437,7 +448,7 @@ class MainWindow(QMainWindow):
             if not self.editor.toPlainText().strip():
                 self.editor.setPlainText(content)
             else:
-                cursor.insertText(content + "\\n")
+                cursor.insertText(content + "\n")
             self.editor.setFocus()
             self.statusBar().showMessage("Вставлен протокол: " + title,4000)
     def insert_selected(self, *_):
