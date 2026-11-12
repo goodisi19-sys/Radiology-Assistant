@@ -43,7 +43,7 @@ class PhraseLibrary:
         count = self.db.execute("SELECT COUNT(*) FROM templates").fetchone()[0]
         if count:
             return
-        source = bundled_data_path("protocols.json.gz.b64")
+        source = bundled_data_path("protocols.json.br.b64")
         if not source.exists():
             return
         try:
