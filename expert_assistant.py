@@ -21,7 +21,7 @@ SYSTEM_PROMPT = '''Ты редактор русскоязычных проток
 
 
 def protected_tokens(text):
-    return collections.Counter(re.findall(r'\d+(?:[.,]\d+)?|\b(?:[TТ][12](?:WI|W|ВИ)?|FLAIR|DWI|ADC|STIR|SWI)\b', text, re.I))
+    return collections.Counter(re.findall(r'\d+(?:[.,]\d+)?|\b(?:[TТ][12](?:WI|W|ВИ)?|FLAIR|DWI|ADC|STIR|SWI|мм[²³]?|см[²³]?|мл|мг)\b|%', text, re.I))
 
 
 def review_issues(source, result):
@@ -32,6 +32,10 @@ def review_issues(source, result):
     for stem in ('гиперинтенсив', 'гипоинтенсив', 'изоинтенсив'):
         if len(re.findall(stem, source, re.I)) != len(re.findall(stem, result, re.I)):
             issues.append('Изменились формулировки сигнальных характеристик. Применение заблокировано.')
+            break
+    for pattern in (r"\b(?:лев[а-я]*|слева)\b", r"\b(?:прав[а-я]*|справа)\b"):
+        if len(re.findall(pattern, source, re.I)) != len(re.findall(pattern, result, re.I)):
+            issues.append('Изменилась сторона исследования. Применение заблокировано.')
             break
     return issues
 

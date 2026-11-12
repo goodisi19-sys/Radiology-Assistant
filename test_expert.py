@@ -10,8 +10,9 @@ import expert_assistant as expert
 class ExpertTests(unittest.TestCase):
     def test_protected_medical_values(self):
         self.assertFalse(expert.review_issues('Очаг 3.5 мм, T2 FLAIR.', 'На T2 FLAIR очаг 3.5 мм.'))
-        for changed in ['Очаг 4.5 мм, T2 FLAIR.', 'Очаг 3.5 мм, T1 FLAIR.', 'Очаг 3.5 мм, T2 DWI.']:
+        for changed in ['Очаг 4.5 мм, T2 FLAIR.', 'Очаг 3.5 мм, T1 FLAIR.', 'Очаг 3.5 мм, T2 DWI.', 'Очаг 3.5 см, T2 FLAIR.']:
             self.assertTrue(expert.review_issues('Очаг 3.5 мм, T2 FLAIR.', changed))
+        self.assertTrue(expert.review_issues('Очаг слева.', 'Очаг справа.'))
         self.assertTrue(expert.review_issues('Гипоинтенсивный на Т1ВИ.', 'Гиперинтенсивный на Т1ВИ.'))
     def test_missing_local_engine(self):
         with self.assertRaisesRegex(ValueError, 'llama-server'):
