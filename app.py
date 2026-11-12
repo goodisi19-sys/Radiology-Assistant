@@ -540,7 +540,8 @@ class MainWindow(QMainWindow):
             item=QTreeWidgetItem(parent,[title])
             item.setData(0,Qt.ItemDataRole.UserRole,template_id)
             item.setToolTip(0,category)
-        self.template_count.setText(f"Найдено протоколов: {len(rows)}")
+        total=self.library.db.execute("SELECT COUNT(*) FROM templates").fetchone()[0]
+        self.template_count.setText(f"Протоколов в базе: {total} | Найдено: {len(rows)}")
         if query: self.template_list.expandAll()
 
     def insert_template(self, *_):
