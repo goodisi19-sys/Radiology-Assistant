@@ -170,7 +170,7 @@ class PhraseLibrary:
         self.db.commit()
 
     def import_full_protocol(self, title, folder, content, source):
-        normalized = re.sub(r"\\s+", " ", content).strip()
+        normalized = re.sub(r"\s+", " ", content).strip()
         if len(normalized) < 35: return False
         fingerprint = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
         if self.db.execute("SELECT 1 FROM template_folders WHERE fingerprint=?", (fingerprint,)).fetchone():
