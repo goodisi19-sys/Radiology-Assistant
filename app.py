@@ -7,7 +7,7 @@ from PySide6.QtGui import QAction, QFont, QTextCharFormat, QTextCursor, QTextDoc
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QPlainTextEdit, QTextEdit, QLineEdit, QListWidget, QListWidgetItem,
     QPushButton, QLabel, QFileDialog, QMessageBox, QToolBar, QFontComboBox, QSpinBox,
-    QCompleter, QInputDialog, QStatusBar, QTabWidget, QTreeWidget, QTreeWidgetItem, QDialog
+    QCompleter, QInputDialog, QStatusBar, QTabWidget, QTreeWidget, QTreeWidgetItem, QDialog)
 
 APP_NAME = "Radiology Assistant"
 
