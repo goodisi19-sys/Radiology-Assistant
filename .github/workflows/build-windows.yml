@@ -28,7 +28,7 @@ jobs:
           if (!(Test-Path protocols.json.br.b64)) { throw "Missing de-identified MRI protocol catalog" }
       - name: Build portable executable
         run: |
-          pyinstaller --noconfirm --clean --onefile --windowed --add-data "protocols.json.br.b64;." --add-data "quick_lines.json;." --name RadiologyAssistant app.py
+          pyinstaller --noconfirm --clean --onefile --windowed --add-data "protocols.json.br.b64;." --add-data "quick_lines.json;." --add-data "protocols_extra.json;." --name RadiologyAssistant app.py
       - name: Package
         shell: pwsh
         run: |
