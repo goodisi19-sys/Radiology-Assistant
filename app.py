@@ -122,11 +122,14 @@ class PhraseLibrary:
         return True
 
     def load_extra_protocols(self):
-        source=bundled_data_path("protocols_extra.json")
-        if not source.exists(): return
-        for record in json.loads(source.read_text(encoding="utf-8")):
-            self.import_full_protocol(record["title"],record["folder"],record["content"],
-                "Google Drive: "+record.get("source_id",""))
+        for name in ("protocols_extra.json","protocols_legacy.json"):
+            source=bundled_data_path(name)
+            if not source.exists(): continue
+            for record in json.loads(source.read_text(encoding="utf-8")):
+                folder=record.get("folder","")
+                if any(k in folder.casefold() for k in ("мибс","2006")): continue
+                self.import_full_protocol(record["title"],folder,record["content"],
+                    "Google Drive: "+record.get("source_id",""))
         self.db.commit()
 
     def load_drive_odt_protocols(self):
