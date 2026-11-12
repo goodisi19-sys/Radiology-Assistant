@@ -158,9 +158,9 @@ class PhraseLibrary:
     @staticmethod
     def guess_category(text: str):
         t = text.lower()
-        terms = [("ГМ", ["головн", "brain", "мозг", "гм"]), ("Позвоночник", ["позвон", "диск", "спинн"]), 
+        terms = [("Головной мозг", ["головн", "brain", "мозг"]), ("Позвоночник", ["позвон", "диск", "спинн"]), 
           ("Коленный сустав", ["коленн", "knee"]), ("Плечевой сустав", ["плечев", "shoulder"]),
-          ("ОМТ", ["малого таза", "омт", "простата", "матк", "яичник"]), ("Брюшная полость", ["брюшн", "печен", "поджелуд", "abdomen"]),
+          ("Таз и малый таз", ["малого таза", "тазобед", "простата", "матк"]), ("Брюшная полость", ["брюшн", "печен", "поджелуд", "abdomen"]),
           ("Стопа и голеностоп", ["стоп", "голеностоп", "ankle"]), ("Прочее", ["сустав", "мрт"])]
         for cat, keys in terms:
             if any(k in t for k in keys): return cat
@@ -196,7 +196,7 @@ class MainWindow(QMainWindow):
         self.editor.setPlaceholderText("Начните составлять протокол МРТ…")
         self.editor.textChanged.connect(self.update_status)
         self.editor.textChanged.connect(self.update_suggestions)
-        self.completer = QCompleter(self.editor)
+        self.completer=QCompleter(self.editor)
         self.completer.setWidget(self.editor)
         self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
@@ -292,17 +292,67 @@ class MainWindow(QMainWindow):
         if not path: path,_=QFileDialog.getSaveFileName(self,"Сохранить протокол","","Документ Word (*.docx);;Текст (*.txt)")
         if not path: return
         try:
-            if path.lower().endswith(".docx"):
-                self.write_docx(path)
-            else:
-                Path(path).write_text(self.editor.toPlainText(),encoding="utf-8")
+            if path.lower().endswith(".docx"): self.export_to_path(path)
+            else: Path(path).write_text(self.editor.toPlainText(),encoding="utf-8")
             self.current_file=path; self.editor.document().setModified(False); self.update_status()
         except Exception as e: QMessageBox.critical(self,"Ошибка сохранения",str(e))
+    def export_to_path(self,path):
+        from docx import Document
+        doc=Document()
+        for line in self.editor.toPlainText().splitlines(): doc.add_paragraph(line)
+        doc.save(path)
+
     def export_docx(self):
         path,_=QFileDialog.getSaveFileName(self,"Экспорт в DOCX","","Документ Word (*.docx)")
         if not path: return
         try:
-            self.write_docx(path)
+            from docx import Document
+            from docx.shared import Pt
+            doc=Document()
+            style=doc.styles["Normal"]; style.font.name="Times New Roman"; style.font.size=Pt(12)
+            for line in self.editor.toPlainText().splitlines(): doc.add_paragraph(line)
+            doc.save(path); self.statusBar().showMessage("Экспортировано: "+path,5000)
+        except Exception as e: QMessageBox.critical(self,"Ошибка экспорта",str(e))
+    def import_templates(self):
+        paths=QFileDialog.getOpenFileNames(self,"Выберите DOCX/TXT или ZIP с шаблонами","","Шаблоны (*.docx *.txt *.zip)")
+        if not paths[0]: return
+        n=self.library.import_files(paths[0]); self.refresh_categories(); self.refresh_phrases()
+        QMessageBox.information(self,"Импорт завершён",f"Добавлено/обновлено фрагментов: {n}\nВсего фраз в библиотеке: {self.library.db.execute('SELECT COUNT(*) FROM phrases').fetchone()[0]}")
+    def refresh_categories(self):
+        self.category.setToolTip("Доступные категории: "+", ".join(self.library.categories()))
+    def refresh_phrases(self):
+        if not hasattr(self,"phrases"): return
+        cat_text=self.category.text().strip()
+        cat=next((x for x in self.library.categories() if x.lower()==cat_text.lower()),"")
+        rows=self.library.search(self.search.text().strip(),cat)
+        self.phrases.clear()
+        for phrase,count,category in rows:
+            item=QListWidgetItem(phrase); item.setToolTip(f"{category} • использований: {count}"); self.phrases.addItem(item)
+        self.phrase_count.setText(f"Найдено фраз: {len(rows)}")
+
+    def refresh_templates(self):
+        if not hasattr(self,"template_list"): return
+        rows=self.library.search_templates(self.template_search.text().strip())
+        self.template_list.clear()
+        for template_id,title,category in rows:
+            item=QListWidgetItem(title)
+            item.setData(Qt.ItemDataRole.UserRole, template_id)
+            item.setToolTip(category)
+            self.template_list.addItem(item)
+        self.template_count.setText(f"Найдено протоколов: {len(rows)}")
+
+    def insert_template(self, *_):
+        item=self.template_list.currentItem()
+        if not item: return
+        result=self.library.get_template(item.data(Qt.ItemDataRole.UserRole))
+        if result:
+            title,content=result
+            cursor=self.editor.textCursor()
+            if not self.editor.toPlainText().strip():
+                self.editor.setPlainText(content)
+            else:
+                cursor.insertText(content + "\n")
+            self.editor.setFocus()
             self.statusBar().showMessage("Вставлен протокол: " + title, 4000)
     def insert_selected(self, *_):
         item=self.phrases.currentItem()
