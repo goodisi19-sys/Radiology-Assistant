@@ -1,5 +1,5 @@
 from __future__ import annotations
-import os, sys, re, sqlite3, zipfile
+import os, sys, re, sqlite3, zipfile, gzip, json, base64
 from pathlib import Path
 from typing import Iterable
 from PySide6.QtCore import Qt, QStringListModel, QStandardPaths
@@ -7,7 +7,7 @@ from PySide6.QtGui import QAction, QFont, QTextCharFormat, QTextCursor, QTextDoc
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QPlainTextEdit, QTextEdit, QLineEdit, QListWidget, QListWidgetItem,
     QPushButton, QLabel, QFileDialog, QMessageBox, QToolBar, QFontComboBox, QSpinBox,
-    QCompleter, QInputDialog, QStatusBar)
+    QCompleter, QInputDialog, QStatusBar, QTabWidget)
 
 APP_NAME = "Radiology Assistant"
 
@@ -19,11 +19,12 @@ def app_data_dir() -> Path:
     p.mkdir(parents=True, exist_ok=True)
     return p
 
+def bundled_data_path(name: str) -> Path:
+    root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    return root / name
+
 def database_path() -> Path:
-    # Prefer a bundled library if one is shipped beside the executable.
-    base = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
-    bundled = base / "radiology_library.sqlite3"
-    return bundled if bundled.exists() else app_data_dir() / "radiology_library.sqlite3"
+    return app_data_dir() / "radiology_library.sqlite3"
 
 class PhraseLibrary:
     def __init__(self):
@@ -32,7 +33,35 @@ class PhraseLibrary:
         self.db.execute("""CREATE TABLE IF NOT EXISTS phrases(
             id INTEGER PRIMARY KEY, text TEXT UNIQUE NOT NULL, count INTEGER DEFAULT 1,
             source TEXT DEFAULT '', category TEXT DEFAULT 'Общее')""")
+        self.db.execute("""CREATE TABLE IF NOT EXISTS templates(
+            id INTEGER PRIMARY KEY, title TEXT NOT NULL, category TEXT NOT NULL,
+            content TEXT NOT NULL, source TEXT DEFAULT '')""")
         self.db.commit()
+        self.load_bundled_templates()
+
+    def load_bundled_templates(self):
+        count = self.db.execute("SELECT COUNT(*) FROM templates").fetchone()[0]
+        if count:
+            return
+        source = bundled_data_path("protocols.json.gz.b64")
+        if not source.exists():
+            return
+        try:
+            packed = base64.b64decode(source.read_text(encoding="ascii"))
+            data = json.loads(gzip.decompress(packed).decode("utf-8"))
+            for title, category, content in data:
+                self.db.execute("INSERT INTO templates(title,category,content,source) VALUES(?,?,?,?)",
+                                (title, category, content, "Встроенная библиотека МРТ"))
+                for line in content.splitlines():
+                    phrase = re.sub(r"\\s+", " ", line).strip(" •-—\\t\\r\\n")
+                    if len(phrase) >= 25 and len(phrase) <= 900:
+                        self.db.execute("""INSERT INTO phrases(text,count,source,category) VALUES(?,1,?,?)
+                            ON CONFLICT(text) DO UPDATE SET count=count+1""",
+                            (phrase, "Встроенный протокол", category))
+            self.db.commit()
+        except Exception as exc:
+            self.db.rollback()
+            raise RuntimeError("Не удалось загрузить встроенную библиотеку протоколов: " + str(exc))
 
     def search(self, query: str = "", category: str = ""):
         sql = "SELECT text, count, category FROM phrases WHERE 1=1"
@@ -45,6 +74,14 @@ class PhraseLibrary:
             args.append(category)
         sql += " ORDER BY count DESC, text COLLATE NOCASE LIMIT 500"
         return self.db.execute(sql, args).fetchall()
+
+    def search_templates(self, query: str = ""):
+        return self.db.execute("""SELECT id,title,category FROM templates
+            WHERE title LIKE ? OR content LIKE ? ORDER BY category,title LIMIT 500""",
+            ("%" + query + "%", "%" + query + "%")).fetchall()
+
+    def get_template(self, template_id: int):
+        return self.db.execute("SELECT title,content FROM templates WHERE id=?", (template_id,)).fetchone()
 
     def suggestions(self, prefix: str, limit: int = 12):
         if len(prefix.strip()) < 2:
@@ -269,6 +306,31 @@ class MainWindow(QMainWindow):
         for phrase,count,category in rows:
             item=QListWidgetItem(phrase); item.setToolTip(f"{category} • использований: {count}"); self.phrases.addItem(item)
         self.phrase_count.setText(f"Найдено фраз: {len(rows)}")
+
+    def refresh_templates(self):
+        if not hasattr(self,"template_list"): return
+        rows=self.library.search_templates(self.template_search.text().strip())
+        self.template_list.clear()
+        for template_id,title,category in rows:
+            item=QListWidgetItem(title)
+            item.setData(Qt.ItemDataRole.UserRole, template_id)
+            item.setToolTip(category)
+            self.template_list.addItem(item)
+        self.template_count.setText(f"Найдено протоколов: {len(rows)}")
+
+    def insert_template(self, *_):
+        item=self.template_list.currentItem()
+        if not item: return
+        result=self.library.get_template(item.data(Qt.ItemDataRole.UserRole))
+        if result:
+            title,content=result
+            cursor=self.editor.textCursor()
+            if not self.editor.toPlainText().strip():
+                self.editor.setPlainText(content)
+            else:
+                cursor.insertText(content + "\\n")
+            self.editor.setFocus()
+            self.statusBar().showMessage("Вставлен протокол: " + title, 4000)
     def insert_selected(self, *_):
         item=self.phrases.currentItem()
         if item:
