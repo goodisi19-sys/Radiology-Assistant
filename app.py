@@ -127,7 +127,7 @@ class PhraseLibrary:
         rows=self.db.execute("""SELECT t.id,t.category,t.content FROM templates t
             LEFT JOIN template_folders f ON f.template_id=t.id WHERE f.template_id IS NULL""").fetchall()
         for template_id,category,content in rows:
-            normalized=re.sub(r"\\s+"," ",content).strip()
+            normalized=re.sub(r"\s+"," ",content).strip()
             digest=hashlib.sha256(normalized.encode("utf-8")).hexdigest()
             self.db.execute("INSERT OR IGNORE INTO template_folders(template_id,folder_path,fingerprint) VALUES(?,?,?)",
                 (template_id,category,digest))
