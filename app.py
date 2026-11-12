@@ -7,7 +7,7 @@ from PySide6.QtGui import QAction, QFont, QTextCharFormat, QTextCursor, QTextDoc
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QPlainTextEdit, QTextEdit, QLineEdit, QListWidget, QListWidgetItem,
     QPushButton, QLabel, QFileDialog, QMessageBox, QToolBar, QFontComboBox, QSpinBox,
-    QCompleter, QInputDialog, QStatusBar, QTabWidget, QTreeWidget, QTreeWidgetItem)
+    QCompleter, QInputDialog, QStatusBar, QTabWidget, QTreeWidget, QTreeWidgetItem, QDialog
 
 APP_NAME = "Radiology Assistant"
 
@@ -306,6 +306,7 @@ class MainWindow(QMainWindow):
         lib = self.menuBar().addMenu("Библиотека")
         lib.addAction(self.action("Импорт шаблонов…","",self.import_templates))
         lib.addAction(self.action("Импорт папки с подпапками…","",self.import_folder))
+        lib.addAction(self.action("Быстрые строки протоколов","Ctrl+Shift+L",self.show_quick_lines))
         lib.addAction(self.action("Обновить список фраз","",self.refresh_phrases))
         lib.addAction(self.action("Верифицировать стандарт","Ctrl+Shift+V",self.verify_current))
         lib.addAction(self.action("Резервная копия базы","",self.backup_database))
@@ -383,6 +384,44 @@ class MainWindow(QMainWindow):
             for line in self.editor.toPlainText().splitlines(): doc.add_paragraph(line)
             doc.save(path); self.statusBar().showMessage("Экспортировано: "+path,5000)
         except Exception as e: QMessageBox.critical(self,"Ошибка экспорта",str(e))
+    def show_quick_lines(self):
+        if not hasattr(self,"quick_dialog"):
+            self.quick_dialog=QDialog(self)
+            self.quick_dialog.setWindowTitle("Строки протоколов — быстрые вставки")
+            self.quick_dialog.resize(790,620)
+            layout=QVBoxLayout(self.quick_dialog)
+            search=QLineEdit()
+            search.setPlaceholderText("Поиск по строкам...")
+            layout.addWidget(search)
+            listing=QListWidget()
+            layout.addWidget(listing)
+            source=bundled_data_path("quick_lines.json")
+            try:
+                values=json.loads(source.read_text(encoding="utf-8"))["lines"]
+            except Exception:
+                values=[]
+            def populate(q=""):
+                listing.clear()
+                for phrase in values:
+                    if q.casefold() in phrase.casefold():
+                        item=QListWidgetItem(phrase)
+                        item.setToolTip(phrase)
+                        listing.addItem(item)
+            def insert_line(*_):
+                item=listing.currentItem()
+                if item:
+                    self.editor.textCursor().insertText(item.text()+" ")
+                    self.editor.setFocus()
+            search.textChanged.connect(populate)
+            listing.itemDoubleClicked.connect(insert_line)
+            button=QPushButton("Вставить выбранную строку в описание")
+            button.clicked.connect(insert_line)
+            layout.addWidget(button)
+            populate()
+        self.quick_dialog.show()
+        self.quick_dialog.raise_()
+        self.quick_dialog.activateWindow()
+
     def import_folder(self):
         folder=QFileDialog.getExistingDirectory(self,"Выберите корневую папку протоколов")
         if not folder: return
