@@ -251,13 +251,13 @@ class PhraseLibrary:
 
     @staticmethod
     def folder_tree_path(folder, category):
-        folder=folder.replace("\\\\","/").strip("/")
+        folder=folder.replace("\\","/").strip("/")
         if not folder or folder==".":
             return category
         starts=("ГМ/","ОМТ/","Позвоночник/","Суставы/","Другие исследования/")
         if folder.startswith(starts): return folder
         if folder.casefold().startswith(("голова","мрт голова")): return "ГМ/"+folder
-        if folder.casefold().startswith(("малый таз","омт")): return "ОМТ/"+folder
+        if folder.casefold().startswith(("малый таз","омт")) or "малый таз" in folder.casefold(): return "ОМТ/"+folder
         if folder.casefold().startswith(("позвоночник","шоп","гоп","поп")): return "Позвоночник/"+folder
         if folder.casefold().startswith(("суставы","колен","плечев","тазобед","кисть","стопа","голеностоп")): return "Суставы/"+folder
         if category in ("ГМ","ОМТ","Позвоночник","Суставы") and folder != category:
