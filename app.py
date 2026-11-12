@@ -1,4 +1,5 @@
 from __future__ import annotations
+from contextlib import closing
 import difflib
 import os, sys, re, sqlite3, zipfile, json, base64, brotli, hashlib, datetime, io, xml.etree.ElementTree as ET
 from pathlib import Path
@@ -34,13 +35,13 @@ class PhraseLibrary:
         self.path = database_path()
         # Snapshot existing data before this version's metadata migration.
         if self.path.exists():
-            with sqlite3.connect(str(self.path)) as old:
+            with closing(sqlite3.connect(str(self.path))) as old:
                 migrated = old.execute("SELECT 1 FROM sqlite_master WHERE name='catalog_metadata_v2'").fetchone()
                 if not migrated:
                     folder = app_data_dir() / 'backups'
                     folder.mkdir(exist_ok=True)
                     target = folder / ('before-catalog-v2-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f') + '.sqlite3')
-                    with sqlite3.connect(str(target)) as destination: old.backup(destination)
+                    with closing(sqlite3.connect(str(target))) as destination: old.backup(destination)
         self.db = sqlite3.connect(str(self.path))
         self.db.create_function("casefold", 1, lambda value: (value or "").casefold())
         self.db.execute("""CREATE TABLE IF NOT EXISTS phrases(
@@ -100,7 +101,7 @@ class PhraseLibrary:
         folder = app_data_dir() / "backups"
         folder.mkdir(exist_ok=True)
         target = folder / ("library-" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + ".sqlite3")
-        with sqlite3.connect(str(target)) as destination: self.db.backup(destination)
+        with closing(sqlite3.connect(str(target))) as destination: self.db.backup(destination)
         return target
 
     def search(self, query: str = "", category: str = ""):
