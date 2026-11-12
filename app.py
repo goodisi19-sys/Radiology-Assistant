@@ -147,7 +147,7 @@ class PhraseLibrary:
                     with zipfile.ZipFile(io.BytesIO(blob)) as archive:
                         root=ET.fromstring(archive.read("content.xml"))
                     lines=["".join(node.itertext()).strip() for node in root.findall(".//text:p",namespace)]
-                    content="\\n".join(line for line in lines if line)
+                    content="\n".join(line for line in lines if line)
                     self.import_full_protocol(Path(title).stem,folder,content,
                         "Google Drive: "+record.get("id",""))
                 except Exception:
