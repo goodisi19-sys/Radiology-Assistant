@@ -7,7 +7,7 @@ from PySide6.QtGui import QAction, QFont, QTextCharFormat, QTextCursor, QTextDoc
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QPlainTextEdit, QTextEdit, QLineEdit, QListWidget, QListWidgetItem,
     QPushButton, QLabel, QFileDialog, QMessageBox, QToolBar, QFontComboBox, QSpinBox,
-    QCompleter, QInputDialog, QStatusBar, QTabWidget)
+    QCompleter, QInputDialog, QStatusBar, QTabWidget, QTreeWidget, QTreeWidgetItem)
 
 APP_NAME = "Radiology Assistant"
 
@@ -36,6 +36,8 @@ class PhraseLibrary:
         self.db.execute("""CREATE TABLE IF NOT EXISTS templates(
             id INTEGER PRIMARY KEY, title TEXT NOT NULL, category TEXT NOT NULL,
             content TEXT NOT NULL, source TEXT DEFAULT '')""")
+        self.db.execute("CREATE TABLE IF NOT EXISTS template_folders(template_id INTEGER PRIMARY KEY, folder_path TEXT NOT NULL, fingerprint TEXT UNIQUE)")
+        self.db.execute("CREATE INDEX IF NOT EXISTS idx_template_folder_path ON template_folders(folder_path)")
         self.db.execute("CREATE TABLE IF NOT EXISTS verified_standards(id INTEGER PRIMARY KEY, title TEXT, category TEXT, content TEXT, digest TEXT UNIQUE, uses INTEGER DEFAULT 1, verified_at TEXT)")
         self.db.commit()
         self.load_bundled_templates()
@@ -117,8 +119,24 @@ class PhraseLibrary:
             ON CONFLICT(text) DO UPDATE SET count=count+1""", (text, source, category or "Общее"))
         return True
 
+    def import_full_protocol(self, title, folder, content, source):
+        normalized = re.sub(r"\\s+", " ", content).strip()
+        if len(normalized) < 35: return False
+        fingerprint = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+        if self.db.execute("SELECT 1 FROM template_folders WHERE fingerprint=?", (fingerprint,)).fetchone():
+            return False
+        category = self.guess_category(folder + " " + title)
+        cur = self.db.execute("INSERT INTO templates(title,category,content,source) VALUES(?,?,?,?)",
+            (title,category,content,source))
+        self.db.execute("INSERT INTO template_folders(template_id,folder_path,fingerprint) VALUES(?,?,?)",
+            (cur.lastrowid,folder,fingerprint))
+        for line in content.splitlines():
+            self.add(line,source,category)
+        return True
+
     def import_files(self, paths: Iterable[str]):
         total = 0
+        full_total = 0
         for raw in paths:
             p = Path(raw)
             candidates = []
@@ -162,6 +180,12 @@ class PhraseLibrary:
                             continue
                     except Exception:
                         continue
+                source_name = str(name)
+                folder_path = str(Path(name).parent) if not isinstance(item, tuple) else str(Path(name).parent)
+                if p.is_dir() and not isinstance(item, tuple):
+                    folder_path = str(Path(name).parent.relative_to(p))
+                if self.import_full_protocol(Path(name).stem, folder_path, content, source_name):
+                    full_total += 1
                 category = self.guess_category(name + " " + content[:1000])
                 for line in content.splitlines():
                     line = re.sub(r"^\s*(?:[•●▪◦\-–—]+|\d+[.)])\s*", "", line).strip()
@@ -172,7 +196,7 @@ class PhraseLibrary:
                         if self.add(phrase, str(name), category):
                             total += 1
         self.db.commit()
-        return total
+        return total, full_total
 
     @staticmethod
     def guess_category(text: str):
@@ -240,7 +264,7 @@ class MainWindow(QMainWindow):
         template_tab = QWidget(); template_l = QVBoxLayout(template_tab)
         self.template_search = QLineEdit(); self.template_search.setPlaceholderText("Поиск по готовым протоколам…")
         self.template_search.textChanged.connect(self.refresh_templates); template_l.addWidget(self.template_search)
-        self.template_list = QListWidget(); self.template_list.itemDoubleClicked.connect(self.insert_template)
+        self.template_list = QTreeWidget(); self.template_list.setHeaderHidden(True); self.template_list.itemDoubleClicked.connect(self.insert_template)
         template_l.addWidget(self.template_list, 1)
         insert_template_btn = QPushButton("Вставить протокол целиком")
         insert_template_btn.clicked.connect(self.insert_template); template_l.addWidget(insert_template_btn)
@@ -361,7 +385,7 @@ class MainWindow(QMainWindow):
     def import_templates(self):
         paths=QFileDialog.getOpenFileNames(self,"Выберите DOCX/TXT или ZIP с шаблонами","","Шаблоны (*.docx *.txt *.zip)")
         if not paths[0]: return
-        n=self.library.import_files(paths[0]); self.refresh_categories(); self.refresh_phrases()
+        n, full=self.library.import_files(paths[0]); self.refresh_categories(); self.refresh_phrases(); self.refresh_templates()
         QMessageBox.information(self,"Импорт завершён",f"Добавлено/обновлено фрагментов: {n}\nВсего фраз в библиотеке: {self.library.db.execute('SELECT COUNT(*) FROM phrases').fetchone()[0]}")
     def refresh_categories(self):
         self.category.setToolTip("Доступные категории: "+", ".join(self.library.categories()))
@@ -377,28 +401,45 @@ class MainWindow(QMainWindow):
 
     def refresh_templates(self):
         if not hasattr(self,"template_list"): return
-        rows=self.library.search_templates(self.template_search.text().strip())
+        query=self.template_search.text().strip()
+        rows=self.library.db.execute("""SELECT t.id,t.title,t.category,
+            COALESCE(f.folder_path,t.category) FROM templates t
+            LEFT JOIN template_folders f ON f.template_id=t.id
+            WHERE t.title LIKE ? OR t.content LIKE ?
+            ORDER BY 4,t.title LIMIT 10000""", ("%"+query+"%","%"+query+"%")).fetchall()
         self.template_list.clear()
-        for template_id,title,category in rows:
-            item=QListWidgetItem(title)
-            item.setData(Qt.ItemDataRole.UserRole, template_id)
-            item.setToolTip(category)
-            self.template_list.addItem(item)
+        nodes={}
+        for template_id,title,category,path in rows:
+            parts=[p for p in re.split(r"[/\\\\]+",path) if p and p!="."]
+            if not parts: parts=[category]
+            parent=self.template_list
+            key=""
+            for part in parts:
+                key += "/" + part
+                if key not in nodes:
+                    nodes[key]=QTreeWidgetItem(parent,[part])
+                parent=nodes[key]
+            item=QTreeWidgetItem(parent,[title])
+            item.setData(0,Qt.ItemDataRole.UserRole,template_id)
+            item.setToolTip(0,category)
         self.template_count.setText(f"Найдено протоколов: {len(rows)}")
+        if query: self.template_list.expandAll()
 
     def insert_template(self, *_):
         item=self.template_list.currentItem()
         if not item: return
-        result=self.library.get_template(item.data(Qt.ItemDataRole.UserRole))
+        template_id=item.data(0,Qt.ItemDataRole.UserRole)
+        if template_id is None: return
+        result=self.library.get_template(template_id)
         if result:
             title,content=result
             cursor=self.editor.textCursor()
             if not self.editor.toPlainText().strip():
                 self.editor.setPlainText(content)
             else:
-                cursor.insertText(content + "\n")
+                cursor.insertText(content + "\\n")
             self.editor.setFocus()
-            self.statusBar().showMessage("Вставлен протокол: " + title, 4000)
+            self.statusBar().showMessage("Вставлен протокол: " + title,4000)
     def insert_selected(self, *_):
         item=self.phrases.currentItem()
         if item:
