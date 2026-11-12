@@ -235,14 +235,31 @@ class PhraseLibrary:
 
     @staticmethod
     def guess_category(text: str):
-        t = text.lower()
-        terms = [("Головной мозг", ["головн", "brain", "мозг"]), ("Позвоночник", ["позвон", "диск", "спинн"]), 
-          ("Коленный сустав", ["коленн", "knee"]), ("Плечевой сустав", ["плечев", "shoulder"]),
-          ("Таз и малый таз", ["малого таза", "тазобед", "простата", "матк"]), ("Брюшная полость", ["брюшн", "печен", "поджелуд", "abdomen"]),
-          ("Стопа и голеностоп", ["стоп", "голеностоп", "ankle"]), ("Прочее", ["сустав", "мрт"])]
-        for cat, keys in terms:
-            if any(k in t for k in keys): return cat
-        return "Общее"
+        t = text.casefold()
+        if any(k in t for k in ("голова м","головн","гм+","гм,","мозг","гипофиз","мра","орбит")):
+            return "ГМ"
+        if any(k in t for k in ("малый таз","малого таза","омт","матк","яичник","простата","предстател","pi-rads")):
+            return "ОМТ"
+        if any(k in t for k in ("суставы м","колен","плечев","тазобед","голеностоп","локтев","кисть","стопа","мениск","связк")):
+            return "Суставы"
+        if any(k in t for k in ("позвоночник","позвон","шоп","гоп","поп","спинн","диск l","диск th")):
+            return "Позвоночник"
+        return "Другие исследования"
+
+    @staticmethod
+    def folder_tree_path(folder, category):
+        folder=folder.replace("\\\\","/").strip("/")
+        if not folder or folder==".":
+            return category
+        starts=("ГМ/","ОМТ/","Позвоночник/","Суставы/","Другие исследования/")
+        if folder.startswith(starts): return folder
+        if folder.casefold().startswith(("голова","мрт голова")): return "ГМ/"+folder
+        if folder.casefold().startswith(("малый таз","омт")): return "ОМТ/"+folder
+        if folder.casefold().startswith(("позвоночник","шоп","гоп","поп")): return "Позвоночник/"+folder
+        if folder.casefold().startswith(("суставы","колен","плечев","тазобед","кисть","стопа","голеностоп")): return "Суставы/"+folder
+        if category in ("ГМ","ОМТ","Позвоночник","Суставы") and folder != category:
+            return category+"/"+folder
+        return "Другие исследования/"+folder
 
     def categories(self):
         return ["Все категории"] + [r[0] for r in self.db.execute(
@@ -495,6 +512,7 @@ class MainWindow(QMainWindow):
         self.template_list.clear()
         nodes={}
         for template_id,title,category,path in rows:
+            path=self.library.folder_tree_path(path,category)
             parts=[p for p in re.split(r"[/\\\\]+",path) if p and p!="."]
             if not parts: parts=[category]
             parent=self.template_list
