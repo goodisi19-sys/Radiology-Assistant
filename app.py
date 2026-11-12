@@ -412,6 +412,7 @@ class MainWindow(QMainWindow):
         self.editor.setTextCursor(cursor)
 
     def update_suggestions(self):
+        if not hasattr(self,"completer"): return
         cursor = self.editor.textCursor()
         before = cursor.block().text()[:cursor.positionInBlock()]
         match = re.search(r"([^\\s]{2,})$", before)
