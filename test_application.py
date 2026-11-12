@@ -88,6 +88,51 @@ class ApplicationTests(unittest.TestCase):
         with patch.object(QMessageBox, 'question', return_value=QMessageBox.StandardButton.Save), patch.object(self.window, 'save_file', return_value=False):
             self.window.new_file()
         self.assertEqual(self.window.editor.toPlainText(), 'Несохраненный протокол')
+    def test_selected_quick_line_persists_and_deduplicates(self):
+        text = 'Личная строка: очаг 3.5 мм, T2 FLAIR.'
+        self.window.editor.setPlainText(text)
+        cursor = self.window.editor.textCursor()
+        cursor.select(QTextCursor.SelectionType.Document)
+        self.window.editor.setTextCursor(cursor)
+        count = len(self.window.library.quick_lines())
+        self.window.add_selection_to_quick_lines()
+        self.window.add_selection_to_quick_lines()
+        self.assertEqual(len(self.window.library.quick_lines()), count + 1)
+        self.assertEqual(self.window.editor.toPlainText(), text)
+        self.window.library.db.close(); self.window.library = app.PhraseLibrary()
+        self.assertIn(text, self.window.library.quick_lines('ЛИЧНАЯ'))
+        self.window.show_quick_lines()
+        self.assertEqual(self.window.quick_listing.item(0).text(), text)
+
+    def test_expert_preview_apply_and_undo(self):
+        self.window.editor.setPlainText('Контуры ровные. Размер 3 мм.')
+        cursor = self.window.editor.textCursor()
+        cursor.setPosition(0); cursor.setPosition(15, QTextCursor.MoveMode.KeepAnchor)
+        self.window.editor.setTextCursor(cursor)
+        self.window.show_expert()
+        dialog = self.window.expert_dialog
+        self.assertEqual(dialog.source_text, 'Контуры ровные.')
+        dialog.receive_result('Ровные контуры.')
+        self.assertEqual(self.window.editor.toPlainText(), 'Контуры ровные. Размер 3 мм.')
+        dialog.apply_variant()
+        self.assertEqual(self.window.editor.toPlainText(), 'Ровные контуры. Размер 3 мм.')
+        self.window.editor.undo()
+        self.assertEqual(self.window.editor.toPlainText(), 'Контуры ровные. Размер 3 мм.')
+        dialog.close()
+
+    def test_expert_blocks_changed_values_and_stale_document(self):
+        self.window.editor.setPlainText('Очаг 3 мм.')
+        self.window.show_expert()
+        dialog = self.window.expert_dialog
+        dialog.receive_result('Очаг 4 мм.')
+        self.assertFalse(dialog.apply.isEnabled())
+        dialog.receive_result('Размер очага 3 мм.')
+        self.window.editor.insertPlainText('Изменено.')
+        before = self.window.editor.toPlainText()
+        dialog.apply_variant()
+        self.assertEqual(self.window.editor.toPlainText(), before)
+        dialog.close()
+
     def test_formatting_keeps_paragraphs(self):
         self.window.editor.setPlainText("описание\n\nзаключение")
         self.window.format_all_text()

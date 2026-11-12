@@ -53,6 +53,10 @@ class PhraseLibrary:
         self.db.execute("CREATE TABLE IF NOT EXISTS template_folders(template_id INTEGER PRIMARY KEY, folder_path TEXT NOT NULL, fingerprint TEXT UNIQUE)")
         self.db.execute("CREATE INDEX IF NOT EXISTS idx_template_folder_path ON template_folders(folder_path)")
         self.db.execute("CREATE TABLE IF NOT EXISTS verified_standards(id INTEGER PRIMARY KEY, title TEXT, category TEXT, content TEXT, digest TEXT UNIQUE, uses INTEGER DEFAULT 1, verified_at TEXT)")
+        self.db.execute("CREATE TABLE IF NOT EXISTS quick_lines(id INTEGER PRIMARY KEY, text TEXT UNIQUE NOT NULL)")
+        self.db.execute("CREATE TABLE IF NOT EXISTS app_settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        for text in json.loads(bundled_data_path('quick_lines.json').read_text(encoding='utf-8'))['lines']:
+            self.db.execute("INSERT OR IGNORE INTO quick_lines(text) VALUES(?)", (text,))
         self.db.commit()
         self.load_bundled_templates()
         self.index_existing_templates()
@@ -60,6 +64,26 @@ class PhraseLibrary:
         self.load_drive_odt_protocols()
         self.normalize_categories()
         self.db.execute("CREATE TABLE IF NOT EXISTS catalog_metadata_v2(version INTEGER)")
+        self.db.commit()
+
+    def quick_lines(self, query=''):
+        return [row[0] for row in self.db.execute(
+            "SELECT text FROM quick_lines WHERE instr(casefold(text),?)>0 ORDER BY id DESC", (query.casefold(),))]
+
+    def add_quick_line(self, text):
+        text = text.strip()
+        if not text: return False
+        if len(text) > 12000: raise ValueError('Выберите строку или фрагмент до 12 000 символов.')
+        result = self.db.execute("INSERT OR IGNORE INTO quick_lines(text) VALUES(?)", (text,))
+        self.db.commit()
+        return result.rowcount > 0
+
+    def get_setting(self, key):
+        row = self.db.execute("SELECT value FROM app_settings WHERE key=?", (key,)).fetchone()
+        return row[0] if row else ''
+
+    def set_setting(self, key, value):
+        self.db.execute("INSERT INTO app_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
         self.db.commit()
 
     def load_bundled_templates(self):
@@ -346,7 +370,6 @@ class MainWindow(QMainWindow):
         self.resize(1400, 900)
         self.setMinimumSize(980, 650)
         self.build_ui()
-        self.refresh_categories()
         self.refresh_phrases()
         self.refresh_templates()
         self.autosave_timer=QTimer(self)
@@ -363,6 +386,8 @@ class MainWindow(QMainWindow):
         self.editor.textChanged.connect(self.update_status)
         self.editor.textChanged.connect(self.update_suggestions)
         self.editor.installEventFilter(self)
+        self.editor.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.editor.customContextMenuRequested.connect(self.show_editor_menu)
         self.completer=QCompleter(self.editor)
         self.completion_model = QStringListModel(self.completer)
         self.completer.setModel(self.completion_model)
@@ -376,15 +401,13 @@ class MainWindow(QMainWindow):
         side = QWidget(); side_l = QVBoxLayout(side); side_l.setContentsMargins(10,10,10,10)
         tabs = QTabWidget()
         phrase_tab = QWidget(); phrase_l = QVBoxLayout(phrase_tab)
-        self.search = QLineEdit(); self.search.setPlaceholderText("Поиск по фразам…")
+        self.search = QLineEdit(); self.search.setPlaceholderText("Поиск по быстрым строкам…")
         self.search.textChanged.connect(self.refresh_phrases); phrase_l.addWidget(self.search)
-        self.category = QLineEdit(); self.category.setPlaceholderText("Фильтр: категория")
-        self.category.textChanged.connect(self.refresh_phrases); phrase_l.addWidget(self.category)
-        self.phrases = QListWidget(); self.phrases.itemDoubleClicked.connect(self.insert_selected)
+        self.phrases = QListWidget(); self.phrases.setWordWrap(True); self.phrases.itemDoubleClicked.connect(self.insert_selected)
         phrase_l.addWidget(self.phrases, 1)
-        add = QPushButton("Вставить фразу"); add.clicked.connect(self.insert_selected)
+        add = QPushButton("Вставить быструю строку"); add.clicked.connect(self.insert_selected)
         phrase_l.addWidget(add)
-        self.phrase_count = QLabel("Фраз: 0"); phrase_l.addWidget(self.phrase_count)
+        self.phrase_count = QLabel("Быстрых строк: 0"); phrase_l.addWidget(self.phrase_count)
         template_tab = QWidget(); template_l = QVBoxLayout(template_tab)
         self.template_search = QLineEdit(); self.template_search.setPlaceholderText("Поиск по готовым протоколам…")
         self.template_search.textChanged.connect(self.refresh_templates); template_l.addWidget(self.template_search)
@@ -393,7 +416,7 @@ class MainWindow(QMainWindow):
         insert_template_btn = QPushButton("Вставить протокол целиком")
         insert_template_btn.clicked.connect(self.insert_template); template_l.addWidget(insert_template_btn)
         self.template_count = QLabel("Протоколов: 0"); template_l.addWidget(self.template_count)
-        tabs.addTab(phrase_tab, "Фразы")
+        tabs.addTab(phrase_tab, "Быстрые строки протоколов")
         tabs.addTab(template_tab, "Протоколы")
         side_l.addWidget(tabs, 1)
         splitter.addWidget(side); splitter.setStretchFactor(0, 4); splitter.setStretchFactor(1, 2)
@@ -446,9 +469,10 @@ class MainWindow(QMainWindow):
         lib.addAction(self.action("Импорт шаблонов…","",self.import_templates))
         lib.addAction(self.action("Импорт папки с подпапками…","",self.import_folder))
         lib.addAction(self.action("Быстрые строки протоколов","Ctrl+Shift+L",self.show_quick_lines))
-        lib.addAction(self.action("Обновить список фраз","",self.refresh_phrases))
+        lib.addAction(self.action("Добавить выделенное в быстрые строки","Ctrl+Alt+L",self.add_selection_to_quick_lines))
         lib.addAction(self.action("Верифицировать стандарт","Ctrl+Shift+V",self.verify_current))
         lib.addAction(self.action("Резервная копия базы","",self.backup_database))
+        bar.addAction(self.action("Рентгенолог — экспертный помощник", "Ctrl+Alt+E", self.show_expert))
         bar.addAction(self.action("Оформить текст","Ctrl+Shift+F",self.format_all_text))
         edit = self.menuBar().addMenu("Правка")
         edit.addAction(self.action("Оформить предложения","Ctrl+Shift+F",self.format_all_text))
@@ -492,6 +516,10 @@ class MainWindow(QMainWindow):
         return answer == QMessageBox.StandardButton.Discard
 
     def closeEvent(self, event):
+        if hasattr(self, "expert_dialog") and self.expert_dialog.is_busy():
+            self.expert_dialog.raise_()
+            event.ignore()
+            return
         if self.confirm_discard():
             self.library.db.close()
             event.accept()
@@ -540,42 +568,66 @@ class MainWindow(QMainWindow):
             self.export_to_path(path)
             self.statusBar().showMessage("Экспортировано: "+path,5000)
         except Exception as e: QMessageBox.critical(self,"Ошибка экспорта",str(e))
+    def show_editor_menu(self, position):
+        menu = self.editor.createStandardContextMenu()
+        menu.addSeparator()
+        action = menu.addAction('Добавить в быстрые строки протоколов')
+        action.setEnabled(self.editor.textCursor().hasSelection())
+        action.triggered.connect(self.add_selection_to_quick_lines)
+        expert = menu.addAction('Рентгенолог — экспертный помощник')
+        expert.setEnabled(bool(self.editor.toPlainText().strip()))
+        expert.triggered.connect(self.show_expert)
+        menu.exec(self.editor.mapToGlobal(position))
+        menu.deleteLater()
+
+    def add_selection_to_quick_lines(self):
+        text = self.editor.textCursor().selectedText().replace('\u2029', '\n')
+        if not text.strip(): return
+        try:
+            added = self.library.add_quick_line(text)
+            self.refresh_phrases()
+            if hasattr(self, 'quick_listing'): self.populate_quick_dialog()
+            self.statusBar().showMessage('Строка добавлена в быстрые строки.' if added else 'Эта строка уже есть в списке.', 5000)
+        except Exception as exc: QMessageBox.warning(self, 'Быстрые строки', str(exc))
+
+    def show_expert(self):
+        from expert_dialog import ExpertDialog
+        if hasattr(self, 'expert_dialog') and self.expert_dialog.is_busy():
+            self.expert_dialog.show(); self.expert_dialog.raise_(); return
+        if hasattr(self, 'expert_dialog'): self.expert_dialog.close(); self.expert_dialog.deleteLater()
+        self.expert_dialog = ExpertDialog(self)
+        self.expert_dialog.show()
+
+    def populate_quick_dialog(self):
+        self.quick_listing.clear()
+        for text in self.library.quick_lines(self.quick_search.text()):
+            item = QListWidgetItem(text)
+            item.setToolTip(text)
+            self.quick_listing.addItem(item)
+
     def show_quick_lines(self):
-        if not hasattr(self,"quick_dialog"):
-            self.quick_dialog=QDialog(self)
-            self.quick_dialog.setWindowTitle("Строки протоколов — быстрые вставки")
-            self.quick_dialog.resize(790,620)
-            layout=QVBoxLayout(self.quick_dialog)
-            search=QLineEdit()
-            search.setPlaceholderText("Поиск по строкам...")
-            layout.addWidget(search)
-            listing=QListWidget()
-            listing.setWordWrap(True)
-            listing.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-            layout.addWidget(listing)
-            source=bundled_data_path("quick_lines.json")
-            try:
-                values=json.loads(source.read_text(encoding="utf-8"))["lines"]
-            except Exception:
-                values=[]
-            def populate(q=""):
-                listing.clear()
-                for phrase in values:
-                    if q.casefold() in phrase.casefold():
-                        item=QListWidgetItem(phrase)
-                        item.setToolTip(phrase)
-                        listing.addItem(item)
+        if not hasattr(self, 'quick_dialog'):
+            self.quick_dialog = QDialog(self)
+            self.quick_dialog.setWindowTitle('Быстрые строки протоколов')
+            self.quick_dialog.resize(790, 620)
+            layout = QVBoxLayout(self.quick_dialog)
+            self.quick_search = QLineEdit()
+            self.quick_search.setPlaceholderText('Поиск по быстрым строкам…')
+            layout.addWidget(self.quick_search)
+            self.quick_listing = QListWidget()
+            self.quick_listing.setWordWrap(True)
+            layout.addWidget(self.quick_listing)
             def insert_line(*_):
-                item=listing.currentItem()
+                item = self.quick_listing.currentItem()
                 if item:
-                    self.editor.textCursor().insertText(format_report(item.text())+" ")
+                    self.editor.textCursor().insertText(format_report(item.text()) + ' ')
                     self.editor.setFocus()
-            search.textChanged.connect(populate)
-            listing.itemDoubleClicked.connect(insert_line)
-            button=QPushButton("Вставить выбранную строку в описание")
+            self.quick_search.textChanged.connect(self.populate_quick_dialog)
+            self.quick_listing.itemDoubleClicked.connect(insert_line)
+            button = QPushButton('Вставить выбранную строку')
             button.clicked.connect(insert_line)
             layout.addWidget(button)
-            populate()
+        self.populate_quick_dialog()
         self.quick_dialog.show()
         self.quick_dialog.raise_()
         self.quick_dialog.activateWindow()
@@ -585,7 +637,7 @@ class MainWindow(QMainWindow):
         if not folder: return
         try:
             fragments,full=self.library.import_files([folder])
-            self.refresh_categories(); self.refresh_phrases(); self.refresh_templates()
+            self.refresh_phrases(); self.refresh_templates()
             QMessageBox.information(self,"Импорт",f"Новых полных протоколов: {full}\nФрагментов: {fragments}")
         except Exception as exc:
             QMessageBox.critical(self,"Ошибка импорта",str(exc))
@@ -593,19 +645,17 @@ class MainWindow(QMainWindow):
     def import_templates(self):
         paths=QFileDialog.getOpenFileNames(self,"Выберите DOCX/TXT или ZIP с шаблонами","","Шаблоны (*.docx *.txt *.zip)")
         if not paths[0]: return
-        n, full=self.library.import_files(paths[0]); self.refresh_categories(); self.refresh_phrases(); self.refresh_templates()
+        n, full=self.library.import_files(paths[0]); self.refresh_phrases(); self.refresh_templates()
         QMessageBox.information(self,"Импорт завершён",f"Добавлено/обновлено фрагментов: {n}\nВсего фраз в библиотеке: {self.library.db.execute('SELECT COUNT(*) FROM phrases').fetchone()[0]}")
-    def refresh_categories(self):
-        self.category.setToolTip("Доступные категории: "+", ".join(self.library.categories()))
     def refresh_phrases(self):
-        if not hasattr(self,"phrases"): return
-        cat_text=self.category.text().strip()
-        cat=next((x for x in self.library.categories() if x.lower()==cat_text.lower()),"")
-        rows=self.library.search(self.search.text().strip(),cat)
+        if not hasattr(self, 'phrases'): return
         self.phrases.clear()
-        for phrase,count,category in rows:
-            item=QListWidgetItem(phrase); item.setToolTip(f"{category} • использований: {count}"); self.phrases.addItem(item)
-        self.phrase_count.setText(f"Найдено фраз: {len(rows)}")
+        rows = self.library.quick_lines(self.search.text().strip())
+        for text in rows:
+            item = QListWidgetItem(text)
+            item.setToolTip(text)
+            self.phrases.addItem(item)
+        self.phrase_count.setText(f'Быстрых строк: {len(rows)}')
 
     def refresh_templates(self):
         if not hasattr(self,"template_list"): return
@@ -705,7 +755,7 @@ class MainWindow(QMainWindow):
         item=self.phrases.currentItem()
         if item:
             phrase=item.text(); self.editor.textCursor().insertText(format_report(phrase)+" ")
-            self.library.used(phrase); self.refresh_phrases(); self.editor.setFocus()
+            self.editor.setFocus()
     def accept_completion(self, phrase):
         cursor = self.editor.textCursor()
         prefix = self.completer.completionPrefix()

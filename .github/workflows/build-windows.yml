@@ -67,11 +67,24 @@ jobs:
           if (!$process.WaitForExit(120000)) { $process.Kill(); throw "EXE smoke test timed out" }
           if ($process.ExitCode -ne 0 -or !(Test-Path $result)) { throw "EXE smoke test failed" }
           Get-Content $result
+      - name: Prepare portable local AI engine (CPU, no installer)
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/ggml-org/llama.cpp/releases/download/b12322/llama-b12322-bin-win-cpu-x64.zip" -OutFile llama-cpu.zip
+          $hash = (Get-FileHash llama-cpu.zip -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne "35b6b69e69ae1a313768feb70bc1c4504bf070f7015704aaa88543812bcc5dd2") { throw "llama.cpp checksum mismatch" }
+          Expand-Archive llama-cpu.zip local-ai
+          $server = Get-ChildItem local-ai -Filter llama-server.exe -Recurse | Select-Object -First 1
+          & $server.FullName --version
+          if ($LASTEXITCODE -ne 0) { throw "CPU engine failed to start" }
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ggml-org/llama.cpp/b12322/LICENSE" -OutFile local-ai/LICENSE-llama.cpp.txt
       - name: Package
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path package | Out-Null
           Copy-Item dist/RadiologyAssistant.exe package/
+          Copy-Item local-ai package/local-ai -Recurse
+          Copy-Item LOCAL_AI.md package/
           @"
           Radiology Assistant
           Запустите RadiologyAssistant.exe.

@@ -31,6 +31,14 @@ def run(result_path):
         target = Path(tmp) / 'smoke.docx'
         window.export_to_path(target)
         assert read_docx(target) == text
+        cursor = window.editor.textCursor()
+        cursor.select(cursor.SelectionType.Document)
+        window.editor.setTextCursor(cursor)
+        window.add_selection_to_quick_lines()
+        assert text in window.library.quick_lines()
+        window.show_expert()
+        assert window.expert_dialog.source_text == text
+        window.expert_dialog.close()
         window.editor.document().setModified(False)
         window.close()
-        Path(result_path).write_text(json.dumps({'protocols': visible, 'docx': 'ok', 'quick_lines': 'ok'}), encoding='utf-8')
+        Path(result_path).write_text(json.dumps({'protocols': visible, 'docx': 'ok', 'quick_lines': 'ok', 'expert_dialog': 'ok'}), encoding='utf-8')
