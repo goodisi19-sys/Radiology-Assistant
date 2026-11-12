@@ -120,7 +120,7 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual(self.window.editor.toPlainText(), 'Контуры ровные. Размер 3 мм.')
         dialog.close()
 
-    def test_expert_blocks_changed_values_and_stale_document(self):
+    def test_expert_warns_about_values_and_blocks_stale_document(self):
         self.window.editor.setPlainText('Очаг 3 мм.')
         self.window.show_expert()
         dialog = self.window.expert_dialog
@@ -131,6 +131,28 @@ class ApplicationTests(unittest.TestCase):
         before = self.window.editor.toPlainText()
         dialog.apply_variant()
         self.assertEqual(self.window.editor.toPlainText(), before)
+        dialog.close()
+
+    def test_expert_review_can_apply_and_full_scope(self):
+        self.window.editor.setPlainText('Очаг 3 мм.\nЗаключение: очаг.')
+        cursor = self.window.editor.textCursor()
+        cursor.setPosition(0); cursor.setPosition(10, QTextCursor.MoveMode.KeepAnchor)
+        self.window.editor.setTextCursor(cursor)
+        self.window.show_expert()
+        dialog = self.window.expert_dialog
+        self.assertFalse(dialog.whole_document.isChecked())
+        dialog.whole_document.setChecked(True)
+        self.assertEqual(dialog.source_text, self.window.editor.toPlainText())
+        proposed = 'Описание: очаг 3 мм.\nЗаключение: очаг 3 мм.'
+        dialog.receive_result(proposed)
+        # Repeating the size in the conclusion is a legitimate structural rewrite.
+        self.assertFalse(dialog.apply.isEnabled())
+        dialog.review_confirm.setChecked(True)
+        self.assertTrue(dialog.apply.isEnabled())
+        dialog.apply_variant()
+        self.assertEqual(self.window.editor.toPlainText(), proposed)
+        self.window.editor.undo()
+        self.assertEqual(self.window.editor.toPlainText(), 'Очаг 3 мм.\nЗаключение: очаг.')
         dialog.close()
 
     def test_formatting_keeps_paragraphs(self):

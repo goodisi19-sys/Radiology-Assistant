@@ -26,11 +26,15 @@ class ExpertTests(unittest.TestCase):
             context = Mock(); context.__enter__ = Mock(return_value=health); context.__exit__ = Mock(return_value=False)
             opener = Mock(); opener.open.side_effect = [context, io.BytesIO(json.dumps({'choices':[{'message':{'content':'Новый вариант.'}, 'finish_reason':'stop'}]}).encode())]
             with patch.object(expert.subprocess, 'Popen', return_value=process) as popen, patch.object(expert.urllib.request, 'build_opener', return_value=opener):
-                self.assertEqual(expert.generate_variant(server, model, 'Исходник.'), 'Новый вариант.')
+                self.assertEqual(expert.generate_variant(server, model, 'Исходник.', 'Перепиши весь протокол профессионально.'), 'Новый вариант.')
             args = popen.call_args.args[0]
             self.assertIn('127.0.0.1', args)
             self.assertIn('0', args[args.index('-ngl')+1])
             request = opener.open.call_args.args[0]
             self.assertTrue(request.full_url.startswith('http://127.0.0.1:'))
+            payload = json.loads(request.data)
+            self.assertIn('Перепиши весь протокол профессионально.', payload['messages'][1]['content'])
+            self.assertIn('Исходник.', payload['messages'][1]['content'])
+            self.assertEqual(payload['max_tokens'], 4096)
             process.terminate.assert_called_once()
             process.wait.assert_called_once()
