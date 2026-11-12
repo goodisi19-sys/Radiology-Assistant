@@ -1,5 +1,5 @@
 from __future__ import annotations
-import os, sys, re, sqlite3, zipfile, gzip, json, base64
+import os, sys, re, sqlite3, zipfile, json, base64, brotli
 from pathlib import Path
 from typing import Iterable
 from PySide6.QtCore import Qt, QStringListModel, QStandardPaths
@@ -48,7 +48,7 @@ class PhraseLibrary:
             return
         try:
             packed = base64.b64decode(source.read_text(encoding="ascii"))
-            data = json.loads(gzip.decompress(packed).decode("utf-8"))
+            data = json.loads(brotli.decompress(packed).decode("utf-8"))
             for title, category, content in data:
                 self.db.execute("INSERT INTO templates(title,category,content,source) VALUES(?,?,?,?)",
                                 (title, category, content, "Встроенная библиотека МРТ"))
