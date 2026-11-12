@@ -22,9 +22,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+      - name: Assemble bundled MRI protocols
+        shell: pwsh
+        run: |
+          $parts = Get-ChildItem protocols.json.br.b64.part* | Sort-Object Name
+          $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ''
+          Set-Content protocols.json.br.b64 $encoded -NoNewline
       - name: Build portable executable
         run: |
-          pyinstaller --noconfirm --clean --onefile --windowed --name RadiologyAssistant app.py
+          pyinstaller --noconfirm --clean --onefile --windowed --add-data "protocols.json.br.b64;." --name RadiologyAssistant app.py
       - name: Package
         shell: pwsh
         run: |
@@ -33,7 +39,7 @@ jobs:
           @"
           Radiology Assistant
           Запустите RadiologyAssistant.exe.
-          База фраз создаётся локально при первом запуске.
+          Библиотека МРТ с протоколами и фразами загружается локально при первом запуске.
           Для импорта используйте меню Библиотека → Импорт шаблонов.
           "@ | Set-Content package/ИНСТРУКЦИЯ.txt -Encoding UTF8
           Compress-Archive -Path package/* -DestinationPath RadiologyAssistant-Windows.zip
