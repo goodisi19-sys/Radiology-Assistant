@@ -158,9 +158,9 @@ class PhraseLibrary:
     @staticmethod
     def guess_category(text: str):
         t = text.lower()
-        terms = [("Головной мозг", ["головн", "brain", "мозг"]), ("Позвоночник", ["позвон", "диск", "спинн"]), 
+        terms = [("ГМ", ["головн", "brain", "мозг", "гм"]), ("Позвоночник", ["позвон", "диск", "спинн"]), 
           ("Коленный сустав", ["коленн", "knee"]), ("Плечевой сустав", ["плечев", "shoulder"]),
-          ("Таз и малый таз", ["малого таза", "тазобед", "простата", "матк"]), ("Брюшная полость", ["брюшн", "печен", "поджелуд", "abdomen"]),
+          ("ОМТ", ["малого таза", "омт", "простата", "матк", "яичник"]), ("Брюшная полость", ["брюшн", "печен", "поджелуд", "abdomen"]),
           ("Стопа и голеностоп", ["стоп", "голеностоп", "ankle"]), ("Прочее", ["сустав", "мрт"])]
         for cat, keys in terms:
             if any(k in t for k in keys): return cat
@@ -196,6 +196,11 @@ class MainWindow(QMainWindow):
         self.editor.setPlaceholderText("Начните составлять протокол МРТ…")
         self.editor.textChanged.connect(self.update_status)
         self.editor.textChanged.connect(self.update_suggestions)
+        self.completer = QCompleter(self.editor)
+        self.completer.setWidget(self.editor)
+        self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self.completer.activated.connect(self.accept_completion)
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self.editor)
         side = QWidget(); side_l = QVBoxLayout(side); side_l.setContentsMargins(10,10,10,10)
@@ -304,13 +309,31 @@ class MainWindow(QMainWindow):
         if item:
             phrase=item.text(); self.editor.textCursor().insertText(phrase+" ")
             self.library.used(phrase); self.refresh_phrases(); self.editor.setFocus()
+    def accept_completion(self, phrase):
+        cursor = self.editor.textCursor()
+        prefix = self.completer.completionPrefix()
+        if prefix and phrase.lower().startswith(prefix.lower()):
+            cursor.insertText(phrase[len(prefix):] + " ")
+        self.editor.setTextCursor(cursor)
+
     def update_suggestions(self):
-        text=self.editor.toPlainText()
-        token=re.search(r"([^\s\n]{2,})$",text)
-        if not token: return
-        matches=self.library.suggestions(token.group(1))
-        if matches and matches[0].lower()!=token.group(1).lower():
-            self.statusBar().showMessage("Подсказки: "+"  |  ".join(matches[:3]),2500)
+        cursor = self.editor.textCursor()
+        before = cursor.block().text()[:cursor.positionInBlock()]
+        match = re.search(r"([^\\s]{2,})$", before)
+        if not match:
+            self.completer.popup().hide()
+            return
+        prefix = match.group(1)
+        matches = self.library.suggestions(prefix, 20)
+        if not matches:
+            self.completer.popup().hide()
+            return
+        self.completer.setModel(QStringListModel(matches, self.completer))
+        self.completer.setCompletionPrefix(prefix)
+        rect = self.editor.cursorRect()
+        rect.setWidth(max(350, self.completer.popup().sizeHintForColumn(0) + 30))
+        self.completer.complete(rect)
+
     def find_text(self):
         q,ok=QInputDialog.getText(self,"Найти","Текст:")
         if ok and q and not self.editor.find(q):
