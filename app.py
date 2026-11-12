@@ -339,7 +339,7 @@ class MainWindow(QMainWindow):
             if not self.editor.toPlainText().strip():
                 self.editor.setPlainText(content)
             else:
-                cursor.insertText(content + "\\n")
+                cursor.insertText(content + "\n")
             self.editor.setFocus()
             self.statusBar().showMessage("Вставлен протокол: " + title, 4000)
     def insert_selected(self, *_):
