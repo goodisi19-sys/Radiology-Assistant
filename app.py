@@ -41,6 +41,7 @@ class PhraseLibrary:
         self.db.execute("CREATE TABLE IF NOT EXISTS verified_standards(id INTEGER PRIMARY KEY, title TEXT, category TEXT, content TEXT, digest TEXT UNIQUE, uses INTEGER DEFAULT 1, verified_at TEXT)")
         self.db.commit()
         self.load_bundled_templates()
+        self.index_existing_templates()
         self.load_extra_protocols()
         self.load_drive_odt_protocols()
 
@@ -120,6 +121,17 @@ class PhraseLibrary:
         self.db.execute("""INSERT INTO phrases(text,count,source,category) VALUES(?,1,?,?)
             ON CONFLICT(text) DO UPDATE SET count=count+1""", (text, source, category or "Общее"))
         return True
+
+    def index_existing_templates(self):
+        """Index existing 145-template library to prevent duplicates on upgrade."""
+        rows=self.db.execute("""SELECT t.id,t.category,t.content FROM templates t
+            LEFT JOIN template_folders f ON f.template_id=t.id WHERE f.template_id IS NULL""").fetchall()
+        for template_id,category,content in rows:
+            normalized=re.sub(r"\\s+"," ",content).strip()
+            digest=hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+            self.db.execute("INSERT OR IGNORE INTO template_folders(template_id,folder_path,fingerprint) VALUES(?,?,?)",
+                (template_id,category,digest))
+        self.db.commit()
 
     def load_extra_protocols(self):
         for name in ("protocols_extra.json","protocols_legacy.json"):
