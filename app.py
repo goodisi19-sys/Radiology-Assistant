@@ -1,8 +1,8 @@
 from __future__ import annotations
-import os, sys, re, sqlite3, zipfile, json, base64, brotli
+import os, sys, re, sqlite3, zipfile, json, base64, brotli, hashlib, datetime
 from pathlib import Path
 from typing import Iterable
-from PySide6.QtCore import Qt, QStringListModel, QStandardPaths
+from PySide6.QtCore import Qt, QStringListModel, QStandardPaths, QTimer
 from PySide6.QtGui import QAction, QFont, QTextCharFormat, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QPlainTextEdit, QTextEdit, QLineEdit, QListWidget, QListWidgetItem,
@@ -36,6 +36,7 @@ class PhraseLibrary:
         self.db.execute("""CREATE TABLE IF NOT EXISTS templates(
             id INTEGER PRIMARY KEY, title TEXT NOT NULL, category TEXT NOT NULL,
             content TEXT NOT NULL, source TEXT DEFAULT '')""")
+        self.db.execute("CREATE TABLE IF NOT EXISTS verified_standards(id INTEGER PRIMARY KEY, title TEXT, category TEXT, content TEXT, digest TEXT UNIQUE, uses INTEGER DEFAULT 1, verified_at TEXT)")
         self.db.commit()
         self.load_bundled_templates()
 
@@ -62,6 +63,24 @@ class PhraseLibrary:
         except Exception as exc:
             self.db.rollback()
             raise RuntimeError("Не удалось загрузить встроенную библиотеку протоколов: " + str(exc))
+
+    def verify(self, title, category, content):
+        normalized = re.sub(r"\s+", " ", content).strip()
+        if len(normalized) < 30: raise ValueError("Протокол слишком короткий")
+        digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+        self.db.execute("INSERT INTO verified_standards(title,category,content,digest,verified_at) VALUES(?,?,?,?,?) ON CONFLICT(digest) DO UPDATE SET uses=uses+1,verified_at=excluded.verified_at", (title,category,content,digest,datetime.datetime.now().isoformat()))
+        for line in content.splitlines():
+            phrase = re.sub(r"\s+", " ", line).strip(" •-—\t\r\n")
+            if self.add(phrase,"Личный стандарт",category):
+                self.db.execute("UPDATE phrases SET count=count+10 WHERE text=?", (phrase,))
+        self.db.commit()
+
+    def backup(self):
+        folder = app_data_dir() / "backups"
+        folder.mkdir(exist_ok=True)
+        target = folder / ("library-" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + ".sqlite3")
+        with sqlite3.connect(str(target)) as destination: self.db.backup(destination)
+        return target
 
     def search(self, query: str = "", category: str = ""):
         sql = "SELECT text, count, category FROM phrases WHERE 1=1"
@@ -186,6 +205,9 @@ class MainWindow(QMainWindow):
         self.refresh_categories()
         self.refresh_phrases()
         self.refresh_templates()
+        self.autosave_timer=QTimer(self)
+        self.autosave_timer.timeout.connect(self.autosave_draft)
+        self.autosave_timer.start(30000)
         self.update_status()
 
     def build_ui(self):
@@ -260,11 +282,34 @@ class MainWindow(QMainWindow):
         lib = self.menuBar().addMenu("Библиотека")
         lib.addAction(self.action("Импорт шаблонов…","",self.import_templates))
         lib.addAction(self.action("Обновить список фраз","",self.refresh_phrases))
+        lib.addAction(self.action("Верифицировать стандарт","Ctrl+Shift+V",self.verify_current))
+        lib.addAction(self.action("Резервная копия базы","",self.backup_database))
         edit = self.menuBar().addMenu("Правка")
         edit.addAction(self.action("Найти…","Ctrl+F",self.find_text))
         edit.addAction(self.action("Заменить…","Ctrl+H",self.replace_text))
         edit.addAction(self.action("Отменить","Ctrl+Z",self.editor.undo))
         edit.addAction(self.action("Повторить","Ctrl+Y",self.editor.redo))
+
+    def autosave_draft(self):
+        if self.editor.document().isModified():
+            target=app_data_dir() / "autosave-draft.txt"
+            temp=target.with_suffix(".tmp")
+            temp.write_text(self.editor.toPlainText(),encoding="utf-8")
+            temp.replace(target)
+
+    def backup_database(self):
+        try: QMessageBox.information(self,"Копия базы",str(self.library.backup()))
+        except Exception as exc: QMessageBox.critical(self,"Ошибка",str(exc))
+
+    def verify_current(self):
+        title,ok=QInputDialog.getText(self,"Личный стандарт","Название протокола:")
+        if not ok or not title.strip(): return
+        category=self.library.guess_category(title+" "+self.editor.toPlainText()[:300])
+        try:
+            self.library.verify(title,category,self.editor.toPlainText())
+            self.refresh_phrases()
+            QMessageBox.information(self,"Верифицировано","Протокол сохранён как личный стандарт.")
+        except Exception as exc: QMessageBox.critical(self,"Ошибка",str(exc))
 
     def toggle_bold(self):
         fmt=QTextCharFormat(); fmt.setFontWeight(QFont.Weight.Bold if self.editor.fontWeight()!=QFont.Weight.Bold else QFont.Weight.Normal); self.editor.mergeCurrentCharFormat(fmt)
