@@ -9,11 +9,32 @@ permissions:
   contents: read
 
 jobs:
+  convert-legacy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install legacy Word conversion tool
+        run: sudo apt-get update && sudo apt-get install -y antiword
+      - name: Convert old DOC templates
+        run: python3 convert_legacy.py
+      - name: Upload converted legacy protocols
+        uses: actions/upload-artifact@v4
+        with:
+          name: converted-legacy-protocols
+          path: protocols_legacy.json
+          if-no-files-found: error
+
   build:
+    needs: convert-legacy
     runs-on: windows-latest
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+      - name: Download converted protocols
+        uses: actions/download-artifact@v4
+        with:
+          name: converted-legacy-protocols
+          path: .
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -30,7 +51,7 @@ jobs:
         run: python check_catalog.py
       - name: Build portable executable
         run: |
-          pyinstaller --noconfirm --clean --onefile --windowed --add-data "protocols.json.br.b64;." --add-data "quick_lines.json;." --add-data "protocols_extra.json;." --add-data "drive_odt_01.json;." --add-data "drive_odt_02.json;." --add-data "drive_odt_03.json;." --add-data "drive_odt_04.json;." --add-data "drive_odt_05.json;." --add-data "drive_odt_06.json;." --add-data "drive_odt_07.json;." --add-data "drive_odt_08.json;." --add-data "drive_odt_09.json;." --add-data "drive_odt_10.json;." --add-data "drive_odt_11.json;." --add-data "drive_odt_12.json;." --add-data "drive_odt_13.json;." --add-data "drive_odt_14.json;." --add-data "drive_odt_15.json;." --add-data "drive_odt_16.json;." --name RadiologyAssistant app.py
+          pyinstaller --noconfirm --clean --onefile --windowed --add-data "protocols.json.br.b64;." --add-data "quick_lines.json;." --add-data "protocols_extra.json;." --add-data "protocols_legacy.json;." --add-data "drive_odt_01.json;." --add-data "drive_odt_02.json;." --add-data "drive_odt_03.json;." --add-data "drive_odt_04.json;." --add-data "drive_odt_05.json;." --add-data "drive_odt_06.json;." --add-data "drive_odt_07.json;." --add-data "drive_odt_08.json;." --add-data "drive_odt_09.json;." --add-data "drive_odt_10.json;." --add-data "drive_odt_11.json;." --add-data "drive_odt_12.json;." --add-data "drive_odt_13.json;." --add-data "drive_odt_14.json;." --add-data "drive_odt_15.json;." --add-data "drive_odt_16.json;." --name RadiologyAssistant app.py
       - name: Package
         shell: pwsh
         run: |
