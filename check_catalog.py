@@ -26,15 +26,15 @@ for path in sorted(Path(".").glob("drive_odt_*.json")):
             with zipfile.ZipFile(BytesIO(base64.b64decode(item["b64"]))) as doc:
                 xml=ET.fromstring(doc.read("content.xml"))
             lines=["".join(p.itertext()).strip() for p in xml.findall(".//text:p",namespace)]
-            body="\\n".join(x for x in lines if x)
+            body="\n".join(x for x in lines if x)
             if len(body.strip()) < 35:
                 invalid.append(f"{path}: empty protocol {item['title']}")
-            digest=hashlib.sha256(re.sub(r"\\s+"," ",body).strip().encode("utf-8")).hexdigest()
+            digest=hashlib.sha256(re.sub(r"\s+"," ",body).strip().encode("utf-8")).hexdigest()
             if digest in digests: duplicates+=1
             digests.add(digest)
         except Exception as exc:
             invalid.append(f"{path}: {item['title']}: {exc}")
 assert sources >= 150, f"Expected imported Drive records, found {sources}"
 if invalid:
-    raise RuntimeError("Invalid source records:\\n" + "\\n".join(invalid[:30]))
+    raise RuntimeError("Invalid source records:\n" + "\n".join(invalid[:30]))
 print(f"Core: {len(core)}, Drive ODT records: {sources}, distinct ODT texts: {len(digests)}, exact duplicates: {duplicates}, additional text protocols: {len(extra)}, quick lines: {len(quick['lines'])}")
