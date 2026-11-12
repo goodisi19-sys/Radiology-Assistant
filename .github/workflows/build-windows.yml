@@ -49,6 +49,8 @@ jobs:
           if (!(Test-Path protocols.json.br.b64)) { throw "Missing de-identified MRI protocol catalog" }
       - name: Verify MRI catalog and Python source
         run: python check_catalog.py
+      - name: Test automatic report formatting
+        run: python -m unittest -v test_report_format.py
       - name: Audit actual imported MRI library
         run: python audit_library.py
       - name: Build portable executable
