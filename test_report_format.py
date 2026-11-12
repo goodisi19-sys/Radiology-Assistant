@@ -18,6 +18,8 @@ class ReportFormatTests(unittest.TestCase):
         self.assertEqual(format_line("измерено в мм. без изменений"), "Измерено в мм. без изменений.")
     def test_compound_abbreviations(self):
         self.assertEqual(format_line("изменений и т.д. не выявлено"), "Изменений и т.д. не выявлено.")
+    def test_numeric_measurement_preserves_unit(self):
+        self.assertEqual(format_line("3.5 мм без динамики"), "3.5 мм без динамики.")
     def test_indentation(self):
         self.assertEqual(format_line("  - норма; "), "  - Норма. ")
 

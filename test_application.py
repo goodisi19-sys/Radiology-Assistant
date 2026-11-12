@@ -88,6 +88,11 @@ class ApplicationTests(unittest.TestCase):
         with patch.object(QMessageBox, 'question', return_value=QMessageBox.StandardButton.Save), patch.object(self.window, 'save_file', return_value=False):
             self.window.new_file()
         self.assertEqual(self.window.editor.toPlainText(), 'Несохраненный протокол')
+    def test_formatting_keeps_paragraphs(self):
+        self.window.editor.setPlainText("описание\n\nзаключение")
+        self.window.format_all_text()
+        self.assertEqual(self.window.editor.toPlainText(), "Описание.\n\nЗаключение.")
+
     def test_anatomy_and_cyrillic_search(self):
         for folder, expected in [('Позвоночник М/Спинной мозг', 'Позвоночник'), ('Суставы М/Локоть М', 'Суставы'), ('Малый таз М', 'ОМТ')]:
             self.assertEqual(app.PhraseLibrary.guess_category(folder), expected)

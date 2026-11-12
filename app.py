@@ -1,4 +1,5 @@
 from __future__ import annotations
+import difflib
 import os, sys, re, sqlite3, zipfile, json, base64, brotli, hashlib, datetime, io, xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Iterable
@@ -548,6 +549,8 @@ class MainWindow(QMainWindow):
             search.setPlaceholderText("Поиск по строкам...")
             layout.addWidget(search)
             listing=QListWidget()
+            listing.setWordWrap(True)
+            listing.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
             layout.addWidget(listing)
             source=bundled_data_path("quick_lines.json")
             try:
@@ -646,9 +649,19 @@ class MainWindow(QMainWindow):
         current = block.text()
         formatted = format_line(current)
         if formatted != current:
+            self.replace_block_text(block, current, formatted)
+
+    @staticmethod
+    def replace_block_text(block, current, updated):
+        # Never select a paragraph separator; edit only changed characters so
+        # both blank paragraphs and the surrounding font formatting survive.
+        operations = difflib.SequenceMatcher(a=current, b=updated, autojunk=False).get_opcodes()
+        for tag, left, right, new_left, new_right in reversed(operations):
+            if tag == 'equal': continue
             cursor = QTextCursor(block)
-            cursor.select(QTextCursor.SelectionType.BlockUnderCursor)
-            cursor.insertText(formatted)
+            cursor.setPosition(block.position() + left)
+            cursor.setPosition(block.position() + right, QTextCursor.MoveMode.KeepAnchor)
+            cursor.insertText(updated[new_left:new_right])
 
     def format_all_text(self):
         doc = self.editor.document()
@@ -662,9 +675,7 @@ class MainWindow(QMainWindow):
             current = block.text()
             updated = format_line(current)
             if current != updated:
-                edit = QTextCursor(block)
-                edit.select(QTextCursor.SelectionType.BlockUnderCursor)
-                edit.insertText(updated)
+                self.replace_block_text(block, current, updated)
                 changed = True
             block = next_block
         saved_cursor.endEditBlock()

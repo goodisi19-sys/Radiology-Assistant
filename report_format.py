@@ -21,6 +21,8 @@ def format_line(line: str) -> str:
     chars = list(content)
     start = True
     for i, ch in enumerate(chars):
+        if start and ch.isdigit():
+            start = False  # A numeric measurement must not capitalize its unit.
         if start and ch.isalpha():
             chars[i] = ch.upper()
             start = False
