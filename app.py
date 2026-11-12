@@ -53,7 +53,7 @@ class PhraseLibrary:
                 self.db.execute("INSERT INTO templates(title,category,content,source) VALUES(?,?,?,?)",
                                 (title, category, content, "Встроенная библиотека МРТ"))
                 for line in content.splitlines():
-                    phrase = re.sub(r"\\s+", " ", line).strip(" •-—\\t\\r\\n")
+                    phrase = re.sub(r"\s+", " ", line).strip(" •-—\t\r\n")
                     if len(phrase) >= 25 and len(phrase) <= 900:
                         self.db.execute("""INSERT INTO phrases(text,count,source,category) VALUES(?,1,?,?)
                             ON CONFLICT(text) DO UPDATE SET count=count+1""",
