@@ -41,3 +41,7 @@ with TemporaryDirectory() as tmp:
 Path("protocols_legacy.json").write_text(json.dumps(protocols,ensure_ascii=False),encoding="utf-8")
 print(f"Converted legacy DOC protocols: {len(protocols)}; skipped: {len(errors)}")
 for error in errors[:20]: print("WARN",error)
+
+# A reduced conversion result must never silently produce a successful release.
+assert len(protocols) == 128, f"Expected 128 legacy protocols; got {len(protocols)}"
+assert len(errors) == 7, f"Legacy conversion failures changed: {errors}"

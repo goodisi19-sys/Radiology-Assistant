@@ -1,0 +1,9 @@
+user_data/
+__pycache__/
+*.pyc
+protocols_legacy.json
+dist/
+build/
+*.spec
+core
+core.*

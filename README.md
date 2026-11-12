@@ -21,3 +21,13 @@ Do not import identifiable patient reports. Use de-identified templates only. Th
 
 ## Notes
 This is a practical report-writing editor, not a replacement for Microsoft Word. Legacy binary `.doc` files should be converted to `.docx` before import.
+
+## Проверка разработки
+
+Полная библиотека из 497 записей требует `protocols_legacy.json`. GitHub Actions
+создаёт его командой `python convert_legacy.py` (необходим antiword).
+Затем выполните `python -m unittest discover -v`, `python check_catalog.py`
+и `python audit_library.py`. Детали и ограничения: [AUDIT.md](AUDIT.md).
+Сохранение не меняет текст автоматически; оформление вызывается отдельной
+командой, при вставке или при нажатии Enter. Перед миграцией старой базы
+создаётся резервная копия в подпапке `backups` каталога данных приложения.

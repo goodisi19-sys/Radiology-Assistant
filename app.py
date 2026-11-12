@@ -31,7 +31,17 @@ def database_path() -> Path:
 class PhraseLibrary:
     def __init__(self):
         self.path = database_path()
+        # Snapshot existing data before this version's metadata migration.
+        if self.path.exists():
+            with sqlite3.connect(str(self.path)) as old:
+                migrated = old.execute("SELECT 1 FROM sqlite_master WHERE name='catalog_metadata_v2'").fetchone()
+                if not migrated:
+                    folder = app_data_dir() / 'backups'
+                    folder.mkdir(exist_ok=True)
+                    target = folder / ('before-catalog-v2-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f') + '.sqlite3')
+                    with sqlite3.connect(str(target)) as destination: old.backup(destination)
         self.db = sqlite3.connect(str(self.path))
+        self.db.create_function("casefold", 1, lambda value: (value or "").casefold())
         self.db.execute("""CREATE TABLE IF NOT EXISTS phrases(
             id INTEGER PRIMARY KEY, text TEXT UNIQUE NOT NULL, count INTEGER DEFAULT 1,
             source TEXT DEFAULT '', category TEXT DEFAULT 'Общее')""")
@@ -46,6 +56,9 @@ class PhraseLibrary:
         self.index_existing_templates()
         self.load_extra_protocols()
         self.load_drive_odt_protocols()
+        self.normalize_categories()
+        self.db.execute("CREATE TABLE IF NOT EXISTS catalog_metadata_v2(version INTEGER)")
+        self.db.commit()
 
     def load_bundled_templates(self):
         count = self.db.execute("SELECT COUNT(*) FROM templates WHERE source=?", ("Встроенная библиотека МРТ",)).fetchone()[0]
@@ -64,7 +77,7 @@ class PhraseLibrary:
                     phrase = re.sub(r"\s+", " ", line).strip(" •-—\t\r\n")
                     if len(phrase) >= 25 and len(phrase) <= 900:
                         self.db.execute("""INSERT INTO phrases(text,count,source,category) VALUES(?,1,?,?)
-                            ON CONFLICT(text) DO UPDATE SET count=count+1""",
+                            ON CONFLICT(text) DO UPDATE SET count=count+1, source=CASE WHEN excluded.source='Личный стандарт' THEN excluded.source ELSE phrases.source END""",
                             (phrase, "Встроенный протокол", category))
             self.db.commit()
         except Exception as exc:
@@ -93,18 +106,18 @@ class PhraseLibrary:
         sql = "SELECT text, count, category FROM phrases WHERE 1=1"
         args = []
         if query:
-            sql += " AND text LIKE ?"
-            args.append("%" + query + "%")
+            sql += " AND casefold(text) LIKE ?"
+            args.append("%" + query.casefold() + "%")
         if category and category != "Все категории":
             sql += " AND category = ?"
             args.append(category)
-        sql += " ORDER BY count DESC, text COLLATE NOCASE LIMIT 500"
+        sql += " ORDER BY (source='Личный стандарт') DESC, count DESC, text COLLATE NOCASE LIMIT 500"
         return self.db.execute(sql, args).fetchall()
 
     def search_templates(self, query: str = ""):
         return self.db.execute("""SELECT id,title,category FROM templates
-            WHERE title LIKE ? OR content LIKE ? ORDER BY category,title LIMIT 500""",
-            ("%" + query + "%", "%" + query + "%")).fetchall()
+            WHERE casefold(title) LIKE ? OR casefold(content) LIKE ? ORDER BY category,title""",
+            ("%" + query.casefold() + "%", "%" + query.casefold() + "%")).fetchall()
 
     def get_template(self, template_id: int):
         return self.db.execute("SELECT title,content FROM templates WHERE id=?", (template_id,)).fetchone()
@@ -113,15 +126,15 @@ class PhraseLibrary:
         if len(prefix.strip()) < 2:
             return []
         return [r[0] for r in self.db.execute(
-            "SELECT text FROM phrases WHERE text LIKE ? ORDER BY count DESC LIMIT ?",
-            (prefix.strip() + "%", limit)).fetchall()]
+            "SELECT text FROM phrases WHERE casefold(text) LIKE ? ORDER BY (source='Личный стандарт') DESC, count DESC LIMIT ?",
+            (prefix.strip().casefold() + "%", limit)).fetchall()]
 
     def add(self, text: str, source: str, category: str):
         text = re.sub(r"\s+", " ", text).strip(" •-—\t\r\n")
         if len(text) < 18 or len(text) > 900:
             return False
         self.db.execute("""INSERT INTO phrases(text,count,source,category) VALUES(?,1,?,?)
-            ON CONFLICT(text) DO UPDATE SET count=count+1""", (text, source, category or "Общее"))
+            ON CONFLICT(text) DO UPDATE SET count=count+1, source=CASE WHEN excluded.source='Личный стандарт' THEN excluded.source ELSE phrases.source END""", (text, source, category or "Общее"))
         return True
 
     def index_existing_templates(self):
@@ -131,6 +144,8 @@ class PhraseLibrary:
         for template_id,category,content in rows:
             normalized=re.sub(r"\s+"," ",content).strip()
             digest=hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+            if self.db.execute("SELECT 1 FROM template_folders WHERE fingerprint=?", (digest,)).fetchone():
+                digest = None  # Retain pre-existing duplicate records without losing their folders.
             self.db.execute("INSERT OR IGNORE INTO template_folders(template_id,folder_path,fingerprint) VALUES(?,?,?)",
                 (template_id,category,digest))
         self.db.commit()
@@ -152,8 +167,8 @@ class PhraseLibrary:
         for source in sorted(bundled_data_path(".").glob("drive_odt_*.json")):
             try:
                 records=json.loads(source.read_text(encoding="utf-8"))
-            except Exception:
-                continue
+            except Exception as exc:
+                raise RuntimeError(f"Ошибка библиотеки {source.name}: {exc}") from exc
             for record in records:
                 folder=record.get("folder","")
                 title=record.get("title","")
@@ -167,12 +182,14 @@ class PhraseLibrary:
                     content="\n".join(line for line in lines if line)
                     self.import_full_protocol(Path(title).stem,folder,content,
                         "Google Drive: "+record.get("id",""))
-                except Exception:
-                    continue
+                except Exception as exc:
+                    self.db.rollback()
+                    raise RuntimeError(f"Ошибка протокола {title}: {exc}") from exc
         self.db.commit()
 
     def import_full_protocol(self, title, folder, content, source):
         normalized = re.sub(r"\s+", " ", content).strip()
+        if self.excluded_source(folder + "/" + title): return False
         if len(normalized) < 35: return False
         fingerprint = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
         if self.db.execute("SELECT 1 FROM template_folders WHERE fingerprint=?", (fingerprint,)).fetchone():
@@ -202,8 +219,8 @@ class PhraseLibrary:
                                 try:
                                     from docx import Document
                                     import io
-                                    doc = Document(io.BytesIO(z.read(name)))
-                                    candidates.append((name, "\n".join(x.text for x in doc.paragraphs)))
+                                    from document_io import read_docx
+                                    candidates.append((name, read_docx(io.BytesIO(z.read(name)))))
                                 except Exception:
                                     pass
                             elif name.lower().endswith(".txt"):
@@ -214,6 +231,9 @@ class PhraseLibrary:
             else:
                 candidates = [p]
             for item in candidates:
+                candidate_name = item[0] if isinstance(item, tuple) else str(item)
+                if self.excluded_source(str(p) + "/" + candidate_name):
+                    continue
                 if isinstance(item, tuple):
                     name, content = item
                 else:
@@ -251,8 +271,37 @@ class PhraseLibrary:
         return total, full_total
 
     @staticmethod
+    def excluded_source(path):
+        return any(key in path.casefold() for key in ("мибс", "2006"))
+
+    def normalize_categories(self):
+        # Only migrate bundled metadata; never rewrite clinical content or personal data.
+        mapping = {"Головной мозг": "ГМ", "Таз и малый таз": "ОМТ",
+            "Прочие суставы": "Суставы", "Тазобедренный сустав": "Суставы",
+            "Стопа и голеностоп": "Суставы", "Коленный сустав": "Суставы",
+            "Плечевой сустав": "Суставы", "Общее": "Другие исследования"}
+        for old, new in mapping.items():
+            self.db.execute("UPDATE templates SET category=? WHERE category=? AND source=?",
+                            (new, old, "Встроенная библиотека МРТ"))
+        for template_id, folder in self.db.execute("SELECT t.id,f.folder_path FROM templates t JOIN template_folders f ON f.template_id=t.id WHERE t.source LIKE 'Google Drive:%'").fetchall():
+            self.db.execute("UPDATE templates SET category=? WHERE id=?", (self.guess_category(folder), template_id))
+        for (content,) in self.db.execute("SELECT content FROM verified_standards").fetchall():
+            for line in content.splitlines():
+                phrase = re.sub(r"\s+", " ", line).strip(" •-—\t\r\n")
+                self.db.execute("UPDATE phrases SET source='Личный стандарт' WHERE text=?", (phrase,))
+        self.db.commit()
+
+    @staticmethod
     def guess_category(text: str):
         t = text.casefold()
+        # The source anatomical folder takes precedence over words in a title.
+        root = re.split(r"[/\\]", t)[0]
+        if root.startswith("позвоночник"): return "Позвоночник"
+        if root.startswith("суставы"): return "Суставы"
+        if root.startswith("голова"): return "ГМ"
+        if root.startswith("малый таз"): return "ОМТ"
+        if root.startswith("брюшная полость"): return "Брюшная полость"
+        if root.startswith("мягкие ткани"): return "Мягкие ткани"
         if any(k in t for k in ("голова м","головн","гм+","гм,","гм ","вены гм","мозг","гипофиз","мра","орбит","пазух","ппн","нейроваскуляр")):
             return "ГМ"
         if any(k in t for k in ("малый таз","малого таза","омт","матк","яичник","простата","предстател","pi-rads")):
@@ -266,7 +315,7 @@ class PhraseLibrary:
     @staticmethod
     def folder_tree_path(folder, category):
         folder=folder.replace("\\","/").strip("/")
-        if not folder or folder==".":
+        if not folder or folder=="." or folder==category:
             return category
         starts=("ГМ/","ОМТ/","Позвоночник/","Суставы/","Другие исследования/")
         if folder.startswith(starts): return folder
@@ -313,7 +362,10 @@ class MainWindow(QMainWindow):
         self.editor.textChanged.connect(self.update_suggestions)
         self.editor.installEventFilter(self)
         self.completer=QCompleter(self.editor)
+        self.completion_model = QStringListModel(self.completer)
+        self.completer.setModel(self.completion_model)
         self.completer.setWidget(self.editor)
+        self.completer.popup().setStyleSheet("QAbstractItemView {background:white;color:#202b38;selection-background-color:#dcecff;selection-color:#183b60;}")
         self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
         self.completer.activated.connect(self.accept_completion)
@@ -430,48 +482,61 @@ class MainWindow(QMainWindow):
         fmt=QTextCharFormat(); fmt.setFontItalic(not self.editor.fontItalic()); self.editor.mergeCurrentCharFormat(fmt)
     def toggle_underline(self):
         fmt=QTextCharFormat(); fmt.setFontUnderline(not self.editor.fontUnderline()); self.editor.mergeCurrentCharFormat(fmt)
+    def confirm_discard(self):
+        if not self.editor.document().isModified(): return True
+        answer = QMessageBox.question(self, "Сохранить изменения?", "Сохранить текущий документ?",
+            QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
+        if answer == QMessageBox.StandardButton.Save: return bool(self.save_file())
+        return answer == QMessageBox.StandardButton.Discard
+
+    def closeEvent(self, event):
+        if self.confirm_discard():
+            self.library.db.close()
+            event.accept()
+        else: event.ignore()
+
     def new_file(self):
-        if self.editor.document().isModified():
-            ans=QMessageBox.question(self,"Сохранить изменения?","Сохранить текущий документ перед созданием нового?")
-            if ans==QMessageBox.StandardButton.Yes: self.save_file()
+        if not self.confirm_discard(): return
         self.editor.clear(); self.current_file=None; self.editor.document().setModified(False); self.update_status()
+
     def open_file(self):
-        path,_=QFileDialog.getOpenFileName(self,"Открыть протокол","","Документы (*.docx *.txt);;Все файлы (*)")
+        if not self.confirm_discard(): return
+        path,_=QFileDialog.getOpenFileName(self,"Открыть протокол","","Документы (*.docx *.txt)")
         if not path: return
         try:
             if path.lower().endswith(".docx"):
-                from docx import Document
-                doc=Document(path); self.editor.setPlainText("\n".join(p.text for p in doc.paragraphs))
-            else: self.editor.setPlainText(Path(path).read_text(encoding="utf-8",errors="replace"))
+                from document_io import read_docx
+                text = read_docx(path)
+            else: text = Path(path).read_text(encoding="utf-8")
+            self.editor.setPlainText(text)
             self.current_file=path; self.editor.document().setModified(False); self.update_status()
         except Exception as e: QMessageBox.critical(self,"Ошибка открытия",str(e))
     def save_file(self):
         path=self.current_file
         if not path: path,_=QFileDialog.getSaveFileName(self,"Сохранить протокол","","Документ Word (*.docx);;Текст (*.txt)")
-        if not path: return
+        if not path: return False
+        if not Path(path).suffix: path += ".docx"
         try:
-            self.format_all_text()
             if path.lower().endswith(".docx"): self.export_to_path(path)
-            else: Path(path).write_text(self.editor.toPlainText(),encoding="utf-8")
+            else:
+                from document_io import atomic_write_text
+                atomic_write_text(path, self.editor.toPlainText())
             self.current_file=path; self.editor.document().setModified(False); self.update_status()
-        except Exception as e: QMessageBox.critical(self,"Ошибка сохранения",str(e))
+            return True
+        except Exception as e:
+            QMessageBox.critical(self,"Ошибка сохранения",str(e))
+            return False
     def export_to_path(self,path):
-        from docx import Document
-        doc=Document()
-        for line in self.editor.toPlainText().splitlines(): doc.add_paragraph(line)
-        doc.save(path)
+        from document_io import write_docx
+        write_docx(path, self.editor.document())
 
     def export_docx(self):
         path,_=QFileDialog.getSaveFileName(self,"Экспорт в DOCX","","Документ Word (*.docx)")
         if not path: return
+        if not path.lower().endswith(".docx"): path += ".docx"
         try:
-            self.format_all_text()
-            from docx import Document
-            from docx.shared import Pt
-            doc=Document()
-            style=doc.styles["Normal"]; style.font.name="Times New Roman"; style.font.size=Pt(12)
-            for line in self.editor.toPlainText().splitlines(): doc.add_paragraph(line)
-            doc.save(path); self.statusBar().showMessage("Экспортировано: "+path,5000)
+            self.export_to_path(path)
+            self.statusBar().showMessage("Экспортировано: "+path,5000)
         except Exception as e: QMessageBox.critical(self,"Ошибка экспорта",str(e))
     def show_quick_lines(self):
         if not hasattr(self,"quick_dialog"):
@@ -517,7 +582,7 @@ class MainWindow(QMainWindow):
         try:
             fragments,full=self.library.import_files([folder])
             self.refresh_categories(); self.refresh_phrases(); self.refresh_templates()
-            QMessageBox.information(self,"Импорт",f"Новых полных протоколов: {full}\\nФрагментов: {fragments}")
+            QMessageBox.information(self,"Импорт",f"Новых полных протоколов: {full}\nФрагментов: {fragments}")
         except Exception as exc:
             QMessageBox.critical(self,"Ошибка импорта",str(exc))
 
@@ -544,8 +609,8 @@ class MainWindow(QMainWindow):
         rows=self.library.db.execute("""SELECT t.id,t.title,t.category,
             COALESCE(f.folder_path,t.category) FROM templates t
             LEFT JOIN template_folders f ON f.template_id=t.id
-            WHERE t.title LIKE ? OR t.content LIKE ?
-            ORDER BY 4,t.title LIMIT 10000""", ("%"+query+"%","%"+query+"%")).fetchall()
+            WHERE casefold(t.title) LIKE ? OR casefold(t.content) LIKE ?
+            ORDER BY 4,t.title""", ("%"+query.casefold()+"%","%"+query.casefold()+"%")).fetchall()
         self.template_list.clear()
         nodes={}
         for template_id,title,category,path in rows:
@@ -640,7 +705,7 @@ class MainWindow(QMainWindow):
         if not hasattr(self,"completer"): return
         cursor = self.editor.textCursor()
         before = cursor.block().text()[:cursor.positionInBlock()]
-        match = re.search(r"([^\\s]{2,})$", before)
+        match = re.search(r"(\S{2,})$", before)
         if not match:
             self.completer.popup().hide()
             return
@@ -649,7 +714,7 @@ class MainWindow(QMainWindow):
         if not matches:
             self.completer.popup().hide()
             return
-        self.completer.setModel(QStringListModel(matches, self.completer))
+        self.completion_model.setStringList(matches)
         self.completer.setCompletionPrefix(prefix)
         rect = self.editor.cursorRect()
         rect.setWidth(max(350, self.completer.popup().sizeHintForColumn(0) + 30))
@@ -672,6 +737,10 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Слов: {words}   |   Символов: {len(self.editor.toPlainText())}")
 
 if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "--smoke-test":
+        from smoke_test import run
+        run(sys.argv[2])
+        sys.exit(0)
     app=QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     w=MainWindow(); w.show()

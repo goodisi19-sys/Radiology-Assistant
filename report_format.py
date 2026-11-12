@@ -15,6 +15,9 @@ def format_line(line: str) -> str:
     content = body[len(lead):]
     if not content:
         return line
+    protected = set()
+    for match in re.finditer(r"(?<!\w)(?:[А-Яа-яA-Za-z]\.\s*){2,}|\b[А-ЯA-Z]\.(?=\s*[А-ЯA-Z]\.)", content):
+        protected.update(range(match.start(), match.end()))
     chars = list(content)
     start = True
     for i, ch in enumerate(chars):
@@ -22,6 +25,7 @@ def format_line(line: str) -> str:
             chars[i] = ch.upper()
             start = False
         if ch in ".!?":
+            if i in protected: continue
             # A decimal point and a dot in an abbreviation are not sentence stops.
             if ch == "." and i and i + 1 < len(chars) and chars[i-1].isdigit() and chars[i+1].isdigit():
                 continue

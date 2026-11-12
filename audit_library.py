@@ -28,11 +28,11 @@ with tempfile.TemporaryDirectory(prefix="radiology-catalog-audit-") as tmp:
         print("Anatomical categories:", json.dumps(dict(categories), ensure_ascii=True), flush=True)
         print("Stored source-folder paths:", sum(bool(folder) for *_, folder in rows), flush=True)
         assert sources["base"] >= 145, "Built-in MRI catalogue was not loaded"
-        assert sources["drive"] >= 100, (
+        assert sources["drive"] == 352, (
             "Additional ODT/DOC MRI protocols were not loaded into SQLite; "
             f"only {sources['drive']} imported"
         )
-        assert count >= 245, f"Only {count} protocols in the actual SQLite library"
+        assert count == 497, f"Only {count} protocols in the actual SQLite library"
         expected = {"ГМ", "ОМТ", "Позвоночник", "Суставы"}
         missing = expected.difference(categories)
         assert not missing, "Missing anatomical categories: " + json.dumps(
