@@ -71,6 +71,10 @@ class PhraseLibrary:
         self.load_drive_odt_protocols()
         self.normalize_categories()
         self.install_bundled_layouts()
+        from adaptive_completion import AdaptiveMemory
+        self.adaptive = AdaptiveMemory(self.db)
+        for (content,) in self.db.execute('SELECT content FROM verified_standards').fetchall():
+            if content: self.adaptive.learn(content, verified=True)
         self.db.execute("CREATE TABLE IF NOT EXISTS catalog_metadata_v2(version INTEGER)")
         self.db.commit()
 
@@ -129,6 +133,7 @@ class PhraseLibrary:
             if self.add(phrase,"Личный стандарт",category):
                 self.db.execute("UPDATE phrases SET count=count+10 WHERE text=?", (phrase,))
         self.db.commit()
+        self.adaptive.learn(content, verified=True)
 
     def backup(self):
         folder = app_data_dir() / "backups"
@@ -470,6 +475,7 @@ class MainWindow(QMainWindow):
         self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
         self.completer.activated.connect(self.accept_completion)
+        self.editor.installEventFilter(self)
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self.editor)
         side = QWidget(); side_l = QVBoxLayout(side); side_l.setContentsMargins(10,10,10,10)
@@ -531,6 +537,13 @@ class MainWindow(QMainWindow):
         lib.addAction(self.action("Добавить выделенное в быстрые строки","Ctrl+Alt+L",self.add_selection_to_quick_lines))
         lib.addAction(self.action("Верифицировать стандарт","Ctrl+Shift+V",self.verify_current))
         lib.addAction(self.action("Резервная копия базы","",self.backup_database))
+        adaptive_menu = lib.addMenu('Адаптивное продолжение')
+        learning = QAction('Обучение и подсказки продолжений', self); learning.setCheckable(True)
+        learning.setChecked(self.library.get_setting('adaptive_enabled') != '0')
+        learning.toggled.connect(lambda value: self.library.set_setting('adaptive_enabled', '1' if value else '0'))
+        adaptive_menu.addAction(learning)
+        adaptive_menu.addAction(self.action('О памяти продолжений', '', self.adaptive_info))
+        adaptive_menu.addAction(self.action('Очистить накопленные продолжения', '', self.clear_adaptive))
         giga_action = self.action("GigaChat Редактор", "Ctrl+Alt+G", self.show_gigachat)
         bar.addAction(giga_action)
         bar.widgetForAction(giga_action).setObjectName("gigaButton")
@@ -619,6 +632,7 @@ class MainWindow(QMainWindow):
             else:
                 from document_io import atomic_write_text
                 atomic_write_text(path, self.editor.toPlainText())
+                self.learn_saved_description()
             self.current_file=path; self.editor.document().setModified(False); self.update_status()
             return True
         except Exception as e:
@@ -627,6 +641,29 @@ class MainWindow(QMainWindow):
     def export_to_path(self,path):
         from document_io import write_docx
         write_docx(path, self.editor.document())
+        self.learn_saved_description()
+
+    def learn_saved_description(self):
+        if self.library.get_setting('adaptive_enabled') == '0': return
+        try: self.library.adaptive.learn(self.editor.toPlainText())
+        except sqlite3.Error:
+            self.library.db.rollback()
+            self.statusBar().showMessage('Документ сохранён, но память продолжений не обновилась.', 5000)
+
+    def adaptive_info(self):
+        QMessageBox.information(self, 'Адаптивное продолжение',
+            f'Сохранено продолжений: {self.library.adaptive.count()}.\n'
+            'Память пополняется после сохранения DOCX/TXT и верификации личного стандарта. '
+            'Продолжения с цифрами, уровнями и явно указанной стороной не предлагаются. '
+            'После пробела выбирайте продолжение по Tab или щелчком; Enter оставляет новый абзац. '
+            'Это варианты из вашей базы, а не вывод о текущем исследовании.')
+
+    def clear_adaptive(self):
+        answer = QMessageBox.question(self, 'Очистить память продолжений?',
+            'Удалить накопленные продолжения из сохранённых описаний? Личные стандарты и документы останутся.',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        if answer == QMessageBox.StandardButton.Yes:
+            self.library.adaptive.clear_saved(); self.completer.popup().hide()
 
     def export_docx(self):
         path,_=QFileDialog.getSaveFileName(self,"Экспорт в DOCX","","Документ Word (*.docx)")
@@ -807,6 +844,12 @@ class MainWindow(QMainWindow):
 
     def eventFilter(self, obj, event):
         if obj is getattr(self, "editor", None) and event.type() == QEvent.Type.KeyPress:
+            popup = self.completer.popup()
+            selected = popup.currentIndex().data()
+            if popup.isVisible() and selected in getattr(self, '_adaptive_options', {}):
+                if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter): popup.hide()
+                elif event.key() == Qt.Key.Key_Tab and not event.modifiers():
+                    self.accept_completion(selected); return True
             if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and not (
                 event.modifiers() & (Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier)
             ):
@@ -885,28 +928,48 @@ class MainWindow(QMainWindow):
             self.editor.setFocus()
     def accept_completion(self, phrase):
         cursor = self.editor.textCursor()
-        prefix = self.completer.completionPrefix()
-        if prefix and phrase.lower().startswith(prefix.lower()):
-            cursor.insertText(phrase[len(prefix):] + " ")
+        snapshot = getattr(self, '_completion_snapshot', None)
+        if snapshot is not None and snapshot != (self.editor.toPlainText(), cursor.position(), cursor.anchor()):
+            self.completer.popup().hide(); return
+        continuation = getattr(self, '_adaptive_options', {}).get(phrase)
+        if continuation:
+            before = cursor.block().text().encode('utf-16-le')[:cursor.positionInBlock()*2].decode('utf-16-le')
+            stripped = before.rstrip(' \t')
+            cursor.beginEditBlock()
+            if len(before) != len(stripped):
+                cursor.movePosition(QTextCursor.MoveOperation.PreviousCharacter, QTextCursor.MoveMode.KeepAnchor, len(before)-len(stripped))
+                cursor.removeSelectedText()
+            separator = ' ' if stripped.endswith((',', ';', ':')) else continuation['separator']
+            cursor.insertText(separator + continuation['text'] + ' ')
+            cursor.endEditBlock()
+        else:
+            prefix = getattr(self, '_completion_word', self.completer.completionPrefix())
+            if prefix and phrase.casefold().startswith(prefix.casefold()): cursor.insertText(phrase[len(prefix):] + ' ')
         self.editor.setTextCursor(cursor)
+        self.completer.popup().hide()
 
     def update_suggestions(self):
-        if not hasattr(self,"completer"): return
+        if not hasattr(self,'completer'): return
         cursor = self.editor.textCursor()
-        before = cursor.block().text()[:cursor.positionInBlock()]
-        match = re.search(r"(\S{2,})$", before)
-        if not match:
-            self.completer.popup().hide()
-            return
-        prefix = match.group(1)
-        matches = self.library.suggestions(prefix, 20)
+        before = cursor.block().text().encode('utf-16-le')[:cursor.positionInBlock()*2].decode('utf-16-le')
+        match = re.search(r'(\S{2,})$', before)
+        prefix = match.group(1) if match else ''
+        normal = self.library.suggestions(prefix, 20) if prefix else []
+        self._adaptive_options = {}
+        if self.library.get_setting('adaptive_enabled') != '0':
+            for candidate in self.library.adaptive.suggest(before):
+                label = ('Продолжить — личный стандарт (Tab): ' if candidate['verified'] else 'Продолжить — моя база (Tab): ') + candidate['text']
+                self._adaptive_options[label] = candidate
+        personal = [phrase for phrase in normal if self.library.db.execute("SELECT 1 FROM phrases WHERE text=? AND source='Личный стандарт'", (phrase,)).fetchone()]
+        matches = personal + list(self._adaptive_options) + [phrase for phrase in normal if phrase not in personal]
+        self._completion_word = prefix
+        self._completion_snapshot = (self.editor.toPlainText(), cursor.position(), cursor.anchor())
         if not matches:
-            self.completer.popup().hide()
-            return
+            self.completer.popup().hide(); return
         self.completion_model.setStringList(matches)
-        self.completer.setCompletionPrefix(prefix)
+        self.completer.setCompletionPrefix('')
         rect = self.editor.cursorRect()
-        rect.setWidth(max(350, self.completer.popup().sizeHintForColumn(0) + 30))
+        rect.setWidth(min(850, max(350, self.completer.popup().sizeHintForColumn(0) + 30)))
         self.completer.complete(rect)
 
     def find_text(self):

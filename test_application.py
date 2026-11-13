@@ -121,6 +121,47 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual(self.window.gigachat_dialog.source.toPlainText(),'')
         self.window.gigachat_dialog.close()
 
+    def test_adaptive_saved_docx_tab_apply_and_undo(self):
+        from test_adaptive_completion import SAMPLE,QUERY
+        self.window.editor.setPlainText(SAMPLE)
+        self.window.export_to_path(Path(self.tmp.name)/'learn.docx')
+        self.assertGreater(self.window.library.adaptive.count(),0)
+        self.window.show()
+        self.window.editor.setPlainText(QUERY)
+        cursor=self.window.editor.textCursor();cursor.movePosition(QTextCursor.MoveOperation.End);self.window.editor.setTextCursor(cursor)
+        self.window.update_suggestions()
+        self.assertTrue(self.window._adaptive_options)
+        label=next(iter(self.window._adaptive_options))
+        index=self.window.completion_model.index(self.window.completion_model.stringList().index(label))
+        self.window.completer.popup().setCurrentIndex(index)
+        QTest.keyClick(self.window.editor,Qt.Key.Key_Tab)
+        text=self.window.editor.toPlainText()
+        self.assertIn('L4-L5 до 5 мм, с локальной деформацией',text)
+        self.assertNotIn('L5-S1',text)
+        self.window.editor.undo();self.assertEqual(self.window.editor.toPlainText(),QUERY)
+
+    def test_adaptive_enter_does_not_accept_clinical_suggestion(self):
+        from test_adaptive_completion import SAMPLE,QUERY
+        self.window.library.adaptive.learn(SAMPLE)
+        self.window.show();self.window.editor.setPlainText(QUERY)
+        cursor=self.window.editor.textCursor();cursor.movePosition(QTextCursor.MoveOperation.End);self.window.editor.setTextCursor(cursor)
+        self.window.update_suggestions()
+        label=next(iter(self.window._adaptive_options))
+        self.window.completer.popup().setCurrentIndex(self.window.completion_model.index(self.window.completion_model.stringList().index(label)))
+        QTest.keyClick(self.window.editor,Qt.Key.Key_Return)
+        self.assertNotIn('деформацией',self.window.editor.toPlainText())
+        self.assertEqual(self.window.editor.toPlainText(),QUERY+'\n')
+
+    def test_adaptive_disabled_and_failed_export_do_not_learn(self):
+        from test_adaptive_completion import SAMPLE
+        self.window.editor.setPlainText(SAMPLE)
+        with patch('document_io.write_docx',side_effect=OSError('disk full')):
+            with self.assertRaises(OSError):self.window.export_to_path(Path(self.tmp.name)/'failed.docx')
+        self.assertEqual(self.window.library.adaptive.count(),0)
+        self.window.library.set_setting('adaptive_enabled','0')
+        self.window.export_to_path(Path(self.tmp.name)/'disabled.docx')
+        self.assertEqual(self.window.library.adaptive.count(),0)
+
     def test_all_protocols_visible_and_restart(self):
         ids = []
         iterator = QTreeWidgetItemIterator(self.window.template_list)
