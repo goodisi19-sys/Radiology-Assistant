@@ -1,27 +1,34 @@
 """Conservative MRI report punctuation and sentence-case formatting."""
 import re
-
-# Abbreviations whose trailing full stop is not a sentence boundary.
-ABBREVIATIONS = {"мм", "см", "мл", "мг", "г", "т", "им", "др", "рис", "стр", "т.д", "т.п"}
+from template_layout import inline_breaks, ABBREVIATIONS
 
 def format_line(line: str) -> str:
     if not line.strip():
         return line
     left = len(line) - len(line.lstrip(" \t"))
     right = len(line.rstrip(" \t"))
-    prefix, body, suffix = line[:left], line[left:right], line[right:]
-    # Keep indentation, bullet characters, and numbering unchanged.
-    lead = re.match(r"((?:(?:[-–—•*]|\d+[.)])\s+)*)", body).group(1)
+    prefix, body, suffix = line[:left], inline_breaks(line[left:right]).replace('\n', '\u2028'), line[right:]
+    # Remove list dashes, but retain minus signs in numeric measurements.
+    body = re.sub(r'^(?:(?:[-–—•*]+[ \t]+)|(?:[–—•*]+(?=[А-Яа-яЁёA-Za-z(«]))|(?:-(?=[А-Яа-яЁёA-Za-z])))+', '', body)
+    lead = re.match(r"((?:\d+[.)]\s+)*)", body).group(1)
     content = body[len(lead):]
     if not content:
         return line
+    protected = set()
+    for match in re.finditer(r"(?<!\w)(?:[А-Яа-яA-Za-z]\.\s*){2,}|\b[А-ЯA-Z]\.(?=\s*[А-ЯA-Z]\.)", content):
+        protected.update(range(match.start(), match.end()))
+    for match in re.finditer(r'\b[bpr]\s*=\s*\d+(?:[.,]\d+)?', content, re.I):
+        protected.update(range(match.start(), match.end()))
     chars = list(content)
     start = True
     for i, ch in enumerate(chars):
+        if start and ch.isdigit():
+            start = False  # A numeric measurement must not capitalize its unit.
         if start and ch.isalpha():
-            chars[i] = ch.upper()
+            if i not in protected: chars[i] = ch.upper()
             start = False
         if ch in ".!?":
+            if i in protected: continue
             # A decimal point and a dot in an abbreviation are not sentence stops.
             if ch == "." and i and i + 1 < len(chars) and chars[i-1].isdigit() and chars[i+1].isdigit():
                 continue
@@ -33,12 +40,16 @@ def format_line(line: str) -> str:
             if i+1 < len(chars) and chars[i+1].isspace():
                 start = True
     content = "".join(chars)
-    if content.endswith(";"):
-        content = content[:-1].rstrip() + "."
-    elif not content.endswith((".", "!", "?", ":")):
-        content += "."
+    # Preserve template headings and all internal semicolons. Only the end of
+    # a prose line receives a full stop; no clause is rewritten or reordered.
+    heading = content.endswith(':') and ';' not in content
+    # A terminal question mark can encode diagnostic uncertainty.
+    if not heading and not content.endswith('?'):
+        content = content.rstrip(';,!?:').rstrip()
+        if content and not content.endswith('.'): content += '.'
     return prefix + lead + content + suffix
 
 def format_report(text: str) -> str:
+    text = inline_breaks(text)
     return "".join(format_line(part.rstrip("\r\n")) + part[len(part.rstrip("\r\n")):]
                    for part in text.splitlines(keepends=True))

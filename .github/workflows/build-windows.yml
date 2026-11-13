@@ -3,6 +3,7 @@ name: Build Windows app
 on:
   push:
     branches: [ main ]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -14,14 +15,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install legacy Word conversion tool
-        run: sudo apt-get update && sudo apt-get install -y antiword
+        run: sudo apt-get update && sudo apt-get install -y antiword libreoffice-writer
       - name: Convert old DOC templates
         run: python3 convert_legacy.py
       - name: Upload converted legacy protocols
         uses: actions/upload-artifact@v4
         with:
           name: converted-legacy-protocols
-          path: protocols_legacy.json
+          path: |
+            protocols_legacy.json
+            protocol_sources.json
           if-no-files-found: error
 
   build:
@@ -50,17 +53,38 @@ jobs:
       - name: Verify MRI catalog and Python source
         run: python check_catalog.py
       - name: Test automatic report formatting
-        run: python -m unittest -v test_report_format.py
+        run: python -m unittest discover -v
       - name: Audit actual imported MRI library
         run: python audit_library.py
+      - name: Audit paragraph layout of all 497 protocols
+        run: python audit_layouts.py
+      - name: Upload complete layout audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: RadiologyAssistant-LibraryAudit
+          path: layout-audit.json
+          if-no-files-found: error
       - name: Build portable executable
         run: |
-          pyinstaller --noconfirm --clean --onefile --windowed --add-data "protocols.json.br.b64;." --add-data "quick_lines.json;." --add-data "protocols_extra.json;." --add-data "protocols_legacy.json;." --add-data "drive_odt_01.json;." --add-data "drive_odt_02.json;." --add-data "drive_odt_03.json;." --add-data "drive_odt_04.json;." --add-data "drive_odt_05.json;." --add-data "drive_odt_06.json;." --add-data "drive_odt_07.json;." --add-data "drive_odt_08.json;." --add-data "drive_odt_09.json;." --add-data "drive_odt_10.json;." --add-data "drive_odt_11.json;." --add-data "drive_odt_12.json;." --add-data "drive_odt_13.json;." --add-data "drive_odt_14.json;." --add-data "drive_odt_15.json;." --add-data "drive_odt_16.json;." --add-data "drive_odt_17.json;." --add-data "drive_odt_18.json;." --name RadiologyAssistant app.py
+          pyinstaller --noconfirm --clean --onefile --windowed --add-data "protocols.json.br.b64;." --add-data "quick_lines.json;." --add-data "protocols_extra.json;." --add-data "protocols_legacy.json;." --add-data "protocol_sources.json;." --add-data "protocol_source_map.json;." --add-data "drive_odt_01.json;." --add-data "drive_odt_02.json;." --add-data "drive_odt_03.json;." --add-data "drive_odt_04.json;." --add-data "drive_odt_05.json;." --add-data "drive_odt_06.json;." --add-data "drive_odt_07.json;." --add-data "drive_odt_08.json;." --add-data "drive_odt_09.json;." --add-data "drive_odt_10.json;." --add-data "drive_odt_11.json;." --add-data "drive_odt_12.json;." --add-data "drive_odt_13.json;." --add-data "drive_odt_14.json;." --add-data "drive_odt_15.json;." --add-data "drive_odt_16.json;." --add-data "drive_odt_17.json;." --add-data "drive_odt_18.json;." --add-data "spelling_data;spelling_data" --add-data "gigachat_data;gigachat_data" --name RadiologyAssistant app.py
+      - name: Test packaged Windows executable
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $result = Join-Path $PWD "exe-smoke.json"
+          $process = Start-Process dist/RadiologyAssistant.exe -ArgumentList "--smoke-test", "`"$result`"" -PassThru
+          if (!$process.WaitForExit(120000)) { $process.Kill(); throw "EXE smoke test timed out" }
+          if ($process.ExitCode -ne 0 -or !(Test-Path $result)) { throw "EXE smoke test failed" }
+          Get-Content $result
       - name: Package
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path package | Out-Null
           Copy-Item dist/RadiologyAssistant.exe package/
+          Copy-Item USER_GUIDE.md package/
+          Copy-Item spelling_data/README_ru_RU.txt package/СЛОВАРЬ-ЛИЦЕНЗИЯ.txt
+          Copy-Item spelling_data/LICENSE-spylls.txt package/
           @"
           Radiology Assistant
           Запустите RadiologyAssistant.exe.

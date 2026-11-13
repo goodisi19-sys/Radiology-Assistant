@@ -1,0 +1,12 @@
+user_data/
+__pycache__/
+*.pyc
+protocols_legacy.json
+protocol_sources.json
+dist/
+build/
+*.spec
+core
+core.*
+
+layout-audit.json
