@@ -15,6 +15,10 @@ def normalized(text): return re.sub(r'\s+', ' ', text).strip().casefold()
 def expand_note(text, personal=None):
     key=normalized(text)
     if personal and key in personal: return personal[key], 'Личное сокращение'
+    if personal:
+        from shorthand_patterns import apply_patterns
+        value=apply_patterns(text,personal.get('__patterns__',[]))
+        if value:return value,'Ваш проверенный образец с переменными. Проверьте новые значения.'
     # Match the complete statement, never a fragment with an unknown qualifier.
     match=re.fullmatch(r'зад(?:няя)?\s+цент(?:ральная)?\s+(прот(?:рузия)?|грыжа)\s+(?:диска\s+)?'
         r'([ctl][1-9]\d?|th[1-9]\d?)\s*[-–—]\s*([ctls][1-9]\d?|th[1-9]\d?)\s+'

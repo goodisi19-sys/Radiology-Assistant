@@ -603,7 +603,6 @@ class MainWindow(QMainWindow):
             self.autosave_timer.stop()
             if hasattr(self, 'yandex_dialog'): self.yandex_dialog.close()
             if hasattr(self, 'gigachat_dialog'): self.gigachat_dialog.close()
-            if hasattr(self, 'shorthand_dialog'): self.shorthand_dialog.close()
             if hasattr(self, 'protocol_check_dialog'): self.protocol_check_dialog.close()
             self.library.db.close()
             event.accept()
@@ -712,11 +711,12 @@ class MainWindow(QMainWindow):
         return cursor
 
     def show_shorthand(self):
-        from shorthand_dialog import ShorthandDialog
-        if hasattr(self, 'shorthand_dialog'):
-            self.shorthand_dialog.close(); self.shorthand_dialog.deleteLater()
-        self.shorthand_dialog = ShorthandDialog(self, self.fragment_target())
-        self.shorthand_dialog.show()
+        from shorthand import NOTE_PROMPT
+        cursor=self.fragment_target()
+        self.open_fragment_gigachat(cursor,cursor.selectedText().replace('\u2029','\n'),NOTE_PROMPT)
+        self.shorthand_dialog=self.gigachat_dialog
+        self.gigachat_dialog.setWindowTitle('Заметка — локально или через GigaChat')
+        self.gigachat_dialog.expand_local()
 
     def improve_fragment(self):
         from shorthand import IMPROVE_PROMPT

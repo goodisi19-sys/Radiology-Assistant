@@ -87,7 +87,7 @@ class ApplicationTests(unittest.TestCase):
         self.window.show_shorthand(); dialog=self.window.shorthand_dialog
         self.assertNotIn('Следующий',dialog.original)
         self.assertTrue(dialog.apply.isEnabled())
-        dialog.remember()
+        dialog.remember_phrase()
         self.assertIn('зад цент прот',self.window.library.get_setting('shorthand_personal'))
         dialog.apply_result()
         self.assertTrue(self.window.editor.toPlainText().endswith('\nСледующий абзац.'))
@@ -171,6 +171,30 @@ class ApplicationTests(unittest.TestCase):
         self.assertFalse(self.window.autosave_timer.isActive())
         self.assertFalse(self.window.completer.popup().isVisible())
         self.assertEqual(self.window.editor.toPlainText(),'Грыжа диска ')
+
+    def test_fragment_result_applies_while_next_paragraph_is_written(self):
+        self.window.editor.setPlainText('Моя заметка.\nСледующий абзац.')
+        cursor=self.window.editor.textCursor();cursor.setPosition(0);self.window.editor.setTextCursor(cursor)
+        cursor=self.window.fragment_target();self.window.editor.setTextCursor(cursor)
+        self.window.show_gigachat();dialog=self.window.gigachat_dialog
+        cursor=self.window.editor.textCursor();cursor.movePosition(QTextCursor.MoveOperation.End);cursor.insertText(' Продолжаю описание.');self.window.editor.setTextCursor(cursor)
+        dialog.result.setPlainText('Отредактированная фраза.')
+        dialog.apply_result()
+        self.assertEqual(self.window.editor.toPlainText(),'Отредактированная фраза.\nСледующий абзац. Продолжаю описание.')
+        self.assertTrue(self.window.editor.textCursor().atEnd())
+        self.window.editor.undo()
+        self.assertEqual(self.window.editor.toPlainText(),'Моя заметка.\nСледующий абзац. Продолжаю описание.')
+        dialog.close()
+
+    def test_confirmed_note_can_be_saved_with_variable_values(self):
+        self.window.editor.setPlainText('смещение L5-S1 4 мм')
+        self.window.show_shorthand();dialog=self.window.shorthand_dialog
+        dialog.result.setPlainText('Смещение на уровне L5-S1 до 4 мм.')
+        dialog.variable_example.setChecked(True);dialog.remember_phrase()
+        dialog.source.setPlainText('смещение L4-L5 5 мм');dialog.expand_local()
+        self.assertEqual(dialog.result.toPlainText(),'Смещение на уровне L4-L5 до 5 мм.')
+        self.assertEqual(self.window.editor.toPlainText(),'смещение L5-S1 4 мм')
+        dialog.close()
 
     def test_all_protocols_visible_and_restart(self):
         ids = []

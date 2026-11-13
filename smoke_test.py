@@ -114,8 +114,21 @@ def run(result_path):
         window.accept_completion(next(iter(window._adaptive_options)))
         assert 'L4-L5 до 5 мм, с локальной деформацией' in window.editor.toPlainText()
         assert 'L5-S1' not in window.editor.toPlainText()
+        window.editor.setPlainText('Моя запись.\nСледующий абзац.')
+        cursor=window.editor.textCursor();cursor.setPosition(0);window.editor.setTextCursor(cursor)
+        window.improve_fragment()
+        cursor=window.editor.textCursor();cursor.movePosition(cursor.MoveOperation.End);cursor.insertText(' Продолжаю.');window.editor.setTextCursor(cursor)
+        window.gigachat_dialog.result.setPlainText('Улучшенная запись.')
+        window.gigachat_dialog.apply_result()
+        assert window.editor.toPlainText() == 'Улучшенная запись.\nСледующий абзац. Продолжаю.'
+        window.export_to_path(fixed_path)
+        assert read_docx(fixed_path) == window.editor.toPlainText()
+        window.gigachat_dialog.close()
+        from shorthand_patterns import make_pattern,apply_patterns
+        pattern=make_pattern('прот L5-S1 до 4 мм','Протрузия L5-S1 до 4 мм.')
+        assert apply_patterns('прот L4-L5 до 5 мм',[pattern]) == 'Протрузия L4-L5 до 5 мм.'
         window.editor.document().setModified(False); window.close()
         Path(result_path).write_text(json.dumps({'protocols': visible, 'docx': 'ok',
             'quick_lines': 'ok', 'spelling': 'ok', 'punctuation': 'ok', 'google_input': 'ok', 'yandex_exchange': 'ok',
-            'mra_paragraphs': 'ok', 'layouts_audited': 497, 'methodology': 'ok', 'protocol_check': 'ok', 'gigachat_preview': 'ok', 'shorthand': 'ok', 'adaptive_completion': 'ok',
+            'mra_paragraphs': 'ok', 'layouts_audited': 497, 'methodology': 'ok', 'protocol_check': 'ok', 'gigachat_preview': 'ok', 'shorthand': 'ok', 'adaptive_completion': 'ok', 'fragment_flow': 'ok',
             'base_sources_restored': 127, 'source_review_required': 18}), encoding='utf-8')
