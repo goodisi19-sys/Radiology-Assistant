@@ -548,6 +548,7 @@ class MainWindow(QMainWindow):
         lib.addAction(self.action("Добавить выделенное в быстрые строки","Ctrl+Alt+L",self.add_selection_to_quick_lines))
         lib.addAction(self.action("Верифицировать стандарт","Ctrl+Shift+V",self.verify_current))
         lib.addAction(self.action("Резервная копия базы","",self.backup_database))
+        bar.addAction(self.action("GigaChat Редактор", "Ctrl+Alt+G", self.show_gigachat))
         bar.addAction(self.action("Яндекс Редактор", "Ctrl+Alt+Y", self.show_yandex_editor))
         bar.addAction(self.action("Проверить опечатки", "F7", self.show_spelling))
         bar.addAction(self.action("Проверить протокол", "F8", self.show_protocol_check))
@@ -597,6 +598,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         if self.confirm_discard():
             if hasattr(self, 'yandex_dialog'): self.yandex_dialog.close()
+            if hasattr(self, 'gigachat_dialog'): self.gigachat_dialog.close()
             if hasattr(self, 'protocol_check_dialog'): self.protocol_check_dialog.close()
             self.library.db.close()
             event.accept()
@@ -669,6 +671,13 @@ class MainWindow(QMainWindow):
             if hasattr(self, 'quick_listing'): self.populate_quick_dialog()
             self.statusBar().showMessage('Строка добавлена в быстрые строки.' if added else 'Эта строка уже есть в списке.', 5000)
         except Exception as exc: QMessageBox.warning(self, 'Быстрые строки', str(exc))
+
+    def show_gigachat(self):
+        from gigachat_editor import GigaChatEditorDialog
+        if hasattr(self, "gigachat_dialog"):
+            self.gigachat_dialog.close(); self.gigachat_dialog.deleteLater()
+        self.gigachat_dialog = GigaChatEditorDialog(self)
+        self.gigachat_dialog.show()
 
     def show_yandex_editor(self):
         from yandex_editor import YandexEditorDialog

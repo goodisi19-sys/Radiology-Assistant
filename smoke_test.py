@@ -88,8 +88,16 @@ def run(result_path):
         assert len(window.protocol_check_dialog.matches) == 2
         assert len(window.editor.extraSelections()) >= 3
         window.protocol_check_dialog.close()
+        window.editor.setPlainText('Исходный протокол.')
+        window.show_gigachat()
+        window.gigachat_dialog.result.setPlainText('Отредактированный протокол.')
+        window.gigachat_dialog.apply_result()
+        assert window.editor.toPlainText() == 'Отредактированный протокол.'
+        window.editor.undo()
+        assert window.editor.toPlainText() == 'Исходный протокол.'
+        window.gigachat_dialog.close()
         window.editor.document().setModified(False); window.close()
         Path(result_path).write_text(json.dumps({'protocols': visible, 'docx': 'ok',
             'quick_lines': 'ok', 'spelling': 'ok', 'punctuation': 'ok', 'google_input': 'ok', 'yandex_exchange': 'ok',
-            'mra_paragraphs': 'ok', 'layouts_audited': 497, 'methodology': 'ok', 'protocol_check': 'ok',
+            'mra_paragraphs': 'ok', 'layouts_audited': 497, 'methodology': 'ok', 'protocol_check': 'ok', 'gigachat_preview': 'ok',
             'base_sources_restored': 127, 'source_review_required': 18}), encoding='utf-8')

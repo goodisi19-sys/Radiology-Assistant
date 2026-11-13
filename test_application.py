@@ -45,6 +45,41 @@ class ApplicationTests(unittest.TestCase):
         dialog.close()
         self.assertEqual(len(self.window.editor.extraSelections()), 0)
 
+    def test_gigachat_preview_apply_undo_and_stale_guard(self):
+        self.window.editor.setPlainText('Исходный протокол.')
+        self.window.show_gigachat()
+        dialog=self.window.gigachat_dialog
+        self.assertEqual(dialog.source_text,'Исходный протокол.')
+        self.assertEqual(dialog.key.echoMode(), dialog.key.EchoMode.Password)
+        dialog.result.setPlainText('Отредактированный протокол.')
+        self.assertEqual(self.window.editor.toPlainText(),'Исходный протокол.')
+        dialog.apply_result()
+        self.assertEqual(self.window.editor.toPlainText(),'Отредактированный протокол.')
+        self.window.editor.undo()
+        self.assertEqual(self.window.editor.toPlainText(),'Исходный протокол.')
+        dialog.result.setPlainText('Другой вариант.')
+        dialog.apply_result()
+        self.assertEqual(self.window.editor.toPlainText(),'Исходный протокол.')
+        dialog.close()
+        self.assertFalse(dialog.timer.isActive())
+
+    def test_gigachat_async_response_with_mock_service(self):
+        from PySide6.QtCore import QElapsedTimer
+        self.window.editor.setPlainText('Контуры обычные.')
+        self.window.show_gigachat(); dialog=self.window.gigachat_dialog
+        dialog.key.setText('synthetic-key')
+        with patch('gigachat_editor.GigaChatClient') as client:
+            client.return_value.credentials='synthetic-key'
+            client.return_value.rewrite.return_value='Контуры ровные.'
+            dialog.start('rewrite')
+            timer=QElapsedTimer();timer.start()
+            while dialog.busy and timer.elapsed()<3000: QTest.qWait(25)
+            self.assertFalse(dialog.busy)
+            self.assertEqual(dialog.result.toPlainText(),'Контуры ровные.')
+            self.assertEqual(self.window.editor.toPlainText(),'Контуры обычные.')
+            self.assertTrue(dialog.apply.isEnabled())
+        dialog.close()
+
     def test_all_protocols_visible_and_restart(self):
         ids = []
         iterator = QTreeWidgetItemIterator(self.window.template_list)
