@@ -84,10 +84,7 @@ def chat_context(history):
 
 
 def generate_chat(server_path, model_path, history, cancelled=None):
-    from reference_cards import reference_answer
     context = chat_context(history)
-    card = reference_answer(history)
-    if card is not None: return card
     return local_completion(server_path, model_path, context, max_tokens=2048, cancelled=cancelled)
 
 

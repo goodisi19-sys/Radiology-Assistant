@@ -3,7 +3,6 @@ import threading
 from PySide6.QtCore import QThread, Signal, Qt, QUrl, QUrlQuery
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPlainTextEdit,
     QLineEdit, QPushButton, QComboBox, QFileDialog, QGroupBox)
-from reference_cards import CARD_PREFIX
 from expert_assistant import generate_chat, chat_context, default_server_path
 
 
@@ -53,7 +52,6 @@ class LocalChat(QWidget):
         lookup = QHBoxLayout(); layout.addLayout(lookup)
         self.google = QPushButton('Открыть вопрос в Google'); self.google.clicked.connect(self.search_google); lookup.addWidget(self.google)
         self.google.setToolTip('Открыть обычный Google-поиск в браузере. Используйте ИИ-обзор или режим ИИ, если они доступны у Google. Вопрос отправляется в браузер; текст протокола не читается.')
-        self.stoller = QPushButton('Справка Stoller'); self.stoller.clicked.connect(self.show_stoller); lookup.addWidget(self.stoller)
         layout.addWidget(QLabel('Ваш вопрос — напишите здесь'))
         self.input = QPlainTextEdit(); self.input.setMinimumHeight(90); self.input.setMaximumHeight(130)
         self.input.setPlaceholderText('Ваш вопрос… Ctrl+Enter — отправить')
@@ -124,7 +122,7 @@ class LocalChat(QWidget):
     def render(self):
         history = self.library.chat_history(self.session_id)
         if self.pending is not None: history.append({'role': 'user', 'content': self.pending})
-        self.transcript.setPlainText('\n\n'.join(('Вы' if item['role'] == 'user' else 'Справочная карточка' if item['content'].startswith(CARD_PREFIX) else 'ИИ — ответ не проверен по источникам') + ':\n' + item['content'] for item in history))
+        self.transcript.setPlainText('\n\n'.join(('Вы' if item['role'] == 'user' else 'ИИ — ответ не проверен по источникам') + ':\n' + item['content'] for item in history))
         self.transcript.verticalScrollBar().setValue(self.transcript.verticalScrollBar().maximum())
         self.copy.setEnabled(any(item['role'] == 'assistant' for item in history))
 
@@ -187,12 +185,6 @@ class LocalChat(QWidget):
             self.thread.cancelled.set()
             self.stop.setEnabled(False)
             self.status.setText('Останавливаю локальную модель…')
-
-    def show_stoller(self):
-        if self.is_busy():
-            self.status.setText('Дождитесь ответа или остановите текущий запрос.'); return
-        self.input.setPlainText('Классификация Stoller')
-        self.send_message()
 
     def search_google(self):
         from PySide6.QtGui import QDesktopServices

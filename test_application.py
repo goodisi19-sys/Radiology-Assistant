@@ -310,17 +310,6 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual(QUrlQuery(url).queryItemValue('q'), 'Классификация Stoller?')
         self.assertNotIn('Private', url.toString())
 
-    def test_stoller_button_works_without_model(self):
-        import time
-        chat = self.window.chat
-        with patch('expert_assistant.local_completion', side_effect=AssertionError('No model for this card')):
-            chat.show_stoller()
-            deadline = time.monotonic() + 5
-            while chat.is_busy() and time.monotonic() < deadline: QTest.qWait(20)
-        self.assertFalse(chat.is_busy())
-        self.assertIn('3602385', chat.transcript.toPlainText())
-        self.assertIn('Справочная карточка', chat.transcript.toPlainText())
-
     def test_formatting_keeps_paragraphs(self):
         self.window.editor.setPlainText("описание\n\nзаключение")
         self.window.format_all_text()

@@ -59,14 +59,11 @@ class ExpertTests(unittest.TestCase):
                 expert.generate_variant('server', 'model', 'Исходный текст.')
         self.assertEqual(call.call_count, 2)
 
-    def test_stoller_card_bypasses_model(self):
-        from reference_cards import CARD_PREFIX
-        with patch.object(expert, 'local_completion', side_effect=AssertionError('Do not generate a known reference')):
-            answer = expert.generate_chat('', '', [{'role': 'user', 'content': 'Дай классификацию разрывов менисков по Stoller'}])
-        self.assertTrue(answer.startswith(CARD_PREFIX))
-        self.assertIn('3602385', answer)
-        self.assertIn('II — линейный', answer)
-        self.assertNotIn('III уровень', answer)
+    def test_classification_question_uses_normal_chat(self):
+        history = [{'role': 'user', 'content': 'Дай классификацию Stoller'}]
+        with patch.object(expert, 'local_completion', return_value='Ответ модели') as completion:
+            self.assertEqual(expert.generate_chat('server', 'model', history), 'Ответ модели')
+        self.assertEqual(completion.call_args.args[2][-1], history[-1])
 
     def test_repeated_long_paragraphs_are_flagged(self):
         paragraph = 'Неверный повторяющийся ответ модели. ' * 4
