@@ -34,6 +34,9 @@ class ReportFormatTests(unittest.TestCase):
         self.assertEqual(result, 'Сигнал T2 сохранён; размеры 3,5 мм.\r\n\r\nКонтуры ровные.')
         self.assertEqual(format_report(result), result)
 
+    def test_diagnostic_uncertainty_is_not_removed(self):
+        self.assertEqual(format_line('- гемангиома?'), 'Гемангиома?')
+
     def test_indentation(self):
         self.assertEqual(format_line("  - норма; "), "  Норма. ")
 

@@ -45,7 +45,8 @@ def format_line(line: str) -> str:
     # Preserve template headings and all internal semicolons. Only the end of
     # a prose line receives a full stop; no clause is rewritten or reordered.
     heading = content.endswith(':') and len(content) <= 100 and ';' not in content
-    if not heading:
+    # A terminal question mark can encode diagnostic uncertainty.
+    if not heading and not content.endswith('?'):
         content = content.rstrip(';,!?:').rstrip()
         if content and not content.endswith('.'): content += '.'
     return prefix + lead + content + suffix
