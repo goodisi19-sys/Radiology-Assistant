@@ -14,6 +14,39 @@ class ExpertTests(unittest.TestCase):
             self.assertTrue(expert.review_issues('Очаг 3.5 мм, T2 FLAIR.', changed))
         self.assertTrue(expert.review_issues('Очаг слева.', 'Очаг справа.'))
         self.assertTrue(expert.review_issues('Гипоинтенсивный на Т1ВИ.', 'Гиперинтенсивный на Т1ВИ.'))
+    def test_chat_context_keeps_complete_turns(self):
+        history = [{'role': 'user', 'content': 'x' * 9000}, {'role': 'assistant', 'content': 'y' * 9000},
+                   {'role': 'user', 'content': 'Короткий вопрос'}, {'role': 'assistant', 'content': 'Ответ'},
+                   {'role': 'user', 'content': 'Уточнение'}]
+        context = expert.chat_context(history)
+        self.assertEqual([item['role'] for item in context], ['system', 'user', 'assistant', 'user'])
+        self.assertEqual(context[-1]['content'], 'Уточнение')
+        self.assertEqual(len(history), 5)
+        with self.assertRaises(ValueError): expert.chat_context([{'role': 'user', 'content': 'x' * 6001}])
+
+    def test_chat_uses_conversation_prompt(self):
+        history = [{'role': 'user', 'content': 'Вопрос'}, {'role': 'assistant', 'content': 'Ответ'},
+                   {'role': 'user', 'content': 'Уточни'}]
+        with patch.object(expert, 'local_completion', return_value='Уточнение') as completion:
+            self.assertEqual(expert.generate_chat('server', 'model', history), 'Уточнение')
+        messages = completion.call_args.args[2]
+        self.assertEqual(messages[0]['content'], expert.CHAT_PROMPT)
+        self.assertEqual(messages[1:], history)
+        self.assertEqual(completion.call_args.kwargs['max_tokens'], 2048)
+
+    def test_cancelled_request_closes_engine(self):
+        import threading
+        with tempfile.TemporaryDirectory() as tmp:
+            server, model = Path(tmp)/'server', Path(tmp)/'model.gguf'
+            server.touch(); model.touch()
+            cancelled = threading.Event(); cancelled.set()
+            process = Mock(); process.poll.return_value = None
+            with patch.object(expert.subprocess, 'Popen', return_value=process):
+                with self.assertRaises(InterruptedError):
+                    expert.generate_chat(server, model, [{'role': 'user', 'content': 'Вопрос'}], cancelled)
+            process.terminate.assert_called()
+            process.wait.assert_called()
+
     def test_missing_local_engine(self):
         with self.assertRaisesRegex(ValueError, 'llama-server'):
             expert.generate_variant('/no/server', '/no/model.gguf', 'Текст')

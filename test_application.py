@@ -5,12 +5,24 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from PySide6.QtWidgets import QApplication, QTreeWidgetItemIterator, QListWidget, QLineEdit, QMessageBox
+from PySide6.QtCore import QObject, Signal
+import threading
 from PySide6.QtGui import QTextCursor, QTextCharFormat, QFont
 from docx import Document
 import app
 from document_io import read_docx
 
 QT = QApplication.instance() or QApplication([])
+
+class FakeChatThread(QObject):
+    completed = Signal(str)
+    failed = Signal(str)
+    finished = Signal()
+    def __init__(self, server, model, history, parent):
+        super().__init__(parent)
+        self.history = history
+        self.cancelled = threading.Event()
+    def start(self): pass
 
 class ApplicationTests(unittest.TestCase):
     def setUp(self):
@@ -154,6 +166,77 @@ class ApplicationTests(unittest.TestCase):
         self.window.editor.undo()
         self.assertEqual(self.window.editor.toPlainText(), 'Очаг 3 мм.\nЗаключение: очаг.')
         dialog.close()
+
+    def test_chat_followup_and_editor_independence(self):
+        self.window.editor.setPlainText('Исходный протокол.')
+        chat = self.window.chat
+        with patch('local_chat.ChatThread', FakeChatThread):
+            chat.input.setPlainText('Что такое FLAIR?')
+            chat.send_message()
+            first = chat.thread
+            self.assertTrue(chat.is_busy())
+            self.assertFalse(chat.new_button.isEnabled())
+            first.completed.emit('Последовательность с подавлением сигнала ликвора.')
+            first.finished.emit()
+            chat.input.setPlainText('А зачем его подавлять?')
+            chat.send_message()
+            second = chat.thread
+            self.assertEqual([item['role'] for item in second.history], ['user', 'assistant', 'user'])
+            self.assertIn('подавлением', second.history[1]['content'])
+            second.completed.emit('Чтобы лучше видеть изменения рядом с ликвором.')
+            second.finished.emit()
+        self.assertEqual(len(self.window.library.chat_history(chat.session_id)), 4)
+        self.assertEqual(self.window.editor.toPlainText(), 'Исходный протокол.')
+        chat.copy_answer()
+        self.assertEqual(QT.clipboard().text(), 'Чтобы лучше видеть изменения рядом с ликвором.')
+
+    def test_chat_new_session_and_restart(self):
+        chat = self.window.chat
+        old = chat.session_id
+        self.window.library.save_chat_turn(old, 'Вопрос', 'Ответ')
+        chat.new_session()
+        self.assertNotEqual(chat.session_id, old)
+        self.assertEqual(self.window.library.chat_history(chat.session_id), [])
+        self.assertEqual(len(self.window.library.chat_history(old)), 2)
+        selected = chat.session_id
+        self.window.editor.document().setModified(False)
+        self.window.close()
+        self.window = app.MainWindow()
+        self.assertEqual(self.window.chat.session_id, selected)
+        combo = self.window.chat.sessions
+        combo.setCurrentIndex(combo.findData(old))
+        self.assertIn('Ответ', self.window.chat.transcript.toPlainText())
+
+    def test_chat_stop_and_retry(self):
+        chat = self.window.chat
+        with patch('local_chat.ChatThread', FakeChatThread):
+            chat.input.setPlainText('Мой вопрос')
+            chat.send_message()
+            worker = chat.thread
+            chat.stop_generation()
+            self.assertTrue(worker.cancelled.is_set())
+            worker.completed.emit('Поздний ответ, который не должен сохраняться')
+            worker.finished.emit()
+        self.assertEqual(self.window.library.chat_history(chat.session_id), [])
+        self.assertEqual(chat.input.toPlainText(), 'Мой вопрос')
+        self.assertFalse(chat.is_busy())
+        self.assertTrue(chat.send.isEnabled())
+
+    def test_chat_prevents_parallel_ai_and_empty_question(self):
+        chat = self.window.chat
+        chat.input.clear()
+        chat.send_message()
+        self.assertFalse(chat.is_busy())
+        with patch('local_chat.ChatThread', FakeChatThread):
+            chat.input.setPlainText('Вопрос')
+            chat.send_message()
+            self.window.show_expert()
+            self.assertFalse(hasattr(self.window, 'expert_dialog'))
+            self.assertIs(self.window.side_tabs.currentWidget(), chat)
+            chat.thread.failed.emit('Ошибка движка')
+            chat.thread.finished.emit()
+        self.assertEqual(chat.input.toPlainText(), 'Вопрос')
+        self.assertEqual(self.window.library.chat_history(chat.session_id), [])
 
     def test_formatting_keeps_paragraphs(self):
         self.window.editor.setPlainText("описание\n\nзаключение")

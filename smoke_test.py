@@ -39,6 +39,12 @@ def run(result_path):
         window.show_expert()
         assert window.expert_dialog.source_text == text
         window.expert_dialog.close()
+        window.side_tabs.setCurrentWidget(window.chat)
+        session = window.chat.session_id
+        window.library.save_chat_turn(session, 'Что такое T2?', 'Справочный ответ.')
+        window.chat.render()
+        assert 'Справочный ответ.' in window.chat.transcript.toPlainText()
+        assert window.editor.toPlainText() == text
         window.editor.document().setModified(False)
         window.close()
-        Path(result_path).write_text(json.dumps({'protocols': visible, 'docx': 'ok', 'quick_lines': 'ok', 'expert_dialog': 'ok'}), encoding='utf-8')
+        Path(result_path).write_text(json.dumps({'protocols': visible, 'docx': 'ok', 'quick_lines': 'ok', 'expert_dialog': 'ok', 'reference_chat': 'ok'}), encoding='utf-8')

@@ -54,6 +54,9 @@ class PhraseLibrary:
         self.db.execute("CREATE INDEX IF NOT EXISTS idx_template_folder_path ON template_folders(folder_path)")
         self.db.execute("CREATE TABLE IF NOT EXISTS verified_standards(id INTEGER PRIMARY KEY, title TEXT, category TEXT, content TEXT, digest TEXT UNIQUE, uses INTEGER DEFAULT 1, verified_at TEXT)")
         self.db.execute("CREATE TABLE IF NOT EXISTS quick_lines(id INTEGER PRIMARY KEY, text TEXT UNIQUE NOT NULL)")
+        self.db.execute("CREATE TABLE IF NOT EXISTS ai_chat_sessions(id INTEGER PRIMARY KEY, title TEXT NOT NULL)")
+        self.db.execute("CREATE TABLE IF NOT EXISTS ai_chat_messages(id INTEGER PRIMARY KEY, session_id INTEGER NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL)")
+        self.db.execute("CREATE INDEX IF NOT EXISTS idx_ai_chat_session ON ai_chat_messages(session_id,id)")
         self.db.execute("CREATE TABLE IF NOT EXISTS app_settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
         for text in json.loads(bundled_data_path('quick_lines.json').read_text(encoding='utf-8'))['lines']:
             self.db.execute("INSERT OR IGNORE INTO quick_lines(text) VALUES(?)", (text,))
@@ -85,6 +88,27 @@ class PhraseLibrary:
     def set_setting(self, key, value):
         self.db.execute("INSERT INTO app_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
         self.db.commit()
+
+    def chat_sessions(self):
+        return self.db.execute('SELECT id,title FROM ai_chat_sessions ORDER BY id DESC').fetchall()
+
+    def new_chat(self):
+        cursor = self.db.execute("INSERT INTO ai_chat_sessions(title) VALUES('Новый разговор')")
+        self.db.commit()
+        return cursor.lastrowid
+
+    def chat_history(self, session_id):
+        return [{'role': role, 'content': content} for role, content in self.db.execute(
+            'SELECT role,content FROM ai_chat_messages WHERE session_id=? ORDER BY id', (session_id,))]
+
+    def save_chat_turn(self, session_id, question, answer):
+        with self.db:
+            if not self.db.execute('SELECT 1 FROM ai_chat_sessions WHERE id=?', (session_id,)).fetchone():
+                raise ValueError('Разговор не найден.')
+            self.db.executemany('INSERT INTO ai_chat_messages(session_id,role,content) VALUES(?,?,?)',
+                [(session_id, 'user', question), (session_id, 'assistant', answer)])
+            self.db.execute("UPDATE ai_chat_sessions SET title=? WHERE id=? AND title='Новый разговор'",
+                (question.strip().replace('\n', ' ')[:60], session_id))
 
     def load_bundled_templates(self):
         count = self.db.execute("SELECT COUNT(*) FROM templates WHERE source=?", ("Встроенная библиотека МРТ",)).fetchone()[0]
@@ -399,7 +423,7 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self.editor)
         side = QWidget(); side_l = QVBoxLayout(side); side_l.setContentsMargins(10,10,10,10)
-        tabs = QTabWidget()
+        tabs = self.side_tabs = QTabWidget()
         phrase_tab = QWidget(); phrase_l = QVBoxLayout(phrase_tab)
         self.search = QLineEdit(); self.search.setPlaceholderText("Поиск по быстрым строкам…")
         self.search.textChanged.connect(self.refresh_phrases); phrase_l.addWidget(self.search)
@@ -418,6 +442,10 @@ class MainWindow(QMainWindow):
         self.template_count = QLabel("Протоколов: 0"); template_l.addWidget(self.template_count)
         tabs.addTab(phrase_tab, "Быстрые строки протоколов")
         tabs.addTab(template_tab, "Протоколы")
+        from local_chat import LocalChat
+        self.chat = LocalChat(self)
+        tabs.addTab(self.chat, "Справочник")
+        tabs.currentChanged.connect(lambda index: self.chat.refresh_settings() if tabs.widget(index) is self.chat else None)
         side_l.addWidget(tabs, 1)
         splitter.addWidget(side); splitter.setStretchFactor(0, 4); splitter.setStretchFactor(1, 2)
         self.setCentralWidget(splitter)
@@ -436,7 +464,7 @@ class MainWindow(QMainWindow):
         QTextEdit, QPlainTextEdit { background-color: white; color: #202b38;
             border: 1px solid #cbd3dc; padding: 12px;
             selection-background-color: #c8def5; selection-color: #142b43; }
-        QLineEdit, QSpinBox, QFontComboBox { padding: 6px; border: 1px solid #cbd3dc;
+        QLineEdit, QSpinBox, QComboBox, QFontComboBox { padding: 6px; border: 1px solid #cbd3dc;
             border-radius: 5px; background-color: white; color: #202b38;
             selection-background-color: #c8def5; selection-color: #142b43; }
         QListWidget, QTreeWidget { background-color: white; color: #202b38;
@@ -516,6 +544,11 @@ class MainWindow(QMainWindow):
         return answer == QMessageBox.StandardButton.Discard
 
     def closeEvent(self, event):
+        if self.chat.is_busy():
+            self.side_tabs.setCurrentWidget(self.chat)
+            self.chat.status.setText('Нажмите «Остановить» перед закрытием программы.')
+            event.ignore()
+            return
         if hasattr(self, "expert_dialog") and self.expert_dialog.is_busy():
             self.expert_dialog.raise_()
             event.ignore()
@@ -591,6 +624,10 @@ class MainWindow(QMainWindow):
         except Exception as exc: QMessageBox.warning(self, 'Быстрые строки', str(exc))
 
     def show_expert(self):
+        if self.chat.is_busy():
+            self.side_tabs.setCurrentWidget(self.chat)
+            self.chat.status.setText('Дождитесь ответа или нажмите «Остановить», затем откройте редактуру.')
+            return
         from expert_dialog import ExpertDialog
         if hasattr(self, 'expert_dialog') and self.expert_dialog.is_busy():
             self.expert_dialog.show(); self.expert_dialog.raise_(); return

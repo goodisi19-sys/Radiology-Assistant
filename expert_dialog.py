@@ -1,10 +1,7 @@
-from pathlib import Path
-import sys
-
 from PySide6.QtCore import QThread, Signal
 from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QPlainTextEdit, QFileDialog, QCheckBox
-from expert_assistant import generate_variant, review_issues, DEFAULT_INSTRUCTION
+from expert_assistant import generate_variant, review_issues, DEFAULT_INSTRUCTION, default_server_path
 
 
 class GenerationThread(QThread):
@@ -32,7 +29,7 @@ class ExpertDialog(QDialog):
         self.source_text = self.target.selectedText().replace('\u2029', '\n')
         layout = QVBoxLayout(self)
         intro = QLabel('Профессиональная редактура по вашему запросу — фрагмента или всего протокола.\n'
-            'Для 16 ГБ ОЗУ: Qwen2.5-7B-Instruct Q4_K_M (~4,7 ГБ) качественнее, 3B — быстрее. CPU может отвечать несколько минут.')
+            'Используется ваша локальная Qwen 3B. На CPU подготовка варианта может занять несколько минут.')
         intro.setWordWrap(True); layout.addWidget(intro)
         self.server = self.path_row(layout, 'Движок llama-server.exe', 'expert_server', 'Движок (*)')
         self.model = self.path_row(layout, 'Модель GGUF', 'expert_model', 'Модель (*.gguf)')
@@ -65,13 +62,15 @@ class ExpertDialog(QDialog):
         row = QHBoxLayout(); layout.addLayout(row)
         value = self.window.library.get_setting(key)
         if not value and key == 'expert_server':
-            root = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
-            value = next((str(path) for path in (root / 'local-ai').rglob('llama-server.exe')), '')
+            value = default_server_path()
         field = QLineEdit(value); row.addWidget(field)
+        field.editingFinished.connect(lambda: self.window.library.set_setting(key, field.text().strip()))
         choose = QPushButton('Выбрать…'); row.addWidget(choose)
         def select():
             path, _ = QFileDialog.getOpenFileName(self, label, '', file_filter)
-            if path: field.setText(path)
+            if path:
+                field.setText(path)
+                self.window.library.set_setting(key, path)
         choose.clicked.connect(select)
         return field
 

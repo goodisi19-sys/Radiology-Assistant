@@ -8,6 +8,7 @@ import secrets
 import socket
 import subprocess
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -36,13 +37,47 @@ def review_issues(source, result):
 
 
 def generate_variant(server_path, model_path, source, instruction=DEFAULT_INSTRUCTION):
-    server, model = Path(server_path), Path(model_path)
-    if not server.is_file(): raise ValueError('Выберите llama-server.exe из переносимого CPU-архива llama.cpp.')
-    if not model.is_file() or model.suffix.casefold() != '.gguf':
-        raise ValueError('Выберите локальный файл модели .gguf (для более качественной редактуры — Qwen2.5-7B-Instruct Q4_K_M).')
     if not source.strip(): raise ValueError('Выделите описание или введите текст протокола.')
     if len(source) > 16000: raise ValueError('Выберите текст до 16 000 символов.')
     if len(instruction) > 2000: raise ValueError('Сократите запрос до 2 000 символов.')
+    messages = [{'role': 'system', 'content': SYSTEM_PROMPT},
+        {'role': 'user', 'content': (instruction.strip() or DEFAULT_INSTRUCTION) + '\n\n<исходный_протокол>\n' + source + '\n</исходный_протокол>'}]
+    return local_completion(server_path, model_path, messages)
+
+
+CHAT_PROMPT = 'Ты — локальный собеседник и справочный помощник. Отвечай по-русски на вопросы пользователя, помогай разобраться в радиологии, МРТ и других темах. Учитывай предыдущие сообщения и уточнения. По умолчанию отвечай понятно и по существу; если просят подробности, объясняй подробнее. Если не уверен, прямо скажи об этом. У тебя нет поиска в интернете; не утверждай, что проверил свежие рекомендации, и не выдумывай ссылки или цитаты.'
+
+
+def chat_context(history):
+    messages = [{'role': message['role'], 'content': message['content']} for message in history]
+    if not messages or messages[-1]['role'] != 'user': raise ValueError('Введите вопрос.')
+    for index, message in enumerate(messages):
+        expected = 'user' if index % 2 == 0 else 'assistant'
+        if message['role'] != expected or not isinstance(message['content'], str):
+            raise ValueError('Неверная последовательность сообщений чата.')
+    if not messages[-1]['content'].strip(): raise ValueError('Введите вопрос.')
+    if len(messages[-1]['content']) > 6000: raise ValueError('Сократите вопрос до 6 000 символов.')
+    # Keep complete recent turns; the full conversation remains in SQLite.
+    while sum(len(message['content']) for message in messages) > 16000 and len(messages) > 1:
+        del messages[:2]
+    return [{'role': 'system', 'content': CHAT_PROMPT}] + messages
+
+
+def generate_chat(server_path, model_path, history, cancelled=None):
+    return local_completion(server_path, model_path, chat_context(history), max_tokens=2048, cancelled=cancelled)
+
+
+def default_server_path():
+    import sys
+    root = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
+    return next((str(path) for path in (root / 'local-ai').rglob('llama-server.exe')), '')
+
+
+def local_completion(server_path, model_path, messages, max_tokens=4096, cancelled=None):
+    server, model = Path(server_path), Path(model_path)
+    if not server.is_file(): raise ValueError('Выберите llama-server.exe из переносимого CPU-архива llama.cpp.')
+    if not model.is_file() or model.suffix.casefold() != '.gguf':
+        raise ValueError('Выберите локальный файл модели .gguf (подойдёт ваша Qwen2.5-3B-Instruct Q4_K_M).')
     with socket.socket() as sock:
         sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
     base = f'http://127.0.0.1:{port}'
@@ -52,9 +87,22 @@ def generate_variant(server_path, model_path, source, instruction=DEFAULT_INSTRU
         process = subprocess.Popen([str(server.resolve()), '-m', str(model.resolve()),
             '--host', '127.0.0.1', '--port', str(port), '-ngl', '0', '-t', '4',
             '-c', '16384', '-np', '1', '--offline', '--no-webui'], stdout=log, stderr=log, creationflags=flags)
+        done = threading.Event()
+        watcher = None
+        if cancelled is not None:
+            def watch_cancel():
+                while not done.wait(.1):
+                    if cancelled.is_set():
+                        if process.poll() is None:
+                            try: process.terminate()
+                            except OSError: pass
+                        return
+            watcher = threading.Thread(target=watch_cancel, daemon=True)
+            watcher.start()
         try:
             deadline = time.monotonic() + 120
             while True:
+                if cancelled is not None and cancelled.is_set(): raise InterruptedError('Запрос остановлен.')
                 if process.poll() is not None:
                     raise RuntimeError('Движок завершился при загрузке. Проверьте совместимость CPU, модель и наличие DLL рядом с EXE.')
                 try:
@@ -63,18 +111,22 @@ def generate_variant(server_path, model_path, source, instruction=DEFAULT_INSTRU
                 except (OSError, urllib.error.URLError): pass
                 if time.monotonic() >= deadline: raise RuntimeError('Модель не загрузилась за 120 секунд.')
                 time.sleep(.2)
-            body = json.dumps({'messages': [{'role': 'system', 'content': SYSTEM_PROMPT},
-                {'role': 'user', 'content': (instruction.strip() or DEFAULT_INSTRUCTION) + '\n\n<исходный_протокол>\n' + source + '\n</исходный_протокол>'}], 'temperature': .55, 'seed': secrets.randbelow(2**31),
-                'max_tokens': 4096, 'stream': False}, ensure_ascii=False).encode('utf-8')
+            body = json.dumps({'messages': messages, 'temperature': .55, 'seed': secrets.randbelow(2**31),
+                'max_tokens': max_tokens, 'stream': False}, ensure_ascii=False).encode('utf-8')
             request = urllib.request.Request(base + '/v1/chat/completions', data=body,
                                             headers={'Content-Type': 'application/json'})
             with opener.open(request, timeout=600) as response: data = json.load(response)
             if data['choices'][0].get('finish_reason') == 'length':
-                raise RuntimeError('Ответ обрезан. Выделите более короткий фрагмент.')
+                raise RuntimeError('Ответ обрезан. Попросите более короткий ответ или сократите текст.')
             result = data['choices'][0]['message']['content'].strip()
             if not result: raise RuntimeError('Модель вернула пустой ответ.')
             return result
+        except Exception:
+            if cancelled is not None and cancelled.is_set(): raise InterruptedError('Запрос остановлен.') from None
+            raise
         finally:
+            done.set()
+            if watcher is not None: watcher.join(timeout=1)
             if process.poll() is None:
                 process.terminate()
                 try: process.wait(timeout=5)
