@@ -5,8 +5,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from PySide6.QtWidgets import QApplication, QTreeWidgetItemIterator, QListWidget, QLineEdit, QMessageBox
-from PySide6.QtCore import QObject, Signal
-import threading
 from PySide6.QtTest import QTest
 from PySide6.QtCore import Qt, QUrlQuery
 from PySide6.QtGui import QInputMethodEvent, QTextCursor, QTextCharFormat, QFont
@@ -16,21 +14,7 @@ from document_io import read_docx
 
 QT = QApplication.instance() or QApplication([])
 
-class FakeChatThread(QObject):
-    completed = Signal(str)
-    failed = Signal(str)
-    finished = Signal()
-    def __init__(self, server, model, history, parent):
-        super().__init__(parent)
-        self.history = history
-        self.cancelled = threading.Event()
-    def start(self): pass
 
-class FakeGenerationThread(FakeChatThread):
-    def __init__(self, server, model, source, instruction, parent):
-        super().__init__(server, model, [], parent)
-        self.source = source
-        self.instruction = instruction
 
 class ApplicationTests(unittest.TestCase):
     def setUp(self):
@@ -124,183 +108,19 @@ class ApplicationTests(unittest.TestCase):
         self.window.show_quick_lines()
         self.assertEqual(self.window.quick_listing.item(0).text(), text)
 
-    def test_expert_preview_apply_and_undo(self):
-        self.window.editor.setPlainText('Контуры ровные. Размер 3 мм.')
-        cursor = self.window.editor.textCursor()
-        cursor.setPosition(0); cursor.setPosition(15, QTextCursor.MoveMode.KeepAnchor)
-        self.window.editor.setTextCursor(cursor)
-        self.window.show_expert()
-        dialog = self.window.expert_dialog
-        self.assertEqual(dialog.source_text, 'Контуры ровные.')
-        dialog.receive_result('Ровные контуры.')
-        self.assertEqual(self.window.editor.toPlainText(), 'Контуры ровные. Размер 3 мм.')
-        dialog.apply_variant()
-        self.assertEqual(self.window.editor.toPlainText(), 'Ровные контуры. Размер 3 мм.')
-        self.window.editor.undo()
-        self.assertEqual(self.window.editor.toPlainText(), 'Контуры ровные. Размер 3 мм.')
-        dialog.close()
 
-    def test_expert_warns_about_values_and_blocks_stale_document(self):
-        self.window.editor.setPlainText('Очаг 3 мм.')
-        self.window.show_expert()
-        dialog = self.window.expert_dialog
-        dialog.receive_result('Очаг 4 мм.')
-        self.assertFalse(dialog.apply.isEnabled())
-        dialog.receive_result('Размер очага 3 мм.')
-        self.window.editor.insertPlainText('Изменено.')
-        before = self.window.editor.toPlainText()
-        dialog.apply_variant()
-        self.assertEqual(self.window.editor.toPlainText(), before)
-        dialog.close()
 
-    def test_expert_review_can_apply_and_full_scope(self):
-        self.window.editor.setPlainText('Очаг 3 мм.\nЗаключение: очаг.')
-        cursor = self.window.editor.textCursor()
-        cursor.setPosition(0); cursor.setPosition(10, QTextCursor.MoveMode.KeepAnchor)
-        self.window.editor.setTextCursor(cursor)
-        self.window.show_expert()
-        dialog = self.window.expert_dialog
-        self.assertFalse(dialog.whole_document.isChecked())
-        dialog.whole_document.setChecked(True)
-        self.assertEqual(dialog.source_text, self.window.editor.toPlainText())
-        proposed = 'Описание: очаг 3 мм.\nЗаключение: очаг 3 мм.'
-        dialog.receive_result(proposed)
-        # Repeating the size in the conclusion is a legitimate structural rewrite.
-        self.assertFalse(dialog.apply.isEnabled())
-        dialog.review_confirm.setChecked(True)
-        self.assertTrue(dialog.apply.isEnabled())
-        dialog.apply_variant()
-        self.assertEqual(self.window.editor.toPlainText(), proposed)
-        self.window.editor.undo()
-        self.assertEqual(self.window.editor.toPlainText(), 'Очаг 3 мм.\nЗаключение: очаг.')
-        dialog.close()
 
-    def test_chat_followup_and_editor_independence(self):
-        self.window.editor.setPlainText('Исходный протокол.')
-        chat = self.window.chat
-        with patch('local_chat.ChatThread', FakeChatThread):
-            chat.input.setPlainText('Что такое FLAIR?')
-            chat.send_message()
-            first = chat.thread
-            self.assertTrue(chat.is_busy())
-            self.assertFalse(chat.new_button.isEnabled())
-            first.completed.emit('Последовательность с подавлением сигнала ликвора.')
-            first.finished.emit()
-            chat.input.setPlainText('А зачем его подавлять?')
-            chat.send_message()
-            second = chat.thread
-            self.assertEqual([item['role'] for item in second.history], ['user', 'assistant', 'user'])
-            self.assertIn('подавлением', second.history[1]['content'])
-            second.completed.emit('Чтобы лучше видеть изменения рядом с ликвором.')
-            second.finished.emit()
-        self.assertEqual(len(self.window.library.chat_history(chat.session_id)), 4)
-        self.assertEqual(self.window.editor.toPlainText(), 'Исходный протокол.')
-        chat.copy_answer()
-        self.assertEqual(QT.clipboard().text(), 'Чтобы лучше видеть изменения рядом с ликвором.')
 
-    def test_chat_new_session_and_restart(self):
-        chat = self.window.chat
-        old = chat.session_id
-        self.window.library.save_chat_turn(old, 'Вопрос', 'Ответ')
-        chat.new_session()
-        self.assertNotEqual(chat.session_id, old)
-        self.assertEqual(self.window.library.chat_history(chat.session_id), [])
-        self.assertEqual(len(self.window.library.chat_history(old)), 2)
-        selected = chat.session_id
-        self.window.editor.document().setModified(False)
-        self.window.close()
-        self.window = app.MainWindow()
-        self.assertEqual(self.window.chat.session_id, selected)
-        combo = self.window.chat.sessions
-        combo.setCurrentIndex(combo.findData(old))
-        self.assertIn('Ответ', self.window.chat.transcript.toPlainText())
 
-    def test_chat_stop_and_retry(self):
-        chat = self.window.chat
-        with patch('local_chat.ChatThread', FakeChatThread):
-            chat.input.setPlainText('Мой вопрос')
-            chat.send_message()
-            worker = chat.thread
-            chat.stop_generation()
-            self.assertTrue(worker.cancelled.is_set())
-            worker.completed.emit('Поздний ответ, который не должен сохраняться')
-            worker.finished.emit()
-        self.assertEqual(self.window.library.chat_history(chat.session_id), [])
-        self.assertEqual(chat.input.toPlainText(), 'Мой вопрос')
-        self.assertFalse(chat.is_busy())
-        self.assertTrue(chat.send.isEnabled())
 
-    def test_chat_prevents_parallel_ai_and_empty_question(self):
-        chat = self.window.chat
-        chat.input.clear()
-        chat.send_message()
-        self.assertFalse(chat.is_busy())
-        with patch('local_chat.ChatThread', FakeChatThread):
-            chat.input.setPlainText('Вопрос')
-            chat.send_message()
-            self.window.show_expert()
-            self.assertFalse(hasattr(self.window, 'expert_dialog'))
-            self.assertIs(self.window.side_tabs.currentWidget(), chat)
-            chat.thread.failed.emit('Ошибка движка')
-            chat.thread.finished.emit()
-        self.assertEqual(chat.input.toPlainText(), 'Вопрос')
-        self.assertEqual(self.window.library.chat_history(chat.session_id), [])
 
-    def test_chat_accepts_keyboard_and_russian_input(self):
-        self.window.show()
-        self.window.side_tabs.setCurrentWidget(self.window.chat)
-        QT.processEvents()
-        field = self.window.chat.input
-        QTest.mouseClick(field.viewport(), Qt.MouseButton.LeftButton)
-        QTest.keyClicks(field, 'MRI ')
-        event = QInputMethodEvent(); event.setCommitString('вопрос')
-        QApplication.sendEvent(field, event)
-        self.assertEqual(field.toPlainText(), 'MRI вопрос')
-        self.assertFalse(field.isReadOnly())
 
-    def test_chat_keeps_new_draft_while_busy(self):
-        chat = self.window.chat
-        with patch('local_chat.ChatThread', FakeChatThread):
-            chat.input.setPlainText('Первый вопрос')
-            chat.send_message()
-            self.assertFalse(chat.input.isReadOnly())
-            chat.input.selectAll(); QTest.keyClicks(chat.input, 'Next question')
-            worker = chat.thread
-            worker.completed.emit('Первый ответ'); worker.finished.emit()
-        self.assertEqual(chat.input.toPlainText(), 'Next question')
-        self.assertEqual(self.window.library.chat_history(chat.session_id)[0]['content'], 'Первый вопрос')
 
-    def test_expert_generation_and_replace_buttons(self):
-        source = 'В колене жидкости немного. Мениски целые.'
-        proposed = 'В полости коленного сустава небольшое количество жидкости. Мениски без повреждений.'
-        self.window.editor.setPlainText(source)
-        self.window.show_expert()
-        dialog = self.window.expert_dialog
-        with patch('expert_dialog.GenerationThread', FakeGenerationThread):
-            QTest.mouseClick(dialog.generate, Qt.MouseButton.LeftButton)
-            worker = dialog.thread
-            self.assertEqual(worker.source, source)
-            worker.completed.emit(proposed); worker.finished.emit()
-        self.assertEqual(self.window.editor.toPlainText(), source)
-        self.assertTrue(dialog.apply.isEnabled())
-        QTest.mouseClick(dialog.apply, Qt.MouseButton.LeftButton)
-        self.assertEqual(self.window.editor.toPlainText(), proposed)
-        self.window.editor.undo()
-        self.assertEqual(self.window.editor.toPlainText(), source)
-        dialog.close()
 
-    def test_expert_identical_result_has_no_replace_action(self):
-        self.window.editor.setPlainText('Текст без изменений.')
-        self.window.show_expert()
-        dialog = self.window.expert_dialog
-        dialog.receive_result('Текст без изменений.')
-        self.assertFalse(dialog.apply.isEnabled())
-        self.assertFalse(dialog.result.toPlainText())
-        self.assertIn('без изменений', dialog.status.text())
-        dialog.close()
 
     def test_google_opens_only_the_question(self):
-        chat = self.window.chat
+        chat = self.window.reference
         self.window.editor.setPlainText('Private report must stay local')
         chat.input.setPlainText('Классификация Stoller?')
         with patch('PySide6.QtGui.QDesktopServices.openUrl', return_value=True) as open_url:
@@ -309,6 +129,69 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual(url.host(), 'www.google.com')
         self.assertEqual(QUrlQuery(url).queryItemValue('q'), 'Классификация Stoller?')
         self.assertNotIn('Private', url.toString())
+
+    def test_google_field_accepts_russian_input(self):
+        self.window.show(); self.window.side_tabs.setCurrentWidget(self.window.reference)
+        field = self.window.reference.input
+        QTest.mouseClick(field.viewport(), Qt.MouseButton.LeftButton)
+        QTest.keyClicks(field, 'MRI ')
+        event = QInputMethodEvent(); event.setCommitString('вопрос')
+        QApplication.sendEvent(field, event)
+        self.assertEqual(field.toPlainText(), 'MRI вопрос')
+        self.assertFalse(field.isReadOnly())
+
+    def test_spelling_is_manual_and_undoable(self):
+        self.window.editor.setPlainText('Контруы ровные.')
+        self.window.show_spelling()
+        dialog = self.window.spelling_dialog
+        self.assertEqual(self.window.editor.toPlainText(), 'Контруы ровные.')
+        self.assertEqual(dialog.matches[0].word, 'Контруы')
+        dialog.suggestions.setEditText('Контуры')
+        QTest.mouseClick(dialog.replace, Qt.MouseButton.LeftButton)
+        self.assertEqual(self.window.editor.toPlainText(), 'Контуры ровные.')
+        self.window.editor.undo()
+        self.assertEqual(self.window.editor.toPlainText(), 'Контруы ровные.')
+
+    def test_personal_spelling_dictionary_persists(self):
+        self.window.editor.setPlainText('Нейротерминтест.')
+        self.window.show_spelling()
+        dialog = self.window.spelling_dialog
+        self.assertTrue(dialog.matches)
+        dialog.add_word()
+        self.assertFalse(dialog.matches)
+        self.window.editor.document().setModified(False); self.window.close()
+        self.window = app.MainWindow()
+        self.window.editor.setPlainText('Нейротерминтест.')
+        self.window.show_spelling()
+        self.assertFalse(self.window.spelling_dialog.matches)
+
+    def test_spelling_refuses_stale_replacement(self):
+        self.window.editor.setPlainText('Контруы ровные.')
+        self.window.show_spelling()
+        dialog = self.window.spelling_dialog
+        dialog.suggestions.setEditText('Контуры')
+        self.window.editor.setPlainText('Другой текст.')
+        dialog.replace_word()
+        self.assertEqual(self.window.editor.toPlainText(), 'Другой текст.')
+
+    def test_saved_docx_has_semicolons_and_no_line_dashes(self):
+        source = '- контуры ровные; размеры не увеличены;\n- очаг L4-L5 до 3.5 мм;'
+        self.window.editor.setPlainText(source)
+        target = Path(self.tmp.name) / 'saved.docx'
+        self.window.current_file = str(target)
+        self.assertTrue(self.window.save_file())
+        self.assertEqual(read_docx(target), 'Контуры ровные; размеры не увеличены.\nОчаг L4-L5 до 3.5 мм.')
+
+    def test_upgrade_retains_previous_saved_data(self):
+        db = self.window.library.db
+        db.execute('CREATE TABLE IF NOT EXISTS ai_chat_sessions(id INTEGER PRIMARY KEY, title TEXT)')
+        db.execute("INSERT INTO ai_chat_sessions(id,title) VALUES(1,'Сохранённая история')")
+        self.window.library.set_setting('expert_model', 'previous-model.gguf')
+        self.window.editor.document().setModified(False); self.window.close()
+        self.window = app.MainWindow()
+        self.assertEqual(self.window.library.db.execute('SELECT title FROM ai_chat_sessions WHERE id=1').fetchone()[0], 'Сохранённая история')
+        self.assertEqual(self.window.library.get_setting('expert_model'), 'previous-model.gguf')
+        self.assertFalse(hasattr(self.window, 'chat'))
 
     def test_formatting_keeps_paragraphs(self):
         self.window.editor.setPlainText("описание\n\nзаключение")

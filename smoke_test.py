@@ -1,4 +1,4 @@
-"""Exercise the packaged executable with an isolated user database."""
+"""Exercise the packaged Windows executable with an isolated user database."""
 import json
 import tempfile
 from pathlib import Path
@@ -9,7 +9,6 @@ from PySide6.QtGui import QInputMethodEvent
 
 def run(result_path):
     import app as module
-    # When frozen, the entry point is __main__; use its actual classes and globals.
     import __main__
     if hasattr(__main__, 'MainWindow'): module = __main__
     from document_io import read_docx
@@ -17,8 +16,7 @@ def run(result_path):
     with tempfile.TemporaryDirectory() as tmp:
         module.app_data_dir = lambda: Path(tmp)
         window = module.MainWindow()
-        window.show()
-        application.processEvents()
+        window.show(); application.processEvents()
         iterator = QTreeWidgetItemIterator(window.template_list)
         visible = 0
         while iterator.value():
@@ -27,35 +25,25 @@ def run(result_path):
         assert visible == 497, visible
         window.show_quick_lines()
         assert window.quick_dialog.findChild(QListWidget).count() >= 20
-        text = 'Протокол МРТ: L4-L5, 3.5 мм.\nЗаключение: без динамики.'
+        text = '- контруы ровные; размер L4-L5 до 3.5 мм;\n\nЗаключение:'
         window.editor.setPlainText(text)
-        target = Path(tmp) / 'smoke.docx'
-        window.export_to_path(target)
-        assert read_docx(target) == text
-        cursor = window.editor.textCursor()
-        cursor.select(cursor.SelectionType.Document)
-        window.editor.setTextCursor(cursor)
-        window.add_selection_to_quick_lines()
+        cursor = window.editor.textCursor(); cursor.select(cursor.SelectionType.Document)
+        window.editor.setTextCursor(cursor); window.add_selection_to_quick_lines()
         assert text in window.library.quick_lines()
-        window.show_expert()
-        assert window.expert_dialog.source_text == text
-        candidate = 'Протокол МРТ: уровень L4-L5, размер 3.5 мм.\nЗаключение: без динамики.'
-        window.expert_dialog.receive_result(candidate)
-        assert window.expert_dialog.apply.isEnabled()
-        window.expert_dialog.apply.click()
-        assert window.editor.toPlainText() == candidate
-        window.editor.undo()
-        assert window.editor.toPlainText() == text
-        window.expert_dialog.close()
-        window.side_tabs.setCurrentWidget(window.chat)
+        window.show_spelling()
+        spelling = window.spelling_dialog
+        assert [issue.word for issue in spelling.matches] == ['контруы']
+        spelling.suggestions.setEditText('контуры'); spelling.replace.click(); spelling.close()
+        assert 'контруы' not in window.editor.toPlainText()
+        target = Path(tmp) / 'smoke.docx'; window.current_file = str(target)
+        assert window.save_file()
+        expected = 'Контуры ровные; размер L4-L5 до 3.5 мм.\n\nЗаключение:'
+        assert read_docx(target) == expected
+        window.side_tabs.setCurrentWidget(window.reference)
         event = QInputMethodEvent(); event.setCommitString('Проверка ввода')
-        QApplication.sendEvent(window.chat.input, event)
-        assert window.chat.input.toPlainText() == 'Проверка ввода'
-        session = window.chat.session_id
-        window.library.save_chat_turn(session, 'Что такое T2?', 'Справочный ответ.')
-        window.chat.render()
-        assert 'Справочный ответ.' in window.chat.transcript.toPlainText()
-        assert window.editor.toPlainText() == text
-        window.editor.document().setModified(False)
-        window.close()
-        Path(result_path).write_text(json.dumps({'protocols': visible, 'docx': 'ok', 'quick_lines': 'ok', 'expert_dialog': 'ok', 'reference_chat': 'ok'}), encoding='utf-8')
+        QApplication.sendEvent(window.reference.input, event)
+        assert window.reference.input.toPlainText() == 'Проверка ввода'
+        assert window.editor.toPlainText() == expected
+        window.editor.document().setModified(False); window.close()
+        Path(result_path).write_text(json.dumps({'protocols': visible, 'docx': 'ok',
+            'quick_lines': 'ok', 'spelling': 'ok', 'punctuation': 'ok', 'google_input': 'ok'}), encoding='utf-8')

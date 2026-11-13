@@ -54,12 +54,10 @@ class PhraseLibrary:
         self.db.execute("CREATE INDEX IF NOT EXISTS idx_template_folder_path ON template_folders(folder_path)")
         self.db.execute("CREATE TABLE IF NOT EXISTS verified_standards(id INTEGER PRIMARY KEY, title TEXT, category TEXT, content TEXT, digest TEXT UNIQUE, uses INTEGER DEFAULT 1, verified_at TEXT)")
         self.db.execute("CREATE TABLE IF NOT EXISTS quick_lines(id INTEGER PRIMARY KEY, text TEXT UNIQUE NOT NULL)")
-        self.db.execute("CREATE TABLE IF NOT EXISTS ai_chat_sessions(id INTEGER PRIMARY KEY, title TEXT NOT NULL)")
-        self.db.execute("CREATE TABLE IF NOT EXISTS ai_chat_messages(id INTEGER PRIMARY KEY, session_id INTEGER NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL)")
-        self.db.execute("CREATE INDEX IF NOT EXISTS idx_ai_chat_session ON ai_chat_messages(session_id,id)")
         self.db.execute("CREATE TABLE IF NOT EXISTS app_settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
         for text in json.loads(bundled_data_path('quick_lines.json').read_text(encoding='utf-8'))['lines']:
             self.db.execute("INSERT OR IGNORE INTO quick_lines(text) VALUES(?)", (text,))
+        self.db.execute("CREATE TABLE IF NOT EXISTS spelling_words(word TEXT PRIMARY KEY)")
         self.db.commit()
         self.load_bundled_templates()
         self.index_existing_templates()
@@ -88,27 +86,6 @@ class PhraseLibrary:
     def set_setting(self, key, value):
         self.db.execute("INSERT INTO app_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
         self.db.commit()
-
-    def chat_sessions(self):
-        return self.db.execute('SELECT id,title FROM ai_chat_sessions ORDER BY id DESC').fetchall()
-
-    def new_chat(self):
-        cursor = self.db.execute("INSERT INTO ai_chat_sessions(title) VALUES('Новый разговор')")
-        self.db.commit()
-        return cursor.lastrowid
-
-    def chat_history(self, session_id):
-        return [{'role': role, 'content': content} for role, content in self.db.execute(
-            'SELECT role,content FROM ai_chat_messages WHERE session_id=? ORDER BY id', (session_id,))]
-
-    def save_chat_turn(self, session_id, question, answer):
-        with self.db:
-            if not self.db.execute('SELECT 1 FROM ai_chat_sessions WHERE id=?', (session_id,)).fetchone():
-                raise ValueError('Разговор не найден.')
-            self.db.executemany('INSERT INTO ai_chat_messages(session_id,role,content) VALUES(?,?,?)',
-                [(session_id, 'user', question), (session_id, 'assistant', answer)])
-            self.db.execute("UPDATE ai_chat_sessions SET title=? WHERE id=? AND title='Новый разговор'",
-                (question.strip().replace('\n', ' ')[:60], session_id))
 
     def load_bundled_templates(self):
         count = self.db.execute("SELECT COUNT(*) FROM templates WHERE source=?", ("Встроенная библиотека МРТ",)).fetchone()[0]
@@ -442,10 +419,10 @@ class MainWindow(QMainWindow):
         self.template_count = QLabel("Протоколов: 0"); template_l.addWidget(self.template_count)
         tabs.addTab(phrase_tab, "Быстрые строки протоколов")
         tabs.addTab(template_tab, "Протоколы")
-        from local_chat import LocalChat
-        self.chat = LocalChat(self)
-        tabs.addTab(self.chat, "Справочник")
-        tabs.currentChanged.connect(lambda index: self.chat.activate() if tabs.widget(index) is self.chat else None)
+        from google_reference import GoogleReference
+        self.reference = GoogleReference(self)
+        tabs.addTab(self.reference, "Google")
+        tabs.currentChanged.connect(lambda index: self.reference.activate() if tabs.widget(index) is self.reference else None)
         side_l.addWidget(tabs, 1)
         splitter.addWidget(side); splitter.setStretchFactor(0, 4); splitter.setStretchFactor(1, 2)
         self.setCentralWidget(splitter)
@@ -500,10 +477,11 @@ class MainWindow(QMainWindow):
         lib.addAction(self.action("Добавить выделенное в быстрые строки","Ctrl+Alt+L",self.add_selection_to_quick_lines))
         lib.addAction(self.action("Верифицировать стандарт","Ctrl+Shift+V",self.verify_current))
         lib.addAction(self.action("Резервная копия базы","",self.backup_database))
-        bar.addAction(self.action("Рентгенолог — экспертный помощник", "Ctrl+Alt+E", self.show_expert))
+        bar.addAction(self.action("Проверить опечатки", "F7", self.show_spelling))
         bar.addAction(self.action("Оформить текст","Ctrl+Shift+F",self.format_all_text))
         edit = self.menuBar().addMenu("Правка")
         edit.addAction(self.action("Оформить предложения","Ctrl+Shift+F",self.format_all_text))
+        edit.addAction(self.action("Проверить опечатки", "", self.show_spelling))
         edit.addAction(self.action("Найти…","Ctrl+F",self.find_text))
         edit.addAction(self.action("Заменить…","Ctrl+H",self.replace_text))
         edit.addAction(self.action("Отменить","Ctrl+Z",self.editor.undo))
@@ -544,15 +522,6 @@ class MainWindow(QMainWindow):
         return answer == QMessageBox.StandardButton.Discard
 
     def closeEvent(self, event):
-        if self.chat.is_busy():
-            self.side_tabs.setCurrentWidget(self.chat)
-            self.chat.status.setText('Нажмите «Остановить» перед закрытием программы.')
-            event.ignore()
-            return
-        if hasattr(self, "expert_dialog") and self.expert_dialog.is_busy():
-            self.expert_dialog.raise_()
-            event.ignore()
-            return
         if self.confirm_discard():
             self.library.db.close()
             event.accept()
@@ -580,6 +549,7 @@ class MainWindow(QMainWindow):
         if not path: return False
         if not Path(path).suffix: path += ".docx"
         try:
+            self.format_all_text()
             if path.lower().endswith(".docx"): self.export_to_path(path)
             else:
                 from document_io import atomic_write_text
@@ -598,6 +568,7 @@ class MainWindow(QMainWindow):
         if not path: return
         if not path.lower().endswith(".docx"): path += ".docx"
         try:
+            self.format_all_text()
             self.export_to_path(path)
             self.statusBar().showMessage("Экспортировано: "+path,5000)
         except Exception as e: QMessageBox.critical(self,"Ошибка экспорта",str(e))
@@ -607,9 +578,8 @@ class MainWindow(QMainWindow):
         action = menu.addAction('Добавить в быстрые строки протоколов')
         action.setEnabled(self.editor.textCursor().hasSelection())
         action.triggered.connect(self.add_selection_to_quick_lines)
-        expert = menu.addAction('Рентгенолог — экспертный помощник')
-        expert.setEnabled(bool(self.editor.toPlainText().strip()))
-        expert.triggered.connect(self.show_expert)
+        spelling = menu.addAction('Проверить опечатки')
+        spelling.triggered.connect(self.show_spelling)
         menu.exec(self.editor.mapToGlobal(position))
         menu.deleteLater()
 
@@ -623,17 +593,12 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage('Строка добавлена в быстрые строки.' if added else 'Эта строка уже есть в списке.', 5000)
         except Exception as exc: QMessageBox.warning(self, 'Быстрые строки', str(exc))
 
-    def show_expert(self):
-        if self.chat.is_busy():
-            self.side_tabs.setCurrentWidget(self.chat)
-            self.chat.status.setText('Дождитесь ответа или нажмите «Остановить», затем откройте редактуру.')
-            return
-        from expert_dialog import ExpertDialog
-        if hasattr(self, 'expert_dialog') and self.expert_dialog.is_busy():
-            self.expert_dialog.show(); self.expert_dialog.raise_(); return
-        if hasattr(self, 'expert_dialog'): self.expert_dialog.close(); self.expert_dialog.deleteLater()
-        self.expert_dialog = ExpertDialog(self)
-        self.expert_dialog.show()
+    def show_spelling(self):
+        from spell_check import SpellingDialog
+        if not hasattr(self, 'spelling_dialog'):
+            self.spelling_dialog = SpellingDialog(self)
+        self.spelling_dialog.scan()
+        self.spelling_dialog.show(); self.spelling_dialog.raise_()
 
     def populate_quick_dialog(self):
         self.quick_listing.clear()
@@ -747,8 +712,8 @@ class MainWindow(QMainWindow):
         for tag, left, right, new_left, new_right in reversed(operations):
             if tag == 'equal': continue
             cursor = QTextCursor(block)
-            cursor.setPosition(block.position() + left)
-            cursor.setPosition(block.position() + right, QTextCursor.MoveMode.KeepAnchor)
+            cursor.setPosition(block.position() + len(current[:left].encode('utf-16-le')) // 2)
+            cursor.setPosition(block.position() + len(current[:right].encode('utf-16-le')) // 2, QTextCursor.MoveMode.KeepAnchor)
             cursor.insertText(updated[new_left:new_right])
 
     def format_all_text(self):

@@ -56,7 +56,7 @@ jobs:
         run: python audit_library.py
       - name: Build portable executable
         run: |
-          pyinstaller --noconfirm --clean --onefile --windowed --add-data "protocols.json.br.b64;." --add-data "quick_lines.json;." --add-data "protocols_extra.json;." --add-data "protocols_legacy.json;." --add-data "drive_odt_01.json;." --add-data "drive_odt_02.json;." --add-data "drive_odt_03.json;." --add-data "drive_odt_04.json;." --add-data "drive_odt_05.json;." --add-data "drive_odt_06.json;." --add-data "drive_odt_07.json;." --add-data "drive_odt_08.json;." --add-data "drive_odt_09.json;." --add-data "drive_odt_10.json;." --add-data "drive_odt_11.json;." --add-data "drive_odt_12.json;." --add-data "drive_odt_13.json;." --add-data "drive_odt_14.json;." --add-data "drive_odt_15.json;." --add-data "drive_odt_16.json;." --add-data "drive_odt_17.json;." --add-data "drive_odt_18.json;." --name RadiologyAssistant app.py
+          pyinstaller --noconfirm --clean --onefile --windowed --add-data "protocols.json.br.b64;." --add-data "quick_lines.json;." --add-data "protocols_extra.json;." --add-data "protocols_legacy.json;." --add-data "drive_odt_01.json;." --add-data "drive_odt_02.json;." --add-data "drive_odt_03.json;." --add-data "drive_odt_04.json;." --add-data "drive_odt_05.json;." --add-data "drive_odt_06.json;." --add-data "drive_odt_07.json;." --add-data "drive_odt_08.json;." --add-data "drive_odt_09.json;." --add-data "drive_odt_10.json;." --add-data "drive_odt_11.json;." --add-data "drive_odt_12.json;." --add-data "drive_odt_13.json;." --add-data "drive_odt_14.json;." --add-data "drive_odt_15.json;." --add-data "drive_odt_16.json;." --add-data "drive_odt_17.json;." --add-data "drive_odt_18.json;." --add-data "spelling_data;spelling_data" --name RadiologyAssistant app.py
       - name: Test packaged Windows executable
         shell: pwsh
         env:
@@ -67,24 +67,14 @@ jobs:
           if (!$process.WaitForExit(120000)) { $process.Kill(); throw "EXE smoke test timed out" }
           if ($process.ExitCode -ne 0 -or !(Test-Path $result)) { throw "EXE smoke test failed" }
           Get-Content $result
-      - name: Prepare portable local AI engine (CPU, no installer)
-        shell: pwsh
-        run: |
-          Invoke-WebRequest -Uri "https://github.com/ggml-org/llama.cpp/releases/download/b12322/llama-b12322-bin-win-cpu-x64.zip" -OutFile llama-cpu.zip
-          $hash = (Get-FileHash llama-cpu.zip -Algorithm SHA256).Hash.ToLower()
-          if ($hash -ne "35b6b69e69ae1a313768feb70bc1c4504bf070f7015704aaa88543812bcc5dd2") { throw "llama.cpp checksum mismatch" }
-          Expand-Archive llama-cpu.zip local-ai
-          $server = Get-ChildItem local-ai -Filter llama-server.exe -Recurse | Select-Object -First 1
-          & $server.FullName --version
-          if ($LASTEXITCODE -ne 0) { throw "CPU engine failed to start" }
-          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ggml-org/llama.cpp/b12322/LICENSE" -OutFile local-ai/LICENSE-llama.cpp.txt
       - name: Package
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path package | Out-Null
           Copy-Item dist/RadiologyAssistant.exe package/
-          Copy-Item local-ai package/local-ai -Recurse
-          Copy-Item LOCAL_AI.md package/
+          Copy-Item USER_GUIDE.md package/
+          Copy-Item spelling_data/README_ru_RU.txt package/СЛОВАРЬ-ЛИЦЕНЗИЯ.txt
+          Copy-Item spelling_data/LICENSE-spylls.txt package/
           @"
           Radiology Assistant
           Запустите RadiologyAssistant.exe.
