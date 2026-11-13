@@ -56,3 +56,13 @@ class AdaptiveTests(unittest.TestCase):
             db=sqlite3.connect(path)
             try:self.assertTrue(AdaptiveMemory(db).suggest(QUERY))
             finally:db.close()
+
+    def test_ranking_is_stable_across_hash_seeds(self):
+        import subprocess,sys,os,json
+        script = 'import sqlite3,json; from adaptive_completion import AdaptiveMemory; m=AdaptiveMemory(sqlite3.connect(":memory:")); m.learn('+repr(SAMPLE)+'); print(json.dumps(m.suggest('+repr(QUERY)+'),ensure_ascii=True))'
+        results=[]
+        for seed in ('1','2','42'):
+            result=subprocess.run([sys.executable,'-c',script],env={**os.environ,'PYTHONHASHSEED':seed},capture_output=True,text=True,check=True)
+            results.append(json.loads(result.stdout))
+        self.assertEqual(results[0],results[1]);self.assertEqual(results[0],results[2])
+        self.assertIn('деформацией дурального мешка',results[0][0]['text'])

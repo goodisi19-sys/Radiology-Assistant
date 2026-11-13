@@ -69,7 +69,7 @@ class AdaptiveMemory:
         if not pairs:return 0
         with self.db:
             self.db.execute('INSERT INTO adaptive_documents VALUES(?,?)',(signature,source))
-            for context,suffix,separator,area,tail in pairs:
+            for context,suffix,separator,area,tail in sorted(pairs):
                 self.db.execute('''INSERT INTO adaptive_continuations(context,suffix,separator,region,tail,source,uses,updated)
                     VALUES(?,?,?,?,?,?,1,?) ON CONFLICT(context,suffix,separator,region,tail,source)
                     DO UPDATE SET uses=uses+1,updated=excluded.updated''',(context,suffix,separator,area,tail,source,time.time()))
@@ -93,7 +93,7 @@ class AdaptiveMemory:
             if len(q)>2 and overlap<0.5:continue
             first=tokens(suffix)[:2]
             if len(first)==2 and set(first)<=q:continue
-            score=(source=='verified',overlap,min(uses,10000),len(q&stored))
+            score=(source=='verified',overlap,-len(stored-q),min(uses,10000),len(q&stored),len(suffix),separator!=' ',suffix)
             candidate={'text':suffix,'separator':separator,'verified':source=='verified'}
             if suffix not in ranked or score>ranked[suffix][0]:ranked[suffix]=(score,candidate)
         return [value[1] for value in sorted(ranked.values(),key=lambda value:value[0],reverse=True)[:limit]]

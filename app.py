@@ -443,6 +443,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.library = PhraseLibrary()
         self.current_file = None
+        self._closing = False
         self.setWindowTitle(APP_NAME)
         self.resize(1400, 900)
         self.setMinimumSize(980, 650)
@@ -597,6 +598,9 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         if self.confirm_discard():
+            self._closing = True
+            self.completer.popup().hide()
+            self.autosave_timer.stop()
             if hasattr(self, 'yandex_dialog'): self.yandex_dialog.close()
             if hasattr(self, 'gigachat_dialog'): self.gigachat_dialog.close()
             if hasattr(self, 'shorthand_dialog'): self.shorthand_dialog.close()
@@ -927,6 +931,7 @@ class MainWindow(QMainWindow):
             phrase=item.text(); self.editor.textCursor().insertText(format_report(phrase)+" ")
             self.editor.setFocus()
     def accept_completion(self, phrase):
+        if self._closing: return
         cursor = self.editor.textCursor()
         snapshot = getattr(self, '_completion_snapshot', None)
         if snapshot is not None and snapshot != (self.editor.toPlainText(), cursor.position(), cursor.anchor()):
@@ -949,7 +954,7 @@ class MainWindow(QMainWindow):
         self.completer.popup().hide()
 
     def update_suggestions(self):
-        if not hasattr(self,'completer'): return
+        if self._closing or not hasattr(self,'completer'): return
         cursor = self.editor.textCursor()
         before = cursor.block().text().encode('utf-16-le')[:cursor.positionInBlock()*2].decode('utf-16-le')
         match = re.search(r'(\S{2,})$', before)

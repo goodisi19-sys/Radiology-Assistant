@@ -162,6 +162,16 @@ class ApplicationTests(unittest.TestCase):
         self.window.export_to_path(Path(self.tmp.name)/'disabled.docx')
         self.assertEqual(self.window.library.adaptive.count(),0)
 
+    def test_adaptive_callbacks_stop_after_window_close(self):
+        self.window.editor.setPlainText('Грыжа диска ')
+        self.window.editor.document().setModified(False)
+        self.window.close()
+        self.window.update_suggestions()
+        self.window.accept_completion('Любая устаревшая подсказка')
+        self.assertFalse(self.window.autosave_timer.isActive())
+        self.assertFalse(self.window.completer.popup().isVisible())
+        self.assertEqual(self.window.editor.toPlainText(),'Грыжа диска ')
+
     def test_all_protocols_visible_and_restart(self):
         ids = []
         iterator = QTreeWidgetItemIterator(self.window.template_list)
