@@ -27,6 +27,24 @@ class ApplicationTests(unittest.TestCase):
         self.window.close()
         self.override.stop()
         self.tmp.cleanup()
+    def test_protocol_check_highlighting_navigation_and_stale_text(self):
+        text = '😀 Правый коленный сустав.\nЗаключение: левый коленный сустав. Размер ___ мм.'
+        self.window.editor.setPlainText(text)
+        self.window.show_protocol_check()
+        dialog = self.window.protocol_check_dialog
+        self.assertEqual(len(dialog.matches), 2)
+        self.assertGreaterEqual(len(self.window.editor.extraSelections()), 3)
+        dialog.issues.setCurrentRow(0)
+        self.assertEqual(self.window.editor.textCursor().selectedText(), 'левый')
+        self.assertEqual(self.window.editor.toPlainText(), text)
+        self.window.editor.insertPlainText('правый')
+        self.assertFalse(dialog.issues.isEnabled())
+        self.assertEqual(len(self.window.editor.extraSelections()), 0)
+        dialog.scan()
+        self.assertEqual(len(dialog.matches), 1)
+        dialog.close()
+        self.assertEqual(len(self.window.editor.extraSelections()), 0)
+
     def test_all_protocols_visible_and_restart(self):
         ids = []
         iterator = QTreeWidgetItemIterator(self.window.template_list)

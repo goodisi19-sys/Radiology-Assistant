@@ -83,8 +83,13 @@ def run(result_path):
                 assert read_docx(fixed_path) == text
         assert sum(row['kind'] == 'base-restored' for row in window.library.layout_audit) == 127
         assert sum(row['needs_source_review'] for row in window.library.layout_audit) == 18
+        window.editor.setPlainText('Правый коленный сустав.\nЗаключение: левый коленный сустав. Размер ___ мм.')
+        window.show_protocol_check()
+        assert len(window.protocol_check_dialog.matches) == 2
+        assert len(window.editor.extraSelections()) >= 3
+        window.protocol_check_dialog.close()
         window.editor.document().setModified(False); window.close()
         Path(result_path).write_text(json.dumps({'protocols': visible, 'docx': 'ok',
             'quick_lines': 'ok', 'spelling': 'ok', 'punctuation': 'ok', 'google_input': 'ok', 'yandex_exchange': 'ok',
-            'mra_paragraphs': 'ok', 'layouts_audited': 497, 'methodology': 'ok',
+            'mra_paragraphs': 'ok', 'layouts_audited': 497, 'methodology': 'ok', 'protocol_check': 'ok',
             'base_sources_restored': 127, 'source_review_required': 18}), encoding='utf-8')

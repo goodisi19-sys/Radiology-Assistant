@@ -1,0 +1,118 @@
+"""Deterministic draft checks. Findings are prompts for review, never corrections."""
+from dataclasses import dataclass
+import re
+
+@dataclass(frozen=True)
+class Finding:
+    start: int
+    end: int
+    message: str
+    possible: bool = False
+    related: tuple = ()
+
+SIDE = r'(?:прав(?:ый|ая|ое|ые|ого|ой|ому|ую|ым|ом|ых|ыми)|лев(?:ый|ая|ое|ые|ого|ой|ому|ую|ым|ом|ых|ыми))'
+OPTIONS = re.compile(r'\b'+SIDE+r'(?:\s*/\s*|\s*\(\s*|[ \t]+(?:или[ \t]+)?)'+SIDE+r'\b\)?', re.I)
+EMPTY = re.compile(r'_{2,}|\.{3,}|…|\[\s*(?:сторона|размеры?|значение|впишите[^\]\n]*)?\s*\]|\b(?:до|размерами|размером)\s+(?=(?:мм|см|мл)\b)|[×хx]\s*(?=(?:мм|см)\b)', re.I)
+ENTITIES = {
+    'коленный сустав': r'коленн\w*', 'плечевой сустав': r'плечев\w*',
+    'тазобедренный сустав': r'тазобедренн\w*', 'голеностопный сустав': r'голеностопн\w*',
+    'локтевой сустав': r'локтев\w*', 'лучезапястный сустав': r'лучезапястн\w*',
+    'почка': r'почк\w*',
+}
+
+
+def check_protocol(text):
+    findings = []
+    options = list(OPTIONS.finditer(text))
+    for match in options:
+        findings.append(Finding(match.start(), match.end(), 'Оставлен вариант шаблона: выберите нужную формулировку'))
+    for match in EMPTY.finditer(text):
+        findings.append(Finding(match.start(), match.end(), 'Возможно, поле или размер не заполнены'))
+    for match in re.finditer(r'(?im)^[ \t]*(?:(?:размеры|сторона|контрастирование)[ \t]*:[ \t]*|[-•–—][ \t]*)$', text):
+        findings.append(Finding(match.start(), match.end(), 'Незаполненный пункт шаблона'))
+    heading = re.search(r'(?im)^[ \t]*заключение[ \t]*(?:[:：]|$)|\bзаключение[ \t]*[:：]', text)
+    if heading:
+        sections = [(text[:heading.start()], 0), (text[heading.end():], heading.end())]
+        by_section = []
+        for section, offset in sections:
+            entities = {}
+            for side in re.finditer(r'\b'+SIDE+r'\b', section, re.I):
+                start, end = offset+side.start(), offset+side.end()
+                if any(m.start() <= start < m.end() for m in options): continue
+                # Only the adjacent noun phrase can establish the organ. Never cross a clause.
+                before = section[max(0, side.start()-65):side.start()]
+                candidates = []
+                for entity, noun in ENTITIES.items():
+                    after = re.match(r'\s+(?:(?:и|или)\s+)?(?:'+noun+r')\b', section[side.end():], re.I)
+                    previous = re.search(r'\b(?:'+noun+r')(?:\s+сустав\w*)?\s*$', before, re.I)
+                    if after or previous: candidates.append(entity)
+                if len(candidates) != 1: continue
+                entity = candidates[0]
+                entities.setdefault(entity, {}).setdefault('right' if side.group().casefold().startswith('прав') else 'left', []).append((start,end))
+            by_section.append(entities)
+        # Bilateral wording can refer to several organs; abstain rather than invent a conflict.
+        if not re.search(r'двусторонн|с\s+обеих\s+сторон|оба\s+сустава|обе\s+почки', text, re.I):
+            for entity in by_section[0].keys() & by_section[1].keys():
+                description, conclusion = by_section[0][entity], by_section[1][entity]
+                if len(description) == len(conclusion) == 1 and set(description) != set(conclusion):
+                    related = tuple(next(iter(description.values())) + next(iter(conclusion.values())))
+                    start,end = related[-1]
+                    findings.append(Finding(start,end, 'Возможное несоответствие стороны: '+entity+' — сверьте описание и заключение', True, related))
+    return sorted(findings, key=lambda item: (item.start,item.end))
+
+
+def qt_offset(text, offset):
+    return len(text[:offset].encode('utf-16-le')) // 2
+
+
+def create_dialog(window):
+    from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, QPushButton, QTextEdit
+    from PySide6.QtGui import QTextCursor, QColor
+    class CheckDialog(QDialog):
+        def __init__(self):
+            super().__init__(window)
+            self.setWindowTitle('Проверка протокола'); self.resize(760,430)
+            layout = QVBoxLayout(self)
+            intro = QLabel('Жёлтый — оставленные варианты и пустые поля. Оранжевый — возможное несоответствие.\n'
+                'Проверка по правилам может пропустить ошибку или выделить допустимую запись. Текст не меняется.')
+            intro.setWordWrap(True); layout.addWidget(intro)
+            self.issues = QListWidget(); layout.addWidget(self.issues)
+            self.status = QLabel(); layout.addWidget(self.status)
+            row = QHBoxLayout(); layout.addLayout(row)
+            refresh = QPushButton('Проверить заново'); refresh.clicked.connect(self.scan); row.addWidget(refresh)
+            close = QPushButton('Закрыть'); close.clicked.connect(self.close); row.addWidget(close)
+            self.issues.currentRowChanged.connect(self.select)
+            window.editor.textChanged.connect(self.invalidate)
+            self.snapshot = ''; self.matches = []
+        def invalidate(self):
+            window.editor.setExtraSelections([])
+            self.issues.setEnabled(False)
+            self.status.setText('Текст изменился. Нажмите «Проверить заново».')
+        def scan(self):
+            self.snapshot = window.editor.toPlainText(); self.matches = check_protocol(self.snapshot)
+            self.issues.clear(); self.issues.setEnabled(True)
+            selections = []
+            for issue in self.matches:
+                line = self.snapshot.count('\n',0,issue.start)+1
+                self.issues.addItem(f'Строка {line}: {issue.message}')
+                for left,right in issue.related or ((issue.start,issue.end),):
+                    item = QTextEdit.ExtraSelection()
+                    item.cursor = QTextCursor(window.editor.document())
+                    item.cursor.setPosition(qt_offset(self.snapshot,left))
+                    item.cursor.setPosition(qt_offset(self.snapshot,right), QTextCursor.MoveMode.KeepAnchor)
+                    item.format.setBackground(QColor('#ffd19a' if issue.possible else '#fff29a'))
+                    item.format.setForeground(QColor('#18202b')); selections.append(item)
+            window.editor.setExtraSelections(selections)
+            self.status.setText(f'Замечаний: {len(self.matches)}.' if self.matches else 'Правила не нашли замечаний. Это не подтверждает полноту или медицинскую корректность протокола.')
+            if self.matches: self.issues.setCurrentRow(0)
+        def select(self,index):
+            if not 0 <= index < len(self.matches) or self.snapshot != window.editor.toPlainText(): return
+            issue = self.matches[index]; cursor = window.editor.textCursor()
+            cursor.setPosition(qt_offset(self.snapshot,issue.start))
+            cursor.setPosition(qt_offset(self.snapshot,issue.end), QTextCursor.MoveMode.KeepAnchor)
+            window.editor.setTextCursor(cursor); window.editor.ensureCursorVisible()
+        def done(self,result):
+            window.editor.setExtraSelections([]); super().done(result)
+        def closeEvent(self,event):
+            window.editor.setExtraSelections([]); super().closeEvent(event)
+    return CheckDialog()

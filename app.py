@@ -550,6 +550,7 @@ class MainWindow(QMainWindow):
         lib.addAction(self.action("Резервная копия базы","",self.backup_database))
         bar.addAction(self.action("Яндекс Редактор", "Ctrl+Alt+Y", self.show_yandex_editor))
         bar.addAction(self.action("Проверить опечатки", "F7", self.show_spelling))
+        bar.addAction(self.action("Проверить протокол", "F8", self.show_protocol_check))
         bar.addAction(self.action("Оформить текст","Ctrl+Shift+F",self.format_all_text))
         edit = self.menuBar().addMenu("Правка")
         edit.addAction(self.action("Оформить предложения","Ctrl+Shift+F",self.format_all_text))
@@ -674,6 +675,13 @@ class MainWindow(QMainWindow):
             self.yandex_dialog.close(); self.yandex_dialog.deleteLater()
         self.yandex_dialog = YandexEditorDialog(self)
         self.yandex_dialog.show()
+
+    def show_protocol_check(self):
+        from protocol_check import create_dialog
+        if not hasattr(self, "protocol_check_dialog"):
+            self.protocol_check_dialog = create_dialog(self)
+        self.protocol_check_dialog.scan()
+        self.protocol_check_dialog.show(); self.protocol_check_dialog.raise_()
 
     def show_spelling(self):
         from spell_check import SpellingDialog
