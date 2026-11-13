@@ -441,6 +441,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(APP_NAME)
         self.resize(1400, 900)
         self.setMinimumSize(980, 650)
+        self.setFont(QFont("Segoe UI", 10))
         self.build_ui()
         self.refresh_phrases()
         self.refresh_templates()
@@ -452,6 +453,7 @@ class MainWindow(QMainWindow):
     def build_ui(self):
         self.setStatusBar(QStatusBar())
         self.editor = QTextEdit()
+        self.editor.setObjectName("reportEditor")
         self.editor.setAcceptRichText(True)
         self.editor.setFont(QFont("Times New Roman", 12))
         self.editor.setPlaceholderText("Начните составлять протокол МРТ…")
@@ -488,8 +490,9 @@ class MainWindow(QMainWindow):
         insert_template_btn = QPushButton("Вставить протокол целиком")
         insert_template_btn.clicked.connect(self.insert_template); template_l.addWidget(insert_template_btn)
         self.template_count = QLabel("Протоколов: 0"); template_l.addWidget(self.template_count)
-        tabs.addTab(phrase_tab, "Быстрые строки протоколов")
-        tabs.addTab(template_tab, "Протоколы")
+        tabs.addTab(phrase_tab, "Быстрые строки")
+        tabs.insertTab(0, template_tab, "Протоколы")
+        tabs.setCurrentWidget(template_tab)
         from google_reference import GoogleReference
         self.reference = GoogleReference(self)
         tabs.addTab(self.reference, "Google")
@@ -501,43 +504,23 @@ class MainWindow(QMainWindow):
         self.apply_style()
 
     def apply_style(self):
-        # Explicit foreground colors prevent invisible text with Windows dark themes.
-        self.setStyleSheet("""
-        QMainWindow, QWidget { background-color: #f4f6f8; color: #202b38; }
-        QMenuBar, QMenu, QToolBar, QStatusBar { background-color: #f4f6f8; color: #202b38; }
-        QMenuBar::item:selected, QMenu::item:selected { background-color: #dcecff; color: #183b60; }
-        QTabWidget::pane { border: 1px solid #cbd3dc; background-color: #f4f6f8; }
-        QTabBar::tab { background-color: #e5ebf2; color: #202b38; padding: 7px 12px; }
-        QTabBar::tab:selected { background-color: white; color: #142b43; }
-        QTextEdit, QPlainTextEdit { background-color: white; color: #202b38;
-            border: 1px solid #cbd3dc; padding: 12px;
-            selection-background-color: #c8def5; selection-color: #142b43; }
-        QLineEdit, QSpinBox, QComboBox, QFontComboBox { padding: 6px; border: 1px solid #cbd3dc;
-            border-radius: 5px; background-color: white; color: #202b38;
-            selection-background-color: #c8def5; selection-color: #142b43; }
-        QListWidget, QTreeWidget { background-color: white; color: #202b38;
-            alternate-background-color: #f6f8fb; border: 1px solid #cbd3dc;
-            selection-background-color: #dcecff; selection-color: #183b60; }
-        QListWidget::item { padding: 8px; border-bottom: 1px solid #edf0f3; }
-        QListWidget::item:selected, QTreeWidget::item:selected {
-            background-color: #dcecff; color: #183b60; }
-        QPushButton { padding: 8px 14px; border: 1px solid #aebdca;
-            border-radius: 5px; background-color: white; color: #202b38; }
-        QPushButton:hover { background-color: #eaf2fa; }
-        QLabel { color: #202b38; }
-        """)
+        from appearance import apply
+        apply(self)
     def action(self, name, shortcut, fn):
         a = QAction(name, self); a.setShortcut(shortcut); a.triggered.connect(fn); return a
     def create_actions(self):
         bar = QToolBar("Основная панель"); bar.setMovable(False); self.addToolBar(bar)
         for name, key, fn in [("Новый","Ctrl+N",self.new_file),("Открыть","Ctrl+O",self.open_file),("Сохранить","Ctrl+S",self.save_file),("Экспорт DOCX","Ctrl+Shift+S",self.export_docx)]:
             a=self.action(name,key,fn); bar.addAction(a)
-        bar.addSeparator()
+        command_bar = bar
+        self.addToolBarBreak()
+        bar = QToolBar("Форматирование"); bar.setObjectName("formatBar"); bar.setMovable(False); self.addToolBar(bar)
         font = QFontComboBox(); font.setCurrentFont(QFont("Times New Roman"))
         font.currentFontChanged.connect(lambda f: self.editor.setCurrentFont(f)); bar.addWidget(font)
         size = QSpinBox(); size.setRange(8,36); size.setValue(12); size.valueChanged.connect(lambda n: self.editor.setFontPointSize(n)); bar.addWidget(size)
         for label, key, fn in [("Ж","Ctrl+B",self.toggle_bold),("К","Ctrl+I",self.toggle_italic),("Ч","Ctrl+U",self.toggle_underline)]:
             a=self.action(label,key,fn); bar.addAction(a)
+        bar = command_bar
         menu = self.menuBar().addMenu("Файл")
         for n,k,f in [("Новый","Ctrl+N",self.new_file),("Открыть…","Ctrl+O",self.open_file),("Сохранить","Ctrl+S",self.save_file),("Экспорт в DOCX…","Ctrl+Shift+S",self.export_docx)]:
             menu.addAction(self.action(n,k,f))
@@ -548,7 +531,9 @@ class MainWindow(QMainWindow):
         lib.addAction(self.action("Добавить выделенное в быстрые строки","Ctrl+Alt+L",self.add_selection_to_quick_lines))
         lib.addAction(self.action("Верифицировать стандарт","Ctrl+Shift+V",self.verify_current))
         lib.addAction(self.action("Резервная копия базы","",self.backup_database))
-        bar.addAction(self.action("GigaChat Редактор", "Ctrl+Alt+G", self.show_gigachat))
+        giga_action = self.action("GigaChat Редактор", "Ctrl+Alt+G", self.show_gigachat)
+        bar.addAction(giga_action)
+        bar.widgetForAction(giga_action).setObjectName("gigaButton")
         bar.addAction(self.action("Яндекс Редактор", "Ctrl+Alt+Y", self.show_yandex_editor))
         bar.addAction(self.action("Проверить опечатки", "F7", self.show_spelling))
         bar.addAction(self.action("Проверить протокол", "F8", self.show_protocol_check))
