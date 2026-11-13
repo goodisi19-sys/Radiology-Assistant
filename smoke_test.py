@@ -44,6 +44,25 @@ def run(result_path):
         QApplication.sendEvent(window.reference.input, event)
         assert window.reference.input.toPlainText() == 'Проверка ввода'
         assert window.editor.toPlainText() == expected
+        from yandex_editor import BrowserBridge
+        import urllib.request
+        window.show_yandex_editor()
+        dialog = window.yandex_dialog
+        dialog.bridge = BrowserBridge(dialog.source_text)
+        candidate = 'Ровные контуры; размер L4-L5 до 3.5 мм.\n\nЗаключение:'
+        request = urllib.request.Request(dialog.bridge.origin + dialog.bridge.result_path,
+            data=json.dumps({'text': candidate}).encode('utf-8'),
+            headers={'Content-Type': 'application/json', 'Origin': dialog.bridge.origin})
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(request, timeout=3) as response: assert response.status == 200
+        dialog.poll_result()
+        assert dialog.result.toPlainText() == candidate
+        dialog.apply.click()
+        assert window.editor.toPlainText() == candidate
+        window.editor.undo()
+        assert window.editor.toPlainText() == expected
+        dialog.close()
+        assert dialog.bridge.closed
         window.editor.document().setModified(False); window.close()
         Path(result_path).write_text(json.dumps({'protocols': visible, 'docx': 'ok',
-            'quick_lines': 'ok', 'spelling': 'ok', 'punctuation': 'ok', 'google_input': 'ok'}), encoding='utf-8')
+            'quick_lines': 'ok', 'spelling': 'ok', 'punctuation': 'ok', 'google_input': 'ok', 'yandex_exchange': 'ok'}), encoding='utf-8')

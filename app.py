@@ -477,6 +477,7 @@ class MainWindow(QMainWindow):
         lib.addAction(self.action("Добавить выделенное в быстрые строки","Ctrl+Alt+L",self.add_selection_to_quick_lines))
         lib.addAction(self.action("Верифицировать стандарт","Ctrl+Shift+V",self.verify_current))
         lib.addAction(self.action("Резервная копия базы","",self.backup_database))
+        bar.addAction(self.action("Яндекс Редактор", "Ctrl+Alt+Y", self.show_yandex_editor))
         bar.addAction(self.action("Проверить опечатки", "F7", self.show_spelling))
         bar.addAction(self.action("Оформить текст","Ctrl+Shift+F",self.format_all_text))
         edit = self.menuBar().addMenu("Правка")
@@ -523,6 +524,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         if self.confirm_discard():
+            if hasattr(self, 'yandex_dialog'): self.yandex_dialog.close()
             self.library.db.close()
             event.accept()
         else: event.ignore()
@@ -578,6 +580,8 @@ class MainWindow(QMainWindow):
         action = menu.addAction('Добавить в быстрые строки протоколов')
         action.setEnabled(self.editor.textCursor().hasSelection())
         action.triggered.connect(self.add_selection_to_quick_lines)
+        yandex = menu.addAction('Яндекс Редактор — через браузер')
+        yandex.triggered.connect(self.show_yandex_editor)
         spelling = menu.addAction('Проверить опечатки')
         spelling.triggered.connect(self.show_spelling)
         menu.exec(self.editor.mapToGlobal(position))
@@ -592,6 +596,13 @@ class MainWindow(QMainWindow):
             if hasattr(self, 'quick_listing'): self.populate_quick_dialog()
             self.statusBar().showMessage('Строка добавлена в быстрые строки.' if added else 'Эта строка уже есть в списке.', 5000)
         except Exception as exc: QMessageBox.warning(self, 'Быстрые строки', str(exc))
+
+    def show_yandex_editor(self):
+        from yandex_editor import YandexEditorDialog
+        if hasattr(self, 'yandex_dialog'):
+            self.yandex_dialog.close(); self.yandex_dialog.deleteLater()
+        self.yandex_dialog = YandexEditorDialog(self)
+        self.yandex_dialog.show()
 
     def show_spelling(self):
         from spell_check import SpellingDialog

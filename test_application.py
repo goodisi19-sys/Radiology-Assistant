@@ -193,6 +193,62 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual(self.window.library.get_setting('expert_model'), 'previous-model.gguf')
         self.assertFalse(hasattr(self.window, 'chat'))
 
+    def test_yandex_result_preview_apply_and_undo(self):
+        from yandex_editor import BrowserBridge
+        source = 'Контуры ровные.\nРазмеры сохранены.'
+        self.window.editor.setPlainText(source)
+        cursor = self.window.editor.textCursor()
+        cursor.setPosition(0); cursor.setPosition(15, QTextCursor.MoveMode.KeepAnchor)
+        self.window.editor.setTextCursor(cursor)
+        self.window.show_yandex_editor()
+        dialog = self.window.yandex_dialog
+        dialog.bridge = BrowserBridge(dialog.source_text)
+        dialog.bridge.inbox.put('Ровные контуры.')
+        dialog.poll_result()
+        self.assertEqual(self.window.editor.toPlainText(), source)
+        dialog.apply_result()
+        self.assertEqual(self.window.editor.toPlainText(), 'Ровные контуры.\nРазмеры сохранены.')
+        self.window.editor.undo()
+        self.assertEqual(self.window.editor.toPlainText(), source)
+        dialog.close()
+        self.assertTrue(dialog.bridge.closed)
+
+    def test_yandex_rejects_same_and_stale_result(self):
+        self.window.editor.setPlainText('Контуры ровные.')
+        self.window.show_yandex_editor()
+        dialog = self.window.yandex_dialog
+        dialog.result.setPlainText('Контуры ровные.')
+        self.assertFalse(dialog.apply.isEnabled())
+        dialog.result.setPlainText('Ровные контуры.')
+        self.window.editor.setPlainText('Другой документ.')
+        dialog.apply_result()
+        self.assertEqual(self.window.editor.toPlainText(), 'Другой документ.')
+        dialog.close()
+
+    def test_yandex_launch_passes_only_local_url(self):
+        target = Path(self.tmp.name) / 'browser.exe'; target.touch()
+        self.window.editor.setPlainText('Private text stays out of URL')
+        self.window.show_yandex_editor()
+        dialog = self.window.yandex_dialog
+        dialog.browser.setText(str(target))
+        with patch('yandex_editor.subprocess.Popen') as launch:
+            dialog.open_browser()
+        args = launch.call_args.args[0]
+        self.assertEqual(args[0], str(target.resolve()))
+        self.assertTrue(args[1].startswith('http://127.0.0.1:'))
+        self.assertNotIn('Private', args[1])
+        dialog.close()
+
+    def test_escape_closes_yandex_exchange(self):
+        from yandex_editor import BrowserBridge
+        self.window.editor.setPlainText('Текст.')
+        self.window.show_yandex_editor()
+        dialog = self.window.yandex_dialog
+        dialog.bridge = BrowserBridge(dialog.source_text)
+        QTest.keyClick(dialog, Qt.Key.Key_Escape)
+        self.assertTrue(dialog.bridge.closed)
+        self.assertFalse(dialog.timer.isActive())
+
     def test_formatting_keeps_paragraphs(self):
         self.window.editor.setPlainText("описание\n\nзаключение")
         self.window.format_all_text()
