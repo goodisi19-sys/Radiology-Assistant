@@ -288,6 +288,64 @@ class ApplicationTests(unittest.TestCase):
         lib.db.close(); self.window.library = app.PhraseLibrary()
         self.assertEqual(self.window.library.get_template(template_id)[1], own)
 
+    def test_original_method_and_negative_findings_restored_for_knee_and_shoulder(self):
+        lib = self.window.library
+        for title in ('Колено норма МЕГИ', 'Плечев суст норма МЕГИ'):
+            rows = lib.db.execute("SELECT id,content FROM templates WHERE title=? AND source='Встроенная библиотека МРТ'", (title,)).fetchall()
+            self.assertTrue(rows)
+            for key, original in rows:
+                full = lib.get_template(key)[1]
+                first = full.splitlines()[0]
+                self.assertTrue(first.startswith('На серии') and first.endswith(':'))
+                self.assertIn('Т1W', first)
+                self.assertIn('не изменены', full)
+                self.assertGreater(len(full), len(original))
+                self.assertFalse(lib.template_needs_source_review(key))
+                self.window.editor.setPlainText(full)
+                target = Path(self.tmp.name)/'complete-report.docx'
+                self.window.export_to_path(target)
+                self.assertEqual(read_docx(target), self.window.editor.toPlainText())
+                self.assertNotIn('выполненных в.', self.window.editor.toPlainText())
+
+    def test_clinical_header_recovered_for_existing_legacy_template(self):
+        lib = self.window.library
+        rows = lib.db.execute("SELECT id,content FROM templates WHERE title='М таз простата норма МЕГИ'").fetchall()
+        self.assertEqual(len(rows), 2)
+        for key, raw in rows:
+            self.assertNotIn('На серии', raw)
+            restored = lib.get_template(key)[1]
+            self.assertTrue(restored.startswith('На серии МР томограмм'))
+            self.assertIn('мочевой пузырь наполнен', restored)
+
+    def test_ambiguous_fragments_marked_and_can_cancel_insertion(self):
+        lib = self.window.library
+        pending = [r for r in lib.layout_audit if r['needs_source_review']]
+        self.assertEqual(len(pending), 18)
+        iterator = QTreeWidgetItemIterator(self.window.template_list)
+        while iterator.value():
+            item = iterator.value()
+            key = item.data(0, Qt.ItemDataRole.UserRole)
+            if key == pending[0]['id']:
+                self.assertIn('[проверить исходник]', item.text(0))
+                self.window.template_list.setCurrentItem(item)
+                self.window.editor.setPlainText('Мой документ.')
+                with patch.object(QMessageBox, 'question', return_value=QMessageBox.StandardButton.No) as prompt:
+                    self.window.insert_template()
+                prompt.assert_called_once()
+                self.assertEqual(self.window.editor.toPlainText(), 'Мой документ.')
+                break
+            iterator += 1
+        else: self.fail('Missing marked source fragment')
+
+    def test_truncated_builtin_autocomplete_hidden_without_deleting_user_data(self):
+        lib = self.window.library
+        broken = 'Уникальный тестовый фрагмент хрящи не'
+        lib.add(broken, 'Встроенный протокол', 'Суставы')
+        self.assertNotIn(broken, lib.suggestions('Уникальный'))
+        self.assertTrue(lib.db.execute('SELECT 1 FROM phrases WHERE text=?', (broken,)).fetchone())
+        lib.verify('Мой проверенный вариант', 'Суставы', broken)
+        self.assertEqual(lib.suggestions('Уникальный')[0], broken)
+
     def test_docx_manual_break_is_not_a_new_paragraph(self):
         from docx import Document
         source = Path(self.tmp.name) / 'soft-break.docx'

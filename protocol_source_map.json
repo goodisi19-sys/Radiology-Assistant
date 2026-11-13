@@ -1,0 +1,1112 @@
+{
+  "repairs": [
+    {
+      "title": "М таз матка миома",
+      "original_sha256": "f716509576be3c38933508fd5e3f02912753e5c39c8b56ae13baf31184a12ff7",
+      "source_id": "1_kex4EHHn8vyAhszc3ae4sUJXSb_bzJy",
+      "source_title": "М таз матка миома.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "dde151f274b2f9d0b7554e86566ab41c46fa1df5f168c6b55ac54083f09be11c"
+    },
+    {
+      "title": "Позвоночник — шаблон 002",
+      "original_sha256": "524452f448fff63fc3025abb3c463d9bf4645e67b0c7617713bc7d40a2e34b27",
+      "source_id": "1RyN0jPpjpSqliEaJBTOYzsLbFjuDyPpR",
+      "source_title": "Грудной отдел.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "97c1282870a6d0b9c4653a5b7baa60cae02640515fa6a8c28bce164043f47255"
+    },
+    {
+      "title": "Головной мозг — шаблон 003",
+      "original_sha256": "edc5bd16127a8caf18a2bfc3b7dda1435ef6567a04c4f8877be9fecb91d18da4",
+      "source_id": "1tBwFlRGUe7a1m4J1h8TJ6SrmIBA9Pbyd",
+      "source_title": "Преддверно-улитковый аппарат.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "6bf569a299b73b61974479f7962011c9edf0d3d186116fefdea2895f963056f5"
+    },
+    {
+      "title": "М таз гиперплаз простаты МЕГИ",
+      "original_sha256": "a3b96e98dd2c4f4770e928f4372cd97640abadc4c49c4c7cdfe3c3e27ed4349f",
+      "source_id": "1zk5JNcy10v4R6A_pfeTL3L8Wh123q19h",
+      "source_title": "М таз гиперплаз простаты МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "0f304e0e60a4dfec984644f0b926974b18344a516b8e10989864846c977fd515"
+    },
+    {
+      "title": "Тазобедр коксартроз МЕГИ",
+      "original_sha256": "87bd576a145ad3431cc31b932dbf8dbaa56b769650890fb2da3b896b3b993b4b",
+      "source_id": "1AoZoXzZfbNV6w5j9wsMD8Vz7JRHp_mP9",
+      "source_title": "Тазобедр коксартроз МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "5af49e3f2da879d19fba6e8ba8d54612516b9728023dcfa67c2446c4af899eef"
+    },
+    {
+      "title": "Мягкие ткани — шаблон 007",
+      "original_sha256": "138aabe7f4a7ea16ef5f92559a0f6c4e9844b6a00c1260b5240b1f3291a7641e",
+      "source_id": "1S1UeGzJ2Fb6qYvNruRLyv0-Svd5IbCDX",
+      "source_title": "шея мягкие ткани.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "ff161d4d6e2d5306416fa49995d6e2a50161a3d3e6f72972fcad8c9da799a542"
+    },
+    {
+      "title": "МРТ всего тела",
+      "original_sha256": "77e7c7adaaebab119e0cf0bb306806c520015dd3f2394c4c01e6ef35b9009fff",
+      "source_id": "1ie04W5cHIMH2hg6r102HKVpm3zsOGZGC",
+      "source_title": "МРТ всего тела.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "278c3a2753e5e397801531354c4f71fa5f33f681e19254fa601835245d74f927"
+    },
+    {
+      "title": "Голеностоп ревматоид артрит МЕГИ",
+      "original_sha256": "68659b5c382de58ca87efae9e18fd24c5ed70db0c31428e6fe25cbea7f18d604",
+      "source_id": "1q_QkRyDFcK8dZfrcWPnPjsCLZQ6bESfd",
+      "source_title": "Голеностоп ревматоид артрит МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "4919f2a0e9b20b703a033419d155f14cff7fb2a8101da1f0896ae812db1e28bb"
+    },
+    {
+      "title": "Мягкие ткани — шаблон 010",
+      "original_sha256": "8a59156580f4b7f9e5a228fad27e347621c5dd1246c925132f997329b7841e04",
+      "source_id": "1cWvu8Gu_hZSAYF_c7rSe3iOscsUdrYec",
+      "source_title": "бедро мягкие ткани.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "dc51a869afc3c3cb119cb5d86902fcf013d62602f18f691efd3d73c2d9284471"
+    },
+    {
+      "title": "М таз простата норма МЕГИ",
+      "original_sha256": "d89fb9f99b990c3f0566f25ce22a53c9cdf3246c7d03ae1082480ee530c7198f",
+      "source_id": "1Mku7YWvnmqBOo1O5b_NEG3so9t6oPetD",
+      "source_title": "М таз простата норма МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "5e43765cd268b127e89f556b5ed7a28264088511cf8bf3f3b0fa75de1f59f8d8"
+    },
+    {
+      "title": "Колено дегенерат мениск, гонартроз МЕГИ",
+      "original_sha256": "06a18a07f31641c264982da2fcdc8fdea228295d828b8d05a6f4f885475db9cd",
+      "source_id": "1Iiw7_vlmWsN1Kv7PwyDcBKqoYGff02xV",
+      "source_title": "Колено дегенерат мениск, гонартроз МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "a76628c7e864e41a4b8800c5f757d92d4eb86506764cf970a556534534bf3024"
+    },
+    {
+      "title": "М таз матка аденомиоз МЕГИ",
+      "original_sha256": "8655ccc1ef1e1a3428a55cfea1da08401dbcafbc19fcb18372cc3eeeb714b695",
+      "source_id": "1QwmC1q1QOGHOnz-cCkXxWGv0tzc6Jn0m",
+      "source_title": "М таз матка аденомиоз МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "41ee45911910ab58d057cf117db0c4631bfcd6fb985bfa4d3451256756f161bd"
+    },
+    {
+      "title": "ОБП опухоль почки МЕГИ",
+      "original_sha256": "481223eb0edcbbba49e5586c52542f237c48c89a5d60fb18a88dd4d5d3e4fc06",
+      "source_id": "1suOxYknyBAL21JaLx4npyVfBio2SL6LB",
+      "source_title": "ОБП опухоль почки МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "6e28e772fc5d52df454536e1714892ce8a7009a7ddf140a99d730f23ecedf90a"
+    },
+    {
+      "title": "М таз рак прям кишки МЕГИ",
+      "original_sha256": "b6180dd4907aa694857238fe6ffc93aa331c65085ab755d52951628d09de3143",
+      "source_id": "1Cy0vWOnlNp5NHRusapBd91r4X4_onA0m",
+      "source_title": "М таз рак прям кишки МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "7e27f83c1dbc4c8ae88d930d7aeb98e8e6fbb941d80f34f225e9346d0e7eac0d"
+    },
+    {
+      "title": "Общее — шаблон 016",
+      "original_sha256": "d281ee015bfbaa43155c9390bea22560746270563fc065447dec04c59e7fa6d4",
+      "source_id": "1X2qDaei8lPFZItJA9u-htkyDP8Si3Wup",
+      "source_title": "Пазухи.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "2b4db8b6e6ebd90778d7c4c83e8b8586ceafa17aa9d45b390678e9df0947ce4a"
+    },
+    {
+      "title": "Тазобедр илеофемор бурсит МЕГИ",
+      "original_sha256": "3966e6f3dff78c098172ba22077ec6ad2ec74dfb5ebab6301313a77d9cd556eb",
+      "source_id": "1kWqcejvxqOTegtxwlxsTJbfXFeoSyir6",
+      "source_title": "Тазобедр илеофемор бурсит МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "8ef3f67b883dd3ca9990a79d5dce045b46ac3d8edd5d440405ee4c6adf990b25"
+    },
+    {
+      "title": "Брюшная полость — шаблон 018",
+      "original_sha256": "a113c2a28d973d64690ca70c196ed571b9a88cfaf60c71067e60ae05e6599093",
+      "source_id": "1HyN7NbExfDt0XayhcvHpREgWZylNFlQu",
+      "source_title": "ОБП стриктура холедоха МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "9fcfe04fcc4e91de95fec7b77eb69b709d200d39900023a49019003c9b84860a"
+    },
+    {
+      "title": "Колено поврежд мениска МЕГИ",
+      "original_sha256": "a8bd718de57ab6d11d5aa62f14b7340d94004a2c3c1602da4a59639c2f9ff5ca",
+      "source_id": "1nwaKEkgFaia988upUWWa8VtRCltRXPbI",
+      "source_title": "Колено поврежд мениска МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "76aa49f514f35525f8b1ecfc3fb74d041698a69c6bb9efdae8dbcca9ca79ae18"
+    },
+    {
+      "title": "ОБП объем головки поджелуд железы МЕГИ",
+      "original_sha256": "bf63f51b2235c1f43c1d07a93502f1b8f316f26bc266040bcedf69f21df3ef79",
+      "source_id": "1gGLKkQJ3lktpcz2yorSAJ85Ry51bxeZg",
+      "source_title": "ОБП объем головки поджелуд железы МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "e0d11533e3a270c4779f2893b2a97b4937ed841e8a82c73e3f882594f6380811"
+    },
+    {
+      "title": "МРТ всего тела2",
+      "original_sha256": "317e480f5016c0ff11e2c6e7b02e4ad7d22f29f2379488c694a43f2d468556ba",
+      "source_id": "1VvlzLEZPkpj0kYtXbT5EiAhBPrfqonxZ",
+      "source_title": "МРТ всего тела2.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "b72c1bf09e4eea3d979397bfd8171ce1e0b99ee94283a7610771fa19074aeeb4"
+    },
+    {
+      "title": "Стопа и голеностоп — шаблон 022",
+      "original_sha256": "0b475ead89ff67b030be290efa0207d3d954fcb5d6b5a0dbad6af9b214a9bb67",
+      "source_id": "1fw-qGyiNgcEA5q92okWsVpIHQBUsV3St",
+      "source_title": "Cтопа.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "e6bb876c834c7945d0af26d72d8561411176bae43e094c7664163edf590772a7"
+    },
+    {
+      "title": "Голеностоп норма МЕГИ",
+      "original_sha256": "10b2f3ef37f6fd282435323a2ec2889c0957f624202de3f08b7a71b361e70371",
+      "source_id": "1Q5w5qY2QWIqtgmrUB-ShHE1oeKrCMqqA",
+      "source_title": "Голеностоп норма МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "f6c8016ca4cec1399e9cc50ed3831e2e2f65a3800a43a12b29514f52a15551d7"
+    },
+    {
+      "title": "М таз tr мочевого пузыря МЕГИ",
+      "original_sha256": "125aa2dce1c5a43addbd1db28a56c7a22d185f2fd1b3039b6869a95e4bcc19bf",
+      "source_id": "143WRzDRsFUHdC6F5ZkepgroiiZ0bZcVK",
+      "source_title": "М таз tr  мочевого пузыря МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "e7b8bf08b2714d56fa3e676c45ac0f10e0bb63cd2a60a2bd239f7c0298caf1cd"
+    },
+    {
+      "title": "Плеч бурсит, синовит МЕГИ",
+      "original_sha256": "ba8593161f7c023e6565c34e7ac581e38587df6bb3d3f36929b7aae911dc0e1d",
+      "source_id": "1j5LR0K7_X4I7KBYNsILL3Yvf-RxkVvOe",
+      "source_title": "Плеч бурсит, синовит МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "61818c4814c6cb15e15bc3b3d8d72bd4aa1b6018e32703713a726b7bd6610a89"
+    },
+    {
+      "title": "Голеностоп связки МЕГИ",
+      "original_sha256": "d269cde7bbdd1e1157307fa4aa5c79e7e7faeb4b2bd96ccf6b6217b97de5a2fb",
+      "source_id": "1rX4iiTOAJ9n9g1Y2c9GaqQgQESjHE_KU",
+      "source_title": "Голеностоп связки МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "4b0bdf72e4a598260c1b70730c618fed109239cbde3be4f0e325e93e32e82a6a"
+    },
+    {
+      "title": "Колено норма МЕГИ",
+      "original_sha256": "7f90f53e399e45476db965ecedb5dcc4d8bf80f0b630c819060c2c6f61e43dc9",
+      "source_id": "1ZEPNVdgoucFm_j_AuF1I1Sm1bWge7dVi",
+      "source_title": "Колено норма МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "1e1c393aae7235c0b7e583b760f754fc616a577659cc8cb91041843b4547d111"
+    },
+    {
+      "title": "ОБП норма МЕГИ",
+      "original_sha256": "89522ae4fd1b72e2241d77962810ed5afdf437e987320de8e2770555f0492181",
+      "source_id": "1yleRJKf2--btZYodsJkHcM0yIikc88NQ",
+      "source_title": "ОБП норма МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "b6c13a6403ce93bc73b819a870b71c95af47e63cb97f6c08b52e2184dc1a0586"
+    },
+    {
+      "title": "ОБП гемангиома печени МЕГИ",
+      "original_sha256": "ea5a7040479b8003e6a45147f6b39b5cc433ee6709b4a81577d67a051c9e0139",
+      "source_id": "1XfrXJRM4pgaULSilQsawNDOX3y6JBO-4",
+      "source_title": "ОБП гемангиома печени МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "e2f0ca717c5055b3123882c48dbc2725b823b7e2b1387ee7c337ddfa6c509fcc"
+    },
+    {
+      "title": "Коленный сустав — шаблон 030",
+      "original_sha256": "51f597961ce12d49ffe2be948f32e644f80ea907f30e505cd5ceebdb54234d34",
+      "source_id": "1x-v7ivtrQ203mUjwCE_gIhh3cM6gggDm",
+      "source_title": "Колено Осгуд-Шлаттер МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "699e9de5108916a701a5e3224206e9c9358a4986cef1600419d8efcf971dedc8"
+    },
+    {
+      "title": "Коленный сустав — шаблон 031",
+      "original_sha256": "aad2850b5d07f61b261c3383b5da4698039d6e826ddb36aa409680c8eda1d693",
+      "source_id": "15UYjLlUJ7XVFh17JQwkHRVTthNAiB9Lj",
+      "source_title": "Колено поврежд коллатер связ МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "8c163fab0deaae55d0c24ebea4a2c80e14b7f2619901c7fedca13ec848e2238b"
+    },
+    {
+      "title": "Колено супрапаттелярный бурсит МЕГИ",
+      "original_sha256": "9ae8744c487ec2c95e1e353f5ef9ea7849867bfb2af6484115dd25c72eb1dce9",
+      "source_id": "1JedXCR_sJue7B45FN-ueLRDU-50IMCLN",
+      "source_title": "Колено супрапаттелярный бурсит МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "1d6c4744fec7f69fcfdcc8fd47fbe76d05064a598effa25db60a583ad632b468"
+    },
+    {
+      "title": "ОБП объем надпочечника МЕГИ",
+      "original_sha256": "e0d40e97c493eff7ab864a83677d7284a8484b0e86206596b2ec5fbec232c978",
+      "source_id": "1TG71zYC1uTp7HWMw-CdwTy3k4lF4ADKO",
+      "source_title": "ОБП  объем надпочечника МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "bc03834544a85287e8f23d067c795a19a32ed3b48ac8e23490e702dd6f102de3"
+    },
+    {
+      "title": "Брюшная полость — шаблон 034",
+      "original_sha256": "2dd17add2098b93f38ec4f6810c0d944a407ee0d3ad397bb6175584a36950296",
+      "source_id": "19q52myX2BtwDfXK8L72N09sfGqNVb-A-",
+      "source_title": "ОБП ЖКБ холедохолитиаз холецистэктомия МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "bb1e6ed831b12d4f713a2acb163277a593f200d1267310890f0d1c307533b9fe"
+    },
+    {
+      "title": "Общее — шаблон 035",
+      "original_sha256": "2ee121032f01a2e045c5a70bc27181179fad74016da567a9a4437d0a77244047",
+      "source_id": "1sQfTH4ppf6jBgX22091KFbrqu0dW8NOu",
+      "source_title": "КПС.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "12c695e7e6f77b10440e57f24ca55238405219fa52794c2c47ef39e43a915e06"
+    },
+    {
+      "title": "Головной мозг — шаблон 036",
+      "original_sha256": "586e434a8a9ceec29dce4d9be15af856f673217a5ec4bc342a8d5918326d3947",
+      "source_id": "1KRwS-sKOx3XTWjLfJVhRJ9luNbBqczF6",
+      "source_title": "Плеч разрыв сухож длин голов бицепса МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "56a77055149ba9a29d6f155cbcaaed9caa8c830c58f1c1140aaf7d7e038779c9"
+    },
+    {
+      "title": "Коленный сустав — шаблон 037",
+      "original_sha256": "6bb89a497c03fe400dac43a9d8100eb8e4cd524ed2631a73207b0f6dfcbb3c52",
+      "source_id": "14l0PAbth-RiROiZ2JB6sNilPUtUtq3G0",
+      "source_title": "Колено б-нь Кёнига МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "3d2b254299c060aab7ec413348cbef942eb90c46cc3e99605b81cbf0a0b8aa1f"
+    },
+    {
+      "title": "Стопа и голеностоп — шаблон 038",
+      "original_sha256": "3ad5246c548eb472e6811ecfc3d2b0c63e14f2823652b26102bd0fab3d89b04e",
+      "source_id": "1uz28hA2iZXggnOmhBvLwcPezOW6ZXu1a",
+      "source_title": "Стопа. Болезнь Фрйеберга.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "393984ea788a281f66c90d3434d3c21cbf9a0ddedd8cbc8530dbe06d004e98d2"
+    },
+    {
+      "title": "Плечевой сустав — шаблон 039",
+      "original_sha256": "3f20e895545930a19c6408dd81feff687d1fc9d5662b6f3e3388ceb31489f138",
+      "source_id": "1m2VOCdcSpqplmb-th7B4w3K4zDuCNfWr",
+      "source_title": "Плеч отрыв перелом больш бугорка МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "305a9e9398fc85a6fd0727708a5f9cc21a9cc71ef0625d76d3ef2a7e35c99f4a"
+    },
+    {
+      "title": "Колено вилонодулярный синовит МЕГИ",
+      "original_sha256": "5350205202a1b69ae0edf0fa9c4ffed5ffff3704e32ca81c28d1f88e61ea0f4b",
+      "source_id": "10UQUmkkP_Rsuo1PNx7c9L-QtBY8FpvpS",
+      "source_title": "Колено вилонодулярный синовит МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "1ad81d8a89cf0413dd748b28302f594e3d8d64461c55d7c96505d802bef18daf"
+    },
+    {
+      "title": "Плечев суст норма МЕГИ",
+      "original_sha256": "07d0103eceba6fbf9ce8cad49e82706b143d7a3f4584d0be72b385abdf360f2b",
+      "source_id": "1j_4T7CS7bZDdkth3BseKkpGuxaCWp4ws",
+      "source_title": "Плечев суст норма МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "27fbd1c08f8a10cd087f6eeef6bed9d1aee97c02e7021cfba0dca74f23824ac1"
+    },
+    {
+      "title": "Головной мозг — шаблон 043",
+      "original_sha256": "4d2dc56ebcd84cc48f03fae7e5d66a9146bb8171d86f8427811d3503e7865ccb",
+      "source_id": "1U9lxyVzR2OSPFTxWZZBtIuMmzZgCN6PW",
+      "source_title": "ГМ краниофарингеома МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "fb0d400b5c6109d8f6c75e5945f30085991615ab43a21f09ff51d8bef97a0210"
+    },
+    {
+      "title": "Головной мозг — шаблон 044",
+      "original_sha256": "3af7fc5961a626283b249ec14a7030c5d13ce74efea2143632cd79778e6e4229",
+      "source_id": "1OLgeybv4w9LZbrA0ucTKx2TzUwcSSvO9",
+      "source_title": "ГМ невринома МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "2e4d6aa231dd52f2e2286bec333206fdf155129a8a69652d3e3b25fa00bc1201"
+    },
+    {
+      "title": "ГМ опухоль МЕГИ",
+      "original_sha256": "184611e6829fecb84502552bc90936ae8009c707e76297a01f8ab0e0b1c4f991",
+      "source_id": "1NVJZZBey_DNvUsTJyky9qSY7pY5X0cFn",
+      "source_title": "ГМ опухоль МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "f50e9f1d26f736f3dfa15c65e9901a9228c9606157d86c0da0dce3d28c2bdf21"
+    },
+    {
+      "title": "Головной мозг — шаблон 046",
+      "original_sha256": "4e08ad1410385c59e331add90be10c525fae917c559c8ef5605e6e6cf540d2e5",
+      "source_id": "1kaAb-mQkdGBuvaxdZfzaW21J0tYYCKqW",
+      "source_title": "ГМ мениг основания МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "088098787b04c7e29ef7a353c167cc8fed1a2b43f17c8945efc49235dc8a46b4"
+    },
+    {
+      "title": "Плеч акром-ключ артроз МЕГИ",
+      "original_sha256": "37315ac5ed007351dca04f21753d11d3c11cc9b3303f86c31b5569afc807cf86",
+      "source_id": "1opOGx75ZQHp6QPjkpw3gSCPEuUGfggLJ",
+      "source_title": "Плеч акром-ключ артроз МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "c44b04739154a2f726e06f42316909f6f117a2ed58f02bd46b659defd28137e6"
+    },
+    {
+      "title": "Головной мозг — шаблон 048",
+      "original_sha256": "94ef77715e02b6fea16f5d0912fba20ee81a6f06d94d08eec2163bc74e0f9603",
+      "source_id": "1DZDZbXqwyJLoLWsq9OQAf4hbUwHIinZ-",
+      "source_title": "ГМ АВМ МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "3b4c7363007e3cf627a5e641aa8073a4e564d029f1699f4b1ba6984ee60c6682"
+    },
+    {
+      "title": "Стопа и голеностоп — шаблон 049",
+      "original_sha256": "b411cd24cfb2e80ee1d089be2c5826f7b502c2cfe0a8fb4dae56ef5e76f2e89b",
+      "source_id": "13PCy0N3q28HOCCF2h3IRErpU1yqAf4TL",
+      "source_title": "Стопа. Неврома Мортона.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "9c67e01cc5c00e2b5c5294567a904bdd84749772daccea3af0aef476a1c36786"
+    },
+    {
+      "title": "Головной мозг — шаблон 050",
+      "original_sha256": "e733e7c942717a634366443b332094c80da26e8413e0a8a516a9ee59a5e2c21f",
+      "source_id": "1dLwqBN8PSVWa5Q9XucfcECC2gvx6ceQf",
+      "source_title": "ГМ субдуральн гемат МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "730c4bc534eb22c10fe149f48e5d13d374afbc52ab114df66c216938742ceb88"
+    },
+    {
+      "title": "Плантарный фасциит + Артрозо-артрит, hallux valgus",
+      "original_sha256": "6c5669296ad403617a6521197281c4848b6fdda2854bff7bab7bd0643dc9e5b2",
+      "source_id": "1ql-3IJF6kww6KV-jwDPHyRJeoSMuu8yG",
+      "source_title": "Плантарный фасциит  + Артрозо-артрит, hallux valgus.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "6b1a272aac141de2cf3a536ff9168fd28afc8b6f5902fd0bbda5790aa4e3d801"
+    },
+    {
+      "title": "Стопа и голеностоп — шаблон 052",
+      "original_sha256": "24343d977740413166cf2c56a45e9de3de107b83077a5b91a057f41a2646f0bc",
+      "source_id": "1Riacg-hvpDJVIoJ4WDsjfXj0T2WOC0qp",
+      "source_title": "Стопа. Подошвенный фиброматоз.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "4afeae7462caf5da367a95011ef7ba5ac65da17590699624e7dc905863516c2e"
+    },
+    {
+      "title": "Головной мозг — шаблон 053",
+      "original_sha256": "74ac42e3355fc2d655aca1960806721c3255e063fa7192d037b67b2fb7e7bc9a",
+      "source_id": "1-I9yzmfD4cmKRDG2I8m1Kg_SonCZIAcx",
+      "source_title": "Плеч вывих сухож длин головк бицепса МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "2201f1580ef2cfac3f36490447aebec434819e571b17b675f3974a5cc22e7d18"
+    },
+    {
+      "title": "Головной мозг — шаблон 054",
+      "original_sha256": "dc35bc54bfdf54e00e874aadf439e277e1ee48546fe2193b2bc19181fb20371c",
+      "source_id": "1t5c5cxws_y4nFJNyUMTlP8-pRhqy373u",
+      "source_title": "ГМ МРА геморраг ОНМК МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "258b24a97d9019d00b13edbb0df34c8597f99ece3fa9c45b13882f2fcf7b6732"
+    },
+    {
+      "title": "М таз матка норма МЕГИ",
+      "original_sha256": "84d25d65e6bb8204473c158a03b82f02ab2d3f6b9134da6a20d2e74e5df98b5d",
+      "source_id": "1n5I2WF4aFnQMLLXKC602BrANOg1fss5A",
+      "source_title": "М таз матка норма МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "c2f5642648f875211383c17a9b1197ceca316ec26b3d36b9620304b975af1b17"
+    },
+    {
+      "title": "Головной мозг — шаблон 056",
+      "original_sha256": "70e3c10f19e6b50b7f72d3d47724a66cc89e6ac0a64046e76c98c9eb325b2428",
+      "source_id": "1rOayZ7mgZ1MxdgA0qQh258jE_GDcIRHt",
+      "source_title": "ГМ +МРА лейкоареоз МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "a54f4f8d3ec21e78ea73cafda95b81c654688b073d6d8030c805496282d0c72e"
+    },
+    {
+      "title": "Общее — шаблон 057",
+      "original_sha256": "4bb2eaec3ecc08b03adb8f93b8967c5db2393124271e89255b659d92622cc2c0",
+      "source_id": "1Bxs3ugwWh_cpGGPEsDeEy41topWPP1ns",
+      "source_title": "ппн.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "0d382d89180ceccc28593f0c14409aa54d8648a6ab94c303d83d8f49cc77540a"
+    },
+    {
+      "title": "Головной мозг — шаблон 059",
+      "original_sha256": "882e4bef74762fe27af3a09561733ae13b037b813d901ef134ddc9025197d7ba",
+      "source_id": "1Vlol7YOxguIxL0MELkqgJWCdyyXxf4bc",
+      "source_title": "ГМ Демиелиниз МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "4176435e36d91a5e9a9e8d86555b89dfdbc584cd9291d1a86f3f3dc025ed7791"
+    },
+    {
+      "title": "ШОП МРА остеохондроз МЕГИ",
+      "original_sha256": "e761c034f3f2ce84ea1c4dbad38ace7676e7c7cb71e89f1cd6ca127dd81b1c66",
+      "source_id": "1279OWY13jA0jDns8ecpBs9oDcYvDxI5u",
+      "source_title": "ШОП МРА остеохондроз МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "2864bf64bf0795ba6db64dcc7577378f1867efa2b4f7f02f3554e67abaf8d216"
+    },
+    {
+      "title": "Тазобедр норма МЕГИ",
+      "original_sha256": "40b0e48fef9ca46d78b398b6d610fe039bc102b421f67a88140e0fc3f6bd1ed1",
+      "source_id": "1Avj-peFVF0RTLXmcwf_oemXHqfr7_Hyd",
+      "source_title": "Тазобедр норма МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "726240f65cb2e1f78219e147653d598cc7aa4771dee49c6b5bc5ce8f007b0ed2"
+    },
+    {
+      "title": "Локоть норма МЕГИ",
+      "original_sha256": "bd568ec7aa7ca861201e2ca3cd102541d251cc713089ac4755f5c55e2b919f7e",
+      "source_id": "1pylmtx_15JhVTPLLcdcVZ5arsKQUrsZT",
+      "source_title": "Локоть норма МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "81f8b1142b9e2e1ca53cbf821b5ccf1504135e455f24ad3faa60786f63f2b9b3"
+    },
+    {
+      "title": "Головной мозг — шаблон 063",
+      "original_sha256": "52666840f4910a492398cf9b6fc494946def735b70109c80bea5712e091dd69a",
+      "source_id": "1ZvcDMsesajEaWPD8LBOiuP6bhb0SFZ2j",
+      "source_title": "ГМ орбиты МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "067b623214262d62a53260febdedcac6a8b2b5973e9cd5b18659c9b35e009c5f"
+    },
+    {
+      "title": "ГМ гипофиз макроад МЕГИ",
+      "original_sha256": "eb8ce9edc429390406d8f733b784b04e633498513ba54c19ea0ee6e225072752",
+      "source_id": "1ipLGmtO2w_dlX2sDW4qXlTXcYhFc8cgd",
+      "source_title": "ГМ гипофиз макроад МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "f8a48ace3e1d4f00069bc6b61956b7d5ef96ee4d6b7a4b841f2d96d3bc51b908"
+    },
+    {
+      "title": "Стопа и голеностоп — шаблон 066",
+      "original_sha256": "3d5f740970c607814682fdbdd87c867532ae0be7c65a83f68744db04f456635e",
+      "source_id": "1T4r3nB5Jcj_qpaPRRPQthlhXveobNAU3",
+      "source_title": "Голеностоп перелом МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "c85e282a59ab6b549565e4ababf48ed6ba573808ae6ddb3c87388b9ccf2cf069"
+    },
+    {
+      "title": "Брюшная полость — шаблон 067",
+      "original_sha256": "c49f2f431fe31feff9b7dd25cf36f954c1b37e28ea1b572196340a11728481c4",
+      "source_id": "1CG7QPBbuR4LOTFU9OCSRSTJ9qzPyjgPr",
+      "source_title": "ОБП ЖКБ хр холецистпанкреат МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "541ab992b6730cd7e6ed3bb46fbb2bc3aab10a556a3f7fa0a06158b02f24b0f9"
+    },
+    {
+      "title": "Голеностоп артроз МЕГИ",
+      "original_sha256": "71d0a7ff0a0c6f628af7a3d3c6b34f63a39efa0bfdd5bdf7c849a848b5301d3d",
+      "source_id": "1x4-fM6K-fAmqqPizRgKKCATKE6kRpnwi",
+      "source_title": "Голеностоп артроз МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "b9b62332b267a7424bfc55851bd4de1d9d87d71838c21c0fd0b5f904a9c599bb"
+    },
+    {
+      "title": "ОБП метастазы печени МЕГИ",
+      "original_sha256": "506fcd4c7df9c2869cd55682e122bfc25ee97ee821a914edca0b097903f2157d",
+      "source_id": "1JuXjTNVfgZLbhNIMGJ5VSV8nmREbZcia",
+      "source_title": "ОБП метастазы печени МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "519267df326993798f2f0e53b6cb9e54d46676a77ed2ebf2d83c35551724443b"
+    },
+    {
+      "title": "Мягкие ткани — шаблон 070",
+      "original_sha256": "138aabe7f4a7ea16ef5f92559a0f6c4e9844b6a00c1260b5240b1f3291a7641e",
+      "source_id": "1S1UeGzJ2Fb6qYvNruRLyv0-Svd5IbCDX",
+      "source_title": "шея мягкие ткани.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "ff161d4d6e2d5306416fa49995d6e2a50161a3d3e6f72972fcad8c9da799a542"
+    },
+    {
+      "title": "ПОП постоперац. рецидив грыжи МЕГИ",
+      "original_sha256": "4878ead7f44ed3d15b57714776a5ac91e527151853340d6c2cc323a94a2d1524",
+      "source_id": "1VfIuxXBT2GhssAyTQIPp90sV-IUYxFyu",
+      "source_title": "ПОП постоперац. рецидив грыжи МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "7c09dd2442382b5a8ca3a149d1ce59dde9ee53f764189d62755a776df360bffd"
+    },
+    {
+      "title": "Стопа и голеностоп — шаблон 072",
+      "original_sha256": "f80e0e67b47072e74b8d7bee3d56f7116d12b44239b8f822526d125090566d57",
+      "source_id": "145b3O-0lk3KwAftaACjfp2yKUTD4a_Tv",
+      "source_title": "стопа с болезнью.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "ca822ee1316f3381c686f6b3ccc5a83a2d942976852ec7e2d22307379b9e08e5"
+    },
+    {
+      "title": "ГМ гипофиз микроад МЕГИ",
+      "original_sha256": "dfd6cb0ae1217dce919f832dd5153becebc000ba95638276f4c3e9613ec059d8",
+      "source_id": "1DNmyNKS_8sLFoboBXuqlmwPUaKjjLQlT",
+      "source_title": "ГМ гипофиз микроад МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "049715d5bd0debb8f9a829158f597980816db95be71f4136bed715d46fed1b6a"
+    },
+    {
+      "title": "Головной мозг — шаблон 074",
+      "original_sha256": "6519f2356a5eeb0e7b4741e8c55a7d566b4f307609dea7cf5d9c5ecb2e0d16ed",
+      "source_id": "11NXriNoNQomH_Yd4Hiw_ZBCTTAUR_SIg",
+      "source_title": "ГМ вариант ДендиУокера МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "98b8f02892893702bcf85ce2340ddcb85098abfa8100690e97d424d367ea5e1b"
+    },
+    {
+      "title": "Общее — шаблон 075",
+      "original_sha256": "fa5897c0558372e6ad4a3126697f12a137380690ff940c449efcfa77cfbe7a2d",
+      "source_id": "1_IBZQ-ILwUGeCY6OJ2LaMvR8qQ5sB4QG",
+      "source_title": "нейроваскулярный конфликт.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "174144f46627fc9c725a74176ca63dcf9514fead914776fd7a218ba5ced21a43"
+    },
+    {
+      "title": "ПОП норма МЕГИ",
+      "original_sha256": "e313120367aca241bca0aea043a4f7e41dffb75750b5fe9b910fa668ba8d46a4",
+      "source_id": "17aEMK-iMuDgXioW_BvIR3lNFlDDr_KHB",
+      "source_title": "ПОП норма МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "f618efb3c734d35896e02c0d08676c152fcffef515d9c081aa17e34f01775873"
+    },
+    {
+      "title": "Надпочечники, аденома",
+      "original_sha256": "236e24778a6e3fd4fddb95058e73061fef0619fc0a5b5efaede36955c8c2e75d",
+      "source_id": "1MTV7MFMYj8RDN9JRXQDViS5CESP4wNd2",
+      "source_title": "Надпочечники, аденома.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "da6122091231bb39c7d346d67f6e9bfd63204641d5c73f2e40f81914b1db0a4b"
+    },
+    {
+      "title": "Тазобедр перелом МЕГИ",
+      "original_sha256": "a6969e800c39206052f2f1da2d2e32680b94752e74d98e5055612204cc6060b3",
+      "source_id": "1HktKHiNs3BA4ZOydLjdw4uaccQmFBvDz",
+      "source_title": "Тазобедр перелом МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "481c348ab5b770ffcd79a98e52bcbdc1f297458d4ce17182994af6af045b047c"
+    },
+    {
+      "title": "ГОП грыжа диска МЕГИ",
+      "original_sha256": "e34f4f819e318272183d36b295a090aafc6ed8d7f15224c49fbe53105281c5b0",
+      "source_id": "172oyvpj7HCpwTcXcrvE5zAqQV9NxVUH0",
+      "source_title": "ГОП грыжа диска МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "cbe1a86204363dcbefd0b7beca5fe7e5772e9109d03397edb7faf2dcc1182382"
+    },
+    {
+      "title": "Общее — шаблон 082",
+      "original_sha256": "8eb6a093f19b8ae57fbb36db6ff83bac5a66dd4aaf43641f2512415fe987b1f8",
+      "source_id": "1xcGkGvcqDbOIL1J_JjQe9L1lftjB551k",
+      "source_title": "задняя трифуркация.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "d5cecdb385663dc29f821795ef6df3d3f2c6f68b3fa39600547a118364055fbd"
+    },
+    {
+      "title": "Коленный сустав — шаблон 085",
+      "original_sha256": "b5834ced135afc58f75c7afa9d153ddb87e0b46ec20be59b725415602030966c",
+      "source_id": "1Y2UzLN3hPekSwiFjQ_dEnq4pqVAI2mRO",
+      "source_title": "Колено б-нь Ларсена МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "f43cb4cf85058d955bbc36edf72ad5d0387ffda57bda93af1acc90d82686fc93"
+    },
+    {
+      "title": "Брюшная полость — шаблон 086",
+      "original_sha256": "6efa10553e8fd99809b80745eaa00da3e6447d738bb809ceb861ab0108859212",
+      "source_id": "1ef3V9pjFZx1q78zOX9wGaVFvj9OKxGOh",
+      "source_title": "ОБП цирроз хр холец-панкреат Асцит СплмегалМЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "345f8317aceaaa3005a7fe0f9e7ca18f2e113bd7d8cb48707b81aead23367554"
+    },
+    {
+      "title": "Колено крестообразн связ МЕГИ",
+      "original_sha256": "99dc921639bcd3da687a74ff328be923f7a5f5d3a07ae5a02166e4ba13b3d2cd",
+      "source_id": "1C18ofI8aQYn3xMSy9eoA94bSnjqdPYJQ",
+      "source_title": "Колено крестообразн связ МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "44d6c14dabe9c3aa7ea774fa768c28717bf7144799f324c2660044b5eb89a6a9"
+    },
+    {
+      "title": "Стопа и голеностоп — шаблон 088",
+      "original_sha256": "42c26bb00f66761e3efda17049e1f57ef7de98548a1edba91209ea596bd1ce4f",
+      "source_id": "1PjLu5h_3YKaSAq_1eOI2tqpcTu0erHAm",
+      "source_title": "Голеностоп торз туннельный синдр МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "2be2586c4fbb43e2ab0612e50241a24e835e2ab2da8455903dd77a7289223178"
+    },
+    {
+      "title": "Колено киста Беккера МЕГИ",
+      "original_sha256": "121f7856cbb8af59dc2911a93b3e5e92b48321d34e4bada727997ca0ae03c0af",
+      "source_id": "1vfZJ0Lq7Nlhy_KA55RNVdnIJBV1bcUpN",
+      "source_title": "Колено киста Беккера МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "226957204aff81223aff68b9b5bba51665e5df8b1050406ff18cf67b801e8a57"
+    },
+    {
+      "title": "ОБП рак печени МЕГИ",
+      "original_sha256": "2e0a8dd6977a8ab88d955a47e983f669f5e7ca3fb63d2bcc5b626c732d110c5d",
+      "source_id": "1eUqF3xCw0AZ0qYZnhQ_bbtOePhvUESjN",
+      "source_title": "ОБП рак печени МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "bd31029dac173dfc2e3fdd3a6a67b73f1ecd84f0d6dd2302424a6816b9943dca"
+    },
+    {
+      "title": "Головной мозг — шаблон 091",
+      "original_sha256": "983d0bb49242169a4c8e84d085d6a5f12405a36fa68804a7458d10a46c9f798f",
+      "source_id": "1Kui5WiAH7EG4tW57cac2TyA7gyPhOGVb",
+      "source_title": "Мягкие ткани головы.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "55edb2ec366c72be4bd426b16225f3597a57b8761011138bbc9e44b9b654b72a"
+    },
+    {
+      "title": "Брюшная полость — шаблон 092",
+      "original_sha256": "120a2e6cf168b1f362b0f94d533e0864207b83121bb45f7b0fbb7091e97bdbac",
+      "source_id": "16Mr7wwMg-_4dr7cG96tkewQbLTEa5hy-",
+      "source_title": "ОБП жировой гепатоз МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "fa89b207e2f97eff9074013bc0682b394aaf846ed8ed6d5f4939954e2d206565"
+    },
+    {
+      "title": "Мягкие ткани шеи МРТ",
+      "original_sha256": "2ec8d9ccbe133919f7673abb764ffd03d00e0cbe86bd2f81003181b6bf4b5268",
+      "source_id": "1AgO8zQF9ZOnyDjR-oCufLGA-2RXbaQCo",
+      "source_title": "Мягкие ткани шеи МРТ.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "edbed8bff653c32ee46fde6e375af3cdc4307898bd95db034722eaf0afa5be19"
+    },
+    {
+      "title": "Колено гипоплазия надколен МЕГИ",
+      "original_sha256": "8e4d5de6c0d4a5db6411bf561806b2c3b8064bb690de7e1444d849386a323e11",
+      "source_id": "1OW6fQwc3OE_SRnIdFvAmO_R-rV5c3FaD",
+      "source_title": "Колено гипоплазия надколен МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "a32903bc08fce2c42d2753252ece1aca20d47e4045d346199d350fb622293623"
+    },
+    {
+      "title": "М таз кистома яичника МЕГИ",
+      "original_sha256": "5c853a377470f785c845eb1571c6310833a20dba8c67bbc8cbf52e0ab0812ecb",
+      "source_id": "1N5PBf5_LrMZcgrEVOynb1ZhqfAeLfamR",
+      "source_title": "М таз кистома яичника МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "4fb36b04407f368a303517529071164d3061eeab2d9a11554e8b532754ef303b"
+    },
+    {
+      "title": "М таз рак простаты МЕГИ",
+      "original_sha256": "67b096fd706355a584372c5f47156a132b1247a320dbf833f055d399b8504e2b",
+      "source_id": "1q3RiG7Cb6KTlddEHuYJd39am0-vh1iMB",
+      "source_title": "М таз рак простаты МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "182a170e327270bc274608e8e6d798665bb60a35d197c3a811e0cf3bda88b684"
+    },
+    {
+      "title": "Общее — шаблон 097",
+      "original_sha256": "a0bba62a8a2e0bb0e712a9a552c34eec084045f5980548e6d10d29b97a261c56",
+      "source_id": "12lA3XFOHl9NSsTptheNffKxqGymu2TP5",
+      "source_title": "внчс.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "ae90015ee9f3d954ada61cfa6bc154cbeedf285d2dc8bcb8a29aee95f15fd310"
+    },
+    {
+      "title": "ОБП МКБ кисты почек МЕГИ",
+      "original_sha256": "74380577d07ef33a32dcc6700ba2140b72b6abddbb380770e63702755197b30b",
+      "source_id": "1q3VsMfC3rGgxzZ5z4N2l5-PIjn5RhMhj",
+      "source_title": "ОБП МКБ кисты почек МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "19186be319577b0c9ef4599895474d2454c12e7fc54d91af0510ab768e4d7247"
+    },
+    {
+      "title": "Колено Синовиома МЕГИ",
+      "original_sha256": "db493b3b04415cb1d832f8ddcf3f2bbd0788dd91c8d42aff68381c38cf5a6391",
+      "source_id": "1l58TVcYIdBLdhZaixGCLzlfUdkQRlct9",
+      "source_title": "Колено Синовиома МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "2d2ae74593e2c093d1acad393e9ecf711edadf0c69bdce57afd5aa41308220c3"
+    },
+    {
+      "title": "Брюшная полость — шаблон 100",
+      "original_sha256": "6a2264f4a71ddc7f8e06d73452bbd4a62f2ce833796f6b9b8123f98357d38556",
+      "source_id": "1tZJUvHIkT99vyphBm3ViJADRyN8f9OjE",
+      "source_title": "ОБП  хр. холецистопанкреатит МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "17c30183efc34b3438bd3cef266630809b0c2d2c054571ce95024633c5aaa8c9"
+    },
+    {
+      "title": "Общее — шаблон 101",
+      "original_sha256": "4f7a478cbcec9c0b4f2f0db285a597b5c0f0f6d0260cc9cc5055f9ff5ec91c8f",
+      "source_id": "1UoMB2841_k9h_W05ZnFw40bL49lA3Mox",
+      "source_title": "вены ГМ.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "2e29a6ea4512dcee2206bf163d99278ee68cb9c2cc67bfeeb0cdc3f582423448"
+    },
+    {
+      "title": "ГМ гипофиз МЕГИ",
+      "original_sha256": "684b720b5ef40828b3db0a34869cac0f0c841dd22771dc35ea19703a2cdcf78e",
+      "source_id": "1HKHhvoY7Nut91s4WcaEuZv6e1Cv2bdpv",
+      "source_title": "ГМ гипофиз МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "fda1b9aa56b5bac3c7faf49e7a6c142bd0465c8d791a7cef9170c3d90290d073"
+    },
+    {
+      "title": "М таз матка киста яичника МЕГИ",
+      "original_sha256": "87587fcd186830960bfbba920f33376c9635eee95869fb85b76af75cd2057d91",
+      "source_id": "1QQda0liU05ICDJUrMbbfKycVfVEVEHwr",
+      "source_title": "М таз матка киста яичника МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "de273b72bdec84b3982849e56923cbbafbfd8b5b1597e2c73a637b847d6caaa9"
+    },
+    {
+      "title": "ШОП грыжа диска МЕГИ",
+      "original_sha256": "06b106c316825a67e17b98044ef077faa404de6931d2e62dc0aff13e9933bb60",
+      "source_id": "19oe51RCvstJ40P271fOhMFjfiR2FqMk6",
+      "source_title": "ШОП грыжа диска МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "163862489bab45ceecb6aebd740ec5d955afb22207043d2a228cf163c3c908ba"
+    },
+    {
+      "title": "Общее — шаблон 107",
+      "original_sha256": "e54b36316983f401879cfccc8ee618b043e72286666392451356f998f10ad141",
+      "source_id": "1el3tmHFAKHVeylCIIt9mjq9hwg2_j5q8",
+      "source_title": "МРА почечных артерий.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "490e06441a1021fedae4add109703208e58a5d79f55492513994ddd5268f3d9c"
+    },
+    {
+      "title": "Кисть норма МЕГИ",
+      "original_sha256": "f4e511a4df3d774b94edc0883232469acc0b35bbea38d22e7eb974337e5d9efa",
+      "source_id": "1OEtIKDLsBeWW8zIkmoyjRZ5HDycaySLx",
+      "source_title": "Кисть норма МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "176ebe8310c46115d5db5db32ec7cae3674e2d8b47a855d27f5d19fa7a7347d5"
+    },
+    {
+      "title": "Стопа и голеностоп — шаблон 110",
+      "original_sha256": "f45ec46645058c423fe4dfed00ccf233876ee68e7d305a4695610553b7072e86",
+      "source_id": "1Hd-61eI2zRGeVoNSG-upph0R_yeSiwQm",
+      "source_title": "стопа голеностоп повр связок.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "1ce88903b9667540f71d4fdc71dcc2325f54f90ddd2a05e3905d4a5f6516f0f5"
+    },
+    {
+      "title": "Тазобедр множеств объемы МЕГИ",
+      "original_sha256": "c5778ef3e90f371971eb1371dee711ca60925dd94d7fe7d84aa32844ec86de0d",
+      "source_id": "1DHnypfxsV5wV26wODXRe8JjLlQldFEy-",
+      "source_title": "Тазобедр множеств объемы МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "051fce3c9b0207f9c50605440235a788f4ce2f38ed8c2c93c44fec260d675cb0"
+    },
+    {
+      "title": "ГОП норма МЕГИ",
+      "original_sha256": "3c48b94f41f375103f5924d027b763ad4ba6bb021738d65ec1b1acc38d8e2eb0",
+      "source_id": "16Z6Tnxy85EI1YTNCTPSUAXS475CX3bio",
+      "source_title": "ГОП норма МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "1cc02f0ff581dad7c50a20002e1bf9c8cd650c73d0d7a49be1634e2775715227"
+    },
+    {
+      "title": "Общее — шаблон 115",
+      "original_sha256": "39ddc2cb85fe25aae26262eff8cec47b9e0796ec6448629a84c34795b5af0fea",
+      "source_id": "1IDlDD8lnvm85cF9Y1Wl_uX8-9ACi3N-A",
+      "source_title": "мрпт всего тела.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "1b51d832a4d6369c310b00bacd7fede98e0b34c8ceb7a8032010324729b7e5b0"
+    },
+    {
+      "title": "Головной мозг — шаблон 116",
+      "original_sha256": "fa5897c0558372e6ad4a3126697f12a137380690ff940c449efcfa77cfbe7a2d",
+      "source_id": "1_IBZQ-ILwUGeCY6OJ2LaMvR8qQ5sB4QG",
+      "source_title": "нейроваскулярный конфликт.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "174144f46627fc9c725a74176ca63dcf9514fead914776fd7a218ba5ced21a43"
+    },
+    {
+      "title": "Колено синовит МЕГИ",
+      "original_sha256": "72b584f0bfd4db9f4356851d1995bf585154493e63e7e100119b3f549a5c7008",
+      "source_id": "1iot3huAUF3uOB2vNf4ITZ0JlFyzjDlDY",
+      "source_title": "Колено синовит МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "7a906299271c089fee35dd6f3f4e0dc6d112af1a2df0f255f396f47add694679"
+    },
+    {
+      "title": "Головной мозг — шаблон 118",
+      "original_sha256": "5a49aa4ed70cc733529710cb29363f2baab343c88fca4c27c7bda7b968605a86",
+      "source_id": "1v_U_owxQqkVnmwSvpHbtNWcB2-cX53pd",
+      "source_title": "Голеностоп повр сухож МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "f32c9a874abd739fea8d27d1abcac09697f27034390477445ab0c7ac8843c466"
+    },
+    {
+      "title": "Коленный сустав — шаблон 119",
+      "original_sha256": "259683579a28ee4efd56164ebdb4b46509986d90a1fe6e222e624c2c32ef1c59",
+      "source_id": "1Id-e3KDn3S971rs1MMffdaFlqWzYi4MC",
+      "source_title": "Колено отрывн перелом МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "e3c694d61a16a30665efe7c35b87eb5977c06f61904394ec69f42e3ab37be4f4"
+    },
+    {
+      "title": "Головной мозг — шаблон 121",
+      "original_sha256": "9d3b941b67013911dfadfc4c251f9ab22c09939eedeaec747d434408eca664ef",
+      "source_id": "1NNmq-3n1rjT74T7HAJll_E9MLZJEG8Zf",
+      "source_title": "ГМ менингиома МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "ff2b95536cb85ab3d973faaf65ffb253e2853eb91bdb2856d54d21c82c15fff9"
+    },
+    {
+      "title": "М таз рак яичника МЕГИ",
+      "original_sha256": "0b1d4880f41891df307e43bf77edbff5eec3cc0da10b2a6ce751a498beaef7ae",
+      "source_id": "1EgE8KKLSX2mq_NozRwwoUT0AKgs6xbpY",
+      "source_title": "М таз рак яичника МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "29c1af2f54010cec1fc7ae2435e6b76a78b86502f1edaee47efd340f3611255c"
+    },
+    {
+      "title": "Позвоночник — шаблон 124",
+      "original_sha256": "9ad28048369c52fd1d10610f02c347d408f3bfcadd981969f784d7080edf8b0a",
+      "source_id": "18zu9BYc_hFv_7XWC_ghNujxz1nQGJ9jA",
+      "source_title": "ШОП ГОП ПОП МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "0a5419014869c0112d2b90473b4a53e16c4a0b68dabee8ddd669f226d940f3e6"
+    },
+    {
+      "title": "Колено хр.артрит МЕГИ",
+      "original_sha256": "7ce94cc1e7bd318bd207d5b5a3a17128b6fc469e78ec7aa4042a1777e6e84700",
+      "source_id": "1G9yxfKGqu4FdH4JIIWrwJniC3Li5_5pM",
+      "source_title": "Колено хр.артрит МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "dd17a2305354c7af5b47db8948155e46cd77830bb0861288b464804daf5d32ef"
+    },
+    {
+      "title": "Головной мозг — шаблон 126",
+      "original_sha256": "da104efa9d1036e7aa0a63bfefd127a70dc86e061658f7aef6e9c9d6599c7aa3",
+      "source_id": "1K0qOk-__yn8g9b1ctOPOpAY3QHg_5e4R",
+      "source_title": "ГМ мезиальн склероз МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "000103e183bbfe2fab670f49fe2d9c3b2be1a34ca616bb03449c311bbf778cfd"
+    },
+    {
+      "title": "Стопа и голеностоп — шаблон 127",
+      "original_sha256": "3ce00f35d87270fbd69e2dc35be2ee8ba9ad3964c561401de40e8d1a06f197b6",
+      "source_id": "1uJQGyPZLCwnQTyqwjGSvL_fBwAtbwNoJ",
+      "source_title": "Стопа.Травма Лисфранка.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "2087faab23f22174d66dee3b84f26c741cf3f9966cba9ce73518d0e9c662cfa1"
+    },
+    {
+      "title": "Тазоб с-в Асепт некроз МЕГИ",
+      "original_sha256": "414d9a55e74c06329453e7226cf910a3e49c893da8e5dc3592b810f309b9fd2b",
+      "source_id": "1pVckzRZoTu5NPGootLw8DkXWRgDxA7u8",
+      "source_title": "Тазоб с-в Асепт некроз МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "5230b0484f7cbd1779a38b988db924db7f29cac324f953fb565fef8faa13c522"
+    },
+    {
+      "title": "Плечевой сустав — шаблон 129",
+      "original_sha256": "24e38570cacbc25d53f77d526a6f6b553939f827735d5f61fc284f4fe1c78e84",
+      "source_id": "1a2RmpHsBRe2BEMZAozldcog6DsyGCi8c",
+      "source_title": "Плеч передняя нестабильность МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "c1a89a28ef7263910c5d0b4bd0f124da74ee00a136bf6e7359f1e0179662e7ca"
+    },
+    {
+      "title": "Стопа и голеностоп — шаблон 130",
+      "original_sha256": "3f5ec919f10c42657d1ea0a8972fb490fc7b5010173c4eec72545275edf1442a",
+      "source_id": "1pnlkOY-2c-kg5trrhqjomKeVP08yxizP",
+      "source_title": "Голеностоп поврежд связок МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "774d03df6b9e00333ac0d80bbc87aa89af52d6943575fa89ec20ed450625f9ce"
+    },
+    {
+      "title": "Мягкие ткани — шаблон 131",
+      "original_sha256": "13ca3fabff20ff9ab5559029d0d753216c01c341b3df2907c7f7672c5b2d5f3e",
+      "source_id": "1JisX7nXXQuYCko-qXpeOKSfga3f4WHZF",
+      "source_title": "Мягкие ткани ПКОП.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "0d253c1dd667a323978e15de937bb449fcbffaf7b6ea5d512e6139ca34c3d5d7"
+    },
+    {
+      "title": "Плечевой сустав — шаблон 132",
+      "original_sha256": "5b2b532e1025ce95ce31290409c1e5adf86caf5bbb65e75aa97548f1e407df81",
+      "source_id": "1Z0SIQ52pEOQo-F0LZsS0xwZfViH8YU4L",
+      "source_title": "Плеч полный разрыв манжеты МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "1810c02f29042499918d56582f4907d674b195c0f9cfb0fc7dd8dc835e899ce5"
+    },
+    {
+      "title": "ШОП МРА норма МЕГИ",
+      "original_sha256": "dae703925767da44384a12fb456bc6283634bd998b77e2a2f73ba2f3734261ac",
+      "source_id": "1HgzM169yupxrVw4bTHOiuh7BiDGnO8b8",
+      "source_title": "ШОП МРА норма МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "8544322a11c01ed6ac63633ab12d5030b14e4cf89a43d1b77f88976ea1b2d906"
+    },
+    {
+      "title": "Стопа. Артрозо-артрит, hallux valgus",
+      "original_sha256": "0faa8f4e1d2bacaf7ac78322d761b87449118829dae1300036ae62e1d3ca5f56",
+      "source_id": "1NnHZrrcGWOXhhsXheZWgjROxr3IqUlGW",
+      "source_title": "Стопа. Артрозо-артрит, hallux valgus.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "7680d2a806044c3f3805c687cf3eca4083c3c48786d10b15646729d9c70f07fb"
+    },
+    {
+      "title": "Плечевой сустав — шаблон 135",
+      "original_sha256": "a4688c1ece32a75968104381ecc299b6106e2273616bd1fcf89526f26a899313",
+      "source_id": "1LXISHn8A8U9PWhl9nziKuow3PV8oapWV",
+      "source_title": "Плеч акром-ключич разрыв МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "353590d88da7adb861f4eafa7f510c3740360493f1ee15eb9d98e53aa3ba8da8"
+    },
+    {
+      "title": "Плечевой сустав — шаблон 136",
+      "original_sha256": "0e55d4e2abf965a58b1fa812c885676aef6fa2f9458cad61e5c5b99430e6b82d",
+      "source_id": "1AJgqt-hWRt3TzmBlM2OAAuvEHWDem_J4",
+      "source_title": "Плеч импинджмент-синдром МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "bf3ebe87f6f7c37bce9e7b3832cf72502756966441ebc6e1e9809db154052439"
+    },
+    {
+      "title": "Позвоночник — шаблон 137",
+      "original_sha256": "4ee1364b5624e9411d57b19069d90a8db8d7bdd1d27a2b0ee9b5075c64e2a1bc",
+      "source_id": "1CU1Yn916ZXl0RoIJKrejcuxJLFe7ECu9",
+      "source_title": "ПОП постоперационный МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "b86189531b2bf971ef2a5914dc1f24a676e07b02ad4c963c7356fe9f7a287c0d"
+    },
+    {
+      "title": "Головной мозг — шаблон 138",
+      "original_sha256": "16609b4929475799c8f7a8d905a3d54535322ab6de1bd366da8efcd48ce1893e",
+      "source_id": "13s7nPF1gPtyw7V-2bMl08mCweqd6yJ9x",
+      "source_title": "ГМ МРА ишемич ОНМК МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "a31d7b160b5bf6a428ae907f72a33b3686fdd3942a33e47d3660502d48215eab"
+    },
+    {
+      "title": "ГМ норма МЕГИ",
+      "original_sha256": "8d92723da7c26cbf5199754d2d42a0f03e7c7b02bf0e872e20c17cbd70cb90ce",
+      "source_id": "1ztICkAuP5pWJVyDggQh-HmY4oYQGUUZu",
+      "source_title": "ГМ норма МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "65ce004fc5b1b26dc3a893229c23bb02ab8d4813700423bc952c9de8fe8e2401"
+    },
+    {
+      "title": "Головной мозг — шаблон 142",
+      "original_sha256": "bce7f98b940b3da04fd073f6a5b23b7dc42915cf6495ac3da8d7177d746756d9",
+      "source_id": "1GeFDTGHxYs6mFPrKgcuYqVE59LVXbRbK",
+      "source_title": "ГМ постоперац изм МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "392c2955d8328c7ab39bd2cf375ad6561dc3c3c92b10d83fbce65b9a41606f74"
+    },
+    {
+      "title": "Плечевой сустав — шаблон 146",
+      "original_sha256": "1fd3a2d50aff3733fa23d6f7066311896bd67fdfed9917dbf879505d59c70b44",
+      "source_id": "18q8pRKuVEzhkpilCSnHQ0VuT8NTicevA",
+      "source_title": "Плеч част разрыв ротаторн манжеты МЕГИ.doc",
+      "source_type": "doc",
+      "source_binary_sha256": "dc39cad30db2ca1cdc3b24ec96fbea3e0f8e8ccc091a2cab9f9ad42c3d767c50"
+    },
+    {
+      "title": "Мягкие ткани — шаблон 147",
+      "original_sha256": "83f5bf8ebbe0a8a0892285ed3479f04e5f27f2ffdb8a92a515ca70caa0f8aac9",
+      "source_id": "1F6iQgbvC3I-H9QOgR8A9XhdMyAIlYOV4",
+      "source_title": "бедро мягкие ткани.odt",
+      "source_type": "odt",
+      "source_binary_sha256": "f915b421aff0ddb6d5e93841c2c5f1ed81df58a0be40655d8a1fdc31a503c9b3"
+    }
+  ],
+  "unresolved": [
+    {
+      "title": "Прочие суставы — шаблон 005",
+      "original_sha256": "8f536231c2af45a83d9a00eb4e0ae9b1443553c707a809c0c98e9aa0d7ffcafe",
+      "reason": "source-not-identified"
+    },
+    {
+      "title": "Общее — шаблон 042",
+      "original_sha256": "c50385db34200253f420966e6deef1b7e78b1b62f1dceac92003fcfbfe3474d7",
+      "reason": "source-not-identified"
+    },
+    {
+      "title": "Головной мозг — шаблон 058",
+      "original_sha256": "06ef753c1ce944410ee88baf476abfaa97533d7f38b1042f3ed76ee9a9b77cc1",
+      "reason": "source-not-identified"
+    },
+    {
+      "title": "Головной мозг — шаблон 078",
+      "original_sha256": "15de041af0259f4b4625bde25cd7c3a011cf7f09d8a2c17cd7d1c87d2184dacf",
+      "reason": "source-not-identified"
+    },
+    {
+      "title": "Общее — шаблон 083",
+      "original_sha256": "0c49c72b3220af600290d55cb3b997c9f7cd168f529bc95b40eec53e8ececbc1",
+      "reason": "source-not-identified"
+    },
+    {
+      "title": "Головной мозг — шаблон 084",
+      "original_sha256": "8d1c2d6cf06e6430db562387cd5acb30068d432cf172ef0ae4c3cdf0ca642607",
+      "reason": "ambiguous-source"
+    },
+    {
+      "title": "МРХПГ норма МЕГИ",
+      "original_sha256": "8eded8780504b6cb944268a7aef6aac4a08a48c9f7fff787eea6c77d726f6b31",
+      "reason": "source-not-identified"
+    },
+    {
+      "title": "Головной мозг — шаблон 105",
+      "original_sha256": "1c18e24166e1de1339b34ff79628f73f8cbe674deb4541c7e964c550edea9600",
+      "reason": "ambiguous-source"
+    },
+    {
+      "title": "ГМ МРА норма МЕГИ",
+      "original_sha256": "eb6fafcf0fcdffcdd2ba382f0113304b88aa4ab79c5ff09dbfe9af437bb037ac",
+      "reason": "source-not-identified"
+    },
+    {
+      "title": "Головной мозг — шаблон 111",
+      "original_sha256": "5cf7c1cfff57b5f1d56480de3b3ec4d74afd73ac8c294b3cce1a41fc87e5a418",
+      "reason": "source-not-identified"
+    },
+    {
+      "title": "рубец на матке",
+      "original_sha256": "8ee427597a986a5e8e14883c26e6dd2238dc5539472b4e4e247941a8464f84fb",
+      "reason": "source-not-identified"
+    },
+    {
+      "title": "Стопа, артроз, изменение мышц",
+      "original_sha256": "68960ab2f7543ec5b2fee482c857935a304c3544f6075a0a5721a87683483cce",
+      "reason": "source-not-identified"
+    },
+    {
+      "title": "Головной мозг — шаблон 139",
+      "original_sha256": "3797bf829042a9a3ad4f1564273417e3cbd8cafb3dba3bad0a75c32f15eb46a8",
+      "reason": "ambiguous-source"
+    },
+    {
+      "title": "Головной мозг — шаблон 140",
+      "original_sha256": "dbc5685cfedc044aea4f0bfe8d3a51779c48421db9415e1ec0bdc029deb2ec32",
+      "reason": "source-not-identified"
+    },
+    {
+      "title": "Позвоночник — шаблон 143",
+      "original_sha256": "5d43f59a8983f079946cd28743b97f5928005d6423eb01e7eed953f89867f03c",
+      "reason": "source-not-identified"
+    },
+    {
+      "title": "ГМ норма МЕГИ",
+      "original_sha256": "73810d34d3b651760ac55e62612cf1cd377ac9106cea5ba09ae10cb09e48c79c",
+      "reason": "source-not-identified"
+    },
+    {
+      "title": "Позвоночник — шаблон 145",
+      "original_sha256": "9b2d0870c574aa1757338b3863caf0da9064846a88c02f4a9486334ce25134fd",
+      "reason": "source-not-identified"
+    },
+    {
+      "title": "Общее — шаблон 120",
+      "original_sha256": "401f23ec82be8ba7a650eaf5ba43056cb4bff23cdacbeffc16622167a03ecaa6",
+      "reason": "insufficient-retained-clinical-context"
+    }
+  ]
+}

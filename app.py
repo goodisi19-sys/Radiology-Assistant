@@ -62,6 +62,7 @@ class PhraseLibrary:
             self.db.execute("INSERT OR IGNORE INTO quick_lines(text) VALUES(?)", (text,))
         self.db.execute("CREATE TABLE IF NOT EXISTS template_layouts(template_id INTEGER PRIMARY KEY, original_digest TEXT NOT NULL, content TEXT NOT NULL, fingerprint TEXT NOT NULL, kind TEXT NOT NULL)")
         self.db.execute("CREATE INDEX IF NOT EXISTS idx_template_layout_fingerprint ON template_layouts(fingerprint)")
+        self.db.execute("CREATE TABLE IF NOT EXISTS complete_builtin_phrases(text TEXT PRIMARY KEY)")
         self.db.execute("CREATE TABLE IF NOT EXISTS spelling_words(word TEXT PRIMARY KEY)")
         self.db.commit()
         self.load_bundled_templates()
@@ -159,34 +160,68 @@ class PhraseLibrary:
             LEFT JOIN template_layouts l ON l.template_id=t.id AND l.original_digest=raw_digest(t.content)
             WHERE t.id=?""", (template_id,)).fetchone()
 
+    def template_needs_source_review(self, template_id):
+        return bool(self.db.execute("""SELECT 1 FROM template_layouts l JOIN templates t ON t.id=l.template_id
+            WHERE t.id=? AND l.kind='base-evidence' AND l.original_digest=raw_digest(t.content)""", (template_id,)).fetchone())
+
     def install_bundled_layouts(self):
         # Stored clinical text, IDs and old deduplication keys remain untouched.
         # Layout applies only while the row matches the original bundled text.
         evidence = ParagraphEvidence(record['layout'] for record in self._layout_sources if record['kind'] != 'base-evidence')
+        originals = {record['source_id']: record for record in json.loads(bundled_data_path('protocol_sources.json').read_text(encoding='utf-8'))}
+        originals.update({record['source'].removeprefix('Google Drive: '):
+            {'content': record['layout'], 'binary_sha256': record['binary_sha256']}
+            for record in self._layout_sources if record['kind'] == 'odt-original'})
+        self.complete_originals = originals
+        manifest = json.loads(bundled_data_path('protocol_source_map.json').read_text(encoding='utf-8'))
+        repairs = {record['original_sha256']: record for record in manifest['repairs']}
         plans = {}
         for record in self._layout_sources:
             rendered, joined = (evidence.unwrap(record['raw']) if record['kind'] == 'base-evidence'
                                 else (record['layout'], 0))
+            kind, recovered_from = record['kind'], None
+            repair = repairs.get(hashlib.sha256(record['raw'].encode('utf-8')).hexdigest()) if kind == 'base-evidence' else None
+            if repair:
+                original = originals[repair['source_id']]
+                if original['binary_sha256'] != repair['source_binary_sha256']:
+                    raise RuntimeError('Изменился исходник восстановления: ' + repair['source_title'])
+                retained = iter(re.findall(r'\w+', original['content'].casefold()))
+                if not all(any(word == candidate for candidate in retained) for word in re.findall(r'\w+', record['raw'].casefold())):
+                    raise RuntimeError('Исходник не подтверждает сохранность текста: ' + record['title'])
+                rendered, joined, kind = original['content'], 0, 'base-restored'
+                recovered_from = repair['source_id']
             for template_id, current in self.db.execute('SELECT id,content FROM templates WHERE source=? AND title=?',
                                                        (record['source'], record['title'])):
                 if current != record['raw']: continue  # Respect personal edits, including layout edits.
                 original = hashlib.sha256(current.encode('utf-8')).hexdigest()
                 fingerprint = hashlib.sha256(re.sub(r'\s+', ' ', rendered).strip().encode('utf-8')).hexdigest()
-                plans[template_id] = (original, rendered, fingerprint, record['kind'], joined, current != rendered)
+                plans[template_id] = (original, rendered, fingerprint, kind, joined, current != rendered, recovered_from)
         self.layout_audit = []
-        for template_id, (original, rendered, fingerprint, kind, joined, changed) in plans.items():
+        self.db.execute('DELETE FROM complete_builtin_phrases')
+        for template_id, (original, rendered, fingerprint, kind, joined, changed, recovered_from) in plans.items():
             self.db.execute("""INSERT INTO template_layouts(template_id,original_digest,content,fingerprint,kind)
                 VALUES(?,?,?,?,?) ON CONFLICT(template_id) DO UPDATE SET original_digest=excluded.original_digest,
                 content=excluded.content,fingerprint=excluded.fingerprint,kind=excluded.kind""",
                 (template_id, original, rendered, fingerprint, kind))
-            self.layout_audit.append({'id': template_id, 'kind': kind, 'changed': changed, 'joined_boundaries': joined})
+            self.layout_audit.append({'id': template_id, 'kind': kind, 'changed': changed, 'joined_boundaries': joined,
+                'recovered_from': recovered_from, 'needs_source_review': kind == 'base-evidence'})
+            if kind != 'base-evidence':
+                category = self.db.execute('SELECT category FROM templates WHERE id=?', (template_id,)).fetchone()[0]
+                for line in rendered.splitlines():
+                    phrase = re.sub(r'\s+', ' ', line).strip(' •-—\t\r\n')
+                    if 18 <= len(phrase) <= 900:
+                        self.db.execute('INSERT OR IGNORE INTO complete_builtin_phrases(text) VALUES(?)', (phrase,))
+                        self.db.execute("INSERT OR IGNORE INTO phrases(text,count,source,category) VALUES(?,1,'Встроенный протокол',?)", (phrase,category))
         self.db.commit()
 
     def suggestions(self, prefix: str, limit: int = 12):
         if len(prefix.strip()) < 2:
             return []
         return [r[0] for r in self.db.execute(
-            "SELECT text FROM phrases WHERE casefold(text) LIKE ? ORDER BY (source='Личный стандарт') DESC, count DESC LIMIT ?",
+            """SELECT text FROM phrases WHERE casefold(text) LIKE ? AND
+            ((source!='Встроенный протокол' AND source NOT LIKE 'Google Drive: %')
+             OR text IN (SELECT text FROM complete_builtin_phrases))
+            ORDER BY (source='Личный стандарт') DESC, count DESC LIMIT ?""",
             (prefix.strip().casefold() + "%", limit)).fetchall()]
 
     def add(self, text: str, source: str, category: str):
@@ -220,7 +255,8 @@ class PhraseLibrary:
                 source_name = "Google Drive: " + record.get("source_id", "")
                 self.import_full_protocol(record["title"],folder,record["content"], source_name)
                 self._layout_sources.append({'source': source_name, 'title': record['title'], 'raw': record['content'],
-                    'layout': record.get('layout_content', record['content']), 'kind': 'doc-original' if name == 'protocols_legacy.json' else 'extra'})
+                    'layout': record.get('layout_content', record['content']), 'legacy_body': record.get('body_layout', record['content']),
+                    'kind': 'doc-original' if name == 'protocols_legacy.json' else 'extra'})
         self.db.commit()
 
     def load_drive_odt_protocols(self):
@@ -245,7 +281,8 @@ class PhraseLibrary:
                     source_name = "Google Drive: " + record.get("id", "")
                     self.import_full_protocol(Path(title).stem,folder,content,source_name)
                     self._layout_sources.append({'source': source_name, 'title': Path(title).stem, 'raw': content,
-                        'layout': odt_paragraphs(root), 'kind': 'odt-original'})
+                        'layout': odt_paragraphs(root), 'binary_sha256': hashlib.sha256(base64.b64decode(record['b64'])).hexdigest(),
+                        'kind': 'odt-original'})
                 except Exception as exc:
                     self.db.rollback()
                     raise RuntimeError(f"Ошибка протокола {title}: {exc}") from exc
@@ -283,10 +320,9 @@ class PhraseLibrary:
                         for name in z.namelist():
                             if name.lower().endswith(".docx"):
                                 try:
-                                    from docx import Document
                                     import io
-                                    from document_io import read_docx
-                                    candidates.append((name, read_docx(io.BytesIO(z.read(name)))))
+                                    from source_documents import read_word_source
+                                    candidates.append((name, read_word_source(io.BytesIO(z.read(name)))['content']))
                                 except Exception:
                                     pass
                             elif name.lower().endswith(".txt"):
@@ -306,9 +342,8 @@ class PhraseLibrary:
                     name = str(item)
                     try:
                         if item.suffix.lower() == ".docx":
-                            from docx import Document
-                            from document_io import read_docx
-                            content = read_docx(str(item))
+                            from source_documents import read_word_source
+                            content = read_word_source(str(item))['content']
                         elif item.suffix.lower() == ".txt":
                             content = item.read_text(encoding="utf-8", errors="ignore")
                         else:
@@ -710,14 +745,14 @@ class MainWindow(QMainWindow):
         if not hasattr(self,"template_list"): return
         query=self.template_search.text().strip()
         rows=self.library.db.execute("""SELECT t.id,t.title,t.category,
-            COALESCE(f.folder_path,t.category) FROM templates t
+            COALESCE(f.folder_path,t.category),l.kind FROM templates t
             LEFT JOIN template_folders f ON f.template_id=t.id
             LEFT JOIN template_layouts l ON l.template_id=t.id AND l.original_digest=raw_digest(t.content)
             WHERE casefold(t.title) LIKE ? OR casefold(COALESCE(l.content,t.content)) LIKE ?
             ORDER BY 4,t.title""", ("%"+query.casefold()+"%","%"+query.casefold()+"%")).fetchall()
         self.template_list.clear()
         nodes={}
-        for template_id,title,category,path in rows:
+        for template_id,title,category,path,kind in rows:
             path=self.library.folder_tree_path(path,category)
             parts=[p for p in re.split(r"[/\\\\]+",path) if p and p!="."]
             if not parts: parts=[category]
@@ -728,9 +763,9 @@ class MainWindow(QMainWindow):
                 if key not in nodes:
                     nodes[key]=QTreeWidgetItem(parent,[part])
                 parent=nodes[key]
-            item=QTreeWidgetItem(parent,[title])
+            item=QTreeWidgetItem(parent,[title + (' [проверить исходник]' if kind == 'base-evidence' else '')])
             item.setData(0,Qt.ItemDataRole.UserRole,template_id)
-            item.setToolTip(0,category)
+            item.setToolTip(0,category + ('\nПолный исходник не установлен: возможны пропуски строк.' if kind == 'base-evidence' else ''))
         total=self.library.db.execute("SELECT COUNT(*) FROM templates").fetchone()[0]
         self.template_count.setText(f"Протоколов в базе: {total} | Найдено: {len(rows)}")
         if query: self.template_list.expandAll()
@@ -791,6 +826,13 @@ class MainWindow(QMainWindow):
         if not item: return
         template_id=item.data(0,Qt.ItemDataRole.UserRole)
         if template_id is None: return
+        if self.library.template_needs_source_review(template_id):
+            answer = QMessageBox.question(self, 'Проверить исходный шаблон',
+                'Для этого старого шаблона не удалось однозначно установить полный исходник. '
+                'В тексте могут отсутствовать методика или части предложений. '
+                'Проверьте его по оригиналу перед использованием.\n\nВставить сохранившийся текст?',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+            if answer != QMessageBox.StandardButton.Yes: return
         result=self.library.get_template(template_id)
         if result:
             title,content=result

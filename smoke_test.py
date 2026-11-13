@@ -73,6 +73,18 @@ def run(result_path):
         window.export_to_path(fixed_path)
         assert read_docx(fixed_path) == mra
         assert len(window.library.layout_audit) == 497
+        for title in ('Колено норма МЕГИ', 'Плечев суст норма МЕГИ', 'М таз простата норма МЕГИ'):
+            rows = window.library.db.execute('SELECT id FROM templates WHERE title=?', (title,)).fetchall()
+            for key, in rows:
+                text = format_report(window.library.get_template(key)[1])
+                assert text.splitlines()[0].startswith('На серии') and 'Т1W' in text.splitlines()[0]
+                window.editor.setPlainText(text)
+                window.export_to_path(fixed_path)
+                assert read_docx(fixed_path) == text
+        assert sum(row['kind'] == 'base-restored' for row in window.library.layout_audit) == 127
+        assert sum(row['needs_source_review'] for row in window.library.layout_audit) == 18
         window.editor.document().setModified(False); window.close()
         Path(result_path).write_text(json.dumps({'protocols': visible, 'docx': 'ok',
-            'quick_lines': 'ok', 'spelling': 'ok', 'punctuation': 'ok', 'google_input': 'ok', 'yandex_exchange': 'ok', 'mra_paragraphs': 'ok', 'layouts_audited': 497}), encoding='utf-8')
+            'quick_lines': 'ok', 'spelling': 'ok', 'punctuation': 'ok', 'google_input': 'ok', 'yandex_exchange': 'ok',
+            'mra_paragraphs': 'ok', 'layouts_audited': 497, 'methodology': 'ok',
+            'base_sources_restored': 127, 'source_review_required': 18}), encoding='utf-8')
