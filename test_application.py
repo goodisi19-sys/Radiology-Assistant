@@ -7,7 +7,9 @@ from unittest.mock import patch
 from PySide6.QtWidgets import QApplication, QTreeWidgetItemIterator, QListWidget, QLineEdit, QMessageBox
 from PySide6.QtCore import QObject, Signal
 import threading
-from PySide6.QtGui import QTextCursor, QTextCharFormat, QFont
+from PySide6.QtTest import QTest
+from PySide6.QtCore import Qt, QUrlQuery
+from PySide6.QtGui import QInputMethodEvent, QTextCursor, QTextCharFormat, QFont
 from docx import Document
 import app
 from document_io import read_docx
@@ -23,6 +25,12 @@ class FakeChatThread(QObject):
         self.history = history
         self.cancelled = threading.Event()
     def start(self): pass
+
+class FakeGenerationThread(FakeChatThread):
+    def __init__(self, server, model, source, instruction, parent):
+        super().__init__(server, model, [], parent)
+        self.source = source
+        self.instruction = instruction
 
 class ApplicationTests(unittest.TestCase):
     def setUp(self):
@@ -237,6 +245,81 @@ class ApplicationTests(unittest.TestCase):
             chat.thread.finished.emit()
         self.assertEqual(chat.input.toPlainText(), 'Вопрос')
         self.assertEqual(self.window.library.chat_history(chat.session_id), [])
+
+    def test_chat_accepts_keyboard_and_russian_input(self):
+        self.window.show()
+        self.window.side_tabs.setCurrentWidget(self.window.chat)
+        QT.processEvents()
+        field = self.window.chat.input
+        QTest.mouseClick(field.viewport(), Qt.MouseButton.LeftButton)
+        QTest.keyClicks(field, 'MRI ')
+        event = QInputMethodEvent(); event.setCommitString('вопрос')
+        QApplication.sendEvent(field, event)
+        self.assertEqual(field.toPlainText(), 'MRI вопрос')
+        self.assertFalse(field.isReadOnly())
+
+    def test_chat_keeps_new_draft_while_busy(self):
+        chat = self.window.chat
+        with patch('local_chat.ChatThread', FakeChatThread):
+            chat.input.setPlainText('Первый вопрос')
+            chat.send_message()
+            self.assertFalse(chat.input.isReadOnly())
+            chat.input.selectAll(); QTest.keyClicks(chat.input, 'Next question')
+            worker = chat.thread
+            worker.completed.emit('Первый ответ'); worker.finished.emit()
+        self.assertEqual(chat.input.toPlainText(), 'Next question')
+        self.assertEqual(self.window.library.chat_history(chat.session_id)[0]['content'], 'Первый вопрос')
+
+    def test_expert_generation_and_replace_buttons(self):
+        source = 'В колене жидкости немного. Мениски целые.'
+        proposed = 'В полости коленного сустава небольшое количество жидкости. Мениски без повреждений.'
+        self.window.editor.setPlainText(source)
+        self.window.show_expert()
+        dialog = self.window.expert_dialog
+        with patch('expert_dialog.GenerationThread', FakeGenerationThread):
+            QTest.mouseClick(dialog.generate, Qt.MouseButton.LeftButton)
+            worker = dialog.thread
+            self.assertEqual(worker.source, source)
+            worker.completed.emit(proposed); worker.finished.emit()
+        self.assertEqual(self.window.editor.toPlainText(), source)
+        self.assertTrue(dialog.apply.isEnabled())
+        QTest.mouseClick(dialog.apply, Qt.MouseButton.LeftButton)
+        self.assertEqual(self.window.editor.toPlainText(), proposed)
+        self.window.editor.undo()
+        self.assertEqual(self.window.editor.toPlainText(), source)
+        dialog.close()
+
+    def test_expert_identical_result_has_no_replace_action(self):
+        self.window.editor.setPlainText('Текст без изменений.')
+        self.window.show_expert()
+        dialog = self.window.expert_dialog
+        dialog.receive_result('Текст без изменений.')
+        self.assertFalse(dialog.apply.isEnabled())
+        self.assertFalse(dialog.result.toPlainText())
+        self.assertIn('без изменений', dialog.status.text())
+        dialog.close()
+
+    def test_google_opens_only_the_question(self):
+        chat = self.window.chat
+        self.window.editor.setPlainText('Private report must stay local')
+        chat.input.setPlainText('Классификация Stoller?')
+        with patch('PySide6.QtGui.QDesktopServices.openUrl', return_value=True) as open_url:
+            chat.search_google()
+        url = open_url.call_args.args[0]
+        self.assertEqual(url.host(), 'www.google.com')
+        self.assertEqual(QUrlQuery(url).queryItemValue('q'), 'Классификация Stoller?')
+        self.assertNotIn('Private', url.toString())
+
+    def test_stoller_button_works_without_model(self):
+        import time
+        chat = self.window.chat
+        with patch('expert_assistant.local_completion', side_effect=AssertionError('No model for this card')):
+            chat.show_stoller()
+            deadline = time.monotonic() + 5
+            while chat.is_busy() and time.monotonic() < deadline: QTest.qWait(20)
+        self.assertFalse(chat.is_busy())
+        self.assertIn('3602385', chat.transcript.toPlainText())
+        self.assertIn('Справочная карточка', chat.transcript.toPlainText())
 
     def test_formatting_keeps_paragraphs(self):
         self.window.editor.setPlainText("описание\n\nзаключение")

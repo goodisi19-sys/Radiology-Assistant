@@ -36,13 +36,33 @@ def review_issues(source, result):
     return issues
 
 
-def generate_variant(server_path, model_path, source, instruction=DEFAULT_INSTRUCTION):
+class UnchangedResponseError(RuntimeError):
+    """The model returned the original even after an explicit rewrite retry."""
+
+
+def same_text(left, right):
+    return re.sub(r'\s+', ' ', left).strip() == re.sub(r'\s+', ' ', right).strip()
+
+
+def generate_variant(server_path, model_path, source, instruction=DEFAULT_INSTRUCTION, cancelled=None):
     if not source.strip(): raise ValueError('Выделите описание или введите текст протокола.')
     if len(source) > 16000: raise ValueError('Выберите текст до 16 000 символов.')
     if len(instruction) > 2000: raise ValueError('Сократите запрос до 2 000 символов.')
+    task = instruction.strip() or DEFAULT_INSTRUCTION
     messages = [{'role': 'system', 'content': SYSTEM_PROMPT},
-        {'role': 'user', 'content': (instruction.strip() or DEFAULT_INSTRUCTION) + '\n\n<исходный_протокол>\n' + source + '\n</исходный_протокол>'}]
-    return local_completion(server_path, model_path, messages)
+        {'role': 'user', 'content': task + '\n\n<исходный_протокол>\n' + source + '\n</исходный_протокол>'}]
+    result = local_completion(server_path, model_path, messages, cancelled=cancelled)
+    if same_text(source, result):
+        if cancelled is not None and cancelled.is_set(): raise InterruptedError('Запрос остановлен.')
+        retry = [messages[0], {'role': 'user', 'content': messages[1]['content'] +
+            '\n\nПредыдущая попытка вернула исходник без изменений. Выполни именно редактуру: '
+            'перестрой предложения и замени разговорные обороты медицинскими формулировками. '
+            'Верни весь переработанный текст. Не добавляй новых клинических данных.'}]
+        result = local_completion(server_path, model_path, retry, cancelled=cancelled)
+    if same_text(source, result):
+        raise UnchangedResponseError('Модель дважды вернула исходный текст без изменений. '
+            'Новый вариант не создан. Уточните запрос или попробуйте ещё раз.')
+    return result
 
 
 CHAT_PROMPT = 'Ты — локальный собеседник и справочный помощник. Отвечай по-русски на вопросы пользователя, помогай разобраться в радиологии, МРТ и других темах. Учитывай предыдущие сообщения и уточнения. По умолчанию отвечай понятно и по существу; если просят подробности, объясняй подробнее. Если не уверен, прямо скажи об этом. У тебя нет поиска в интернете; не утверждай, что проверил свежие рекомендации, и не выдумывай ссылки или цитаты.'
@@ -64,13 +84,22 @@ def chat_context(history):
 
 
 def generate_chat(server_path, model_path, history, cancelled=None):
-    return local_completion(server_path, model_path, chat_context(history), max_tokens=2048, cancelled=cancelled)
+    from reference_cards import reference_answer
+    context = chat_context(history)
+    card = reference_answer(history)
+    if card is not None: return card
+    return local_completion(server_path, model_path, context, max_tokens=2048, cancelled=cancelled)
 
 
 def default_server_path():
     import sys
     root = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
     return next((str(path) for path in (root / 'local-ai').rglob('llama-server.exe')), '')
+
+
+def repetitive_answer(text):
+    paragraphs = [re.sub(r'\s+', ' ', part).strip() for part in re.split(r'\n\s*\n', text)]
+    return any(count >= 3 and len(part) >= 80 for part, count in collections.Counter(paragraphs).items())
 
 
 def local_completion(server_path, model_path, messages, max_tokens=4096, cancelled=None):
@@ -120,6 +149,7 @@ def local_completion(server_path, model_path, messages, max_tokens=4096, cancell
                 raise RuntimeError('Ответ обрезан. Попросите более короткий ответ или сократите текст.')
             result = data['choices'][0]['message']['content'].strip()
             if not result: raise RuntimeError('Модель вернула пустой ответ.')
+            if repetitive_answer(result): raise RuntimeError('Модель зациклилась и повторяет длинные фрагменты. Ответ не сохранён. Начните новый разговор или переформулируйте вопрос.')
             return result
         except Exception:
             if cancelled is not None and cancelled.is_set(): raise InterruptedError('Запрос остановлен.') from None

@@ -445,7 +445,7 @@ class MainWindow(QMainWindow):
         from local_chat import LocalChat
         self.chat = LocalChat(self)
         tabs.addTab(self.chat, "Справочник")
-        tabs.currentChanged.connect(lambda index: self.chat.refresh_settings() if tabs.widget(index) is self.chat else None)
+        tabs.currentChanged.connect(lambda index: self.chat.activate() if tabs.widget(index) is self.chat else None)
         side_l.addWidget(tabs, 1)
         splitter.addWidget(side); splitter.setStretchFactor(0, 4); splitter.setStretchFactor(1, 2)
         self.setCentralWidget(splitter)

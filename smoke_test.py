@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 from PySide6.QtWidgets import QApplication, QTreeWidgetItemIterator, QListWidget
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QInputMethodEvent
 
 
 def run(result_path):
@@ -38,8 +39,18 @@ def run(result_path):
         assert text in window.library.quick_lines()
         window.show_expert()
         assert window.expert_dialog.source_text == text
+        candidate = 'Протокол МРТ: уровень L4-L5, размер 3.5 мм.\nЗаключение: без динамики.'
+        window.expert_dialog.receive_result(candidate)
+        assert window.expert_dialog.apply.isEnabled()
+        window.expert_dialog.apply.click()
+        assert window.editor.toPlainText() == candidate
+        window.editor.undo()
+        assert window.editor.toPlainText() == text
         window.expert_dialog.close()
         window.side_tabs.setCurrentWidget(window.chat)
+        event = QInputMethodEvent(); event.setCommitString('Проверка ввода')
+        QApplication.sendEvent(window.chat.input, event)
+        assert window.chat.input.toPlainText() == 'Проверка ввода'
         session = window.chat.session_id
         window.library.save_chat_turn(session, 'Что такое T2?', 'Справочный ответ.')
         window.chat.render()

@@ -1,8 +1,9 @@
 """Persistent local reference chat, independent of report editing."""
 import threading
-from PySide6.QtCore import QThread, Signal, Qt
+from PySide6.QtCore import QThread, Signal, Qt, QUrl, QUrlQuery
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPlainTextEdit,
     QLineEdit, QPushButton, QComboBox, QFileDialog, QGroupBox)
+from reference_cards import CARD_PREFIX
 from expert_assistant import generate_chat, chat_context, default_server_path
 
 
@@ -45,10 +46,16 @@ class LocalChat(QWidget):
         self.refresh_settings()
         self.settings.toggled.connect(self.settings_body.setVisible)
         self.settings.setChecked(not bool(self.model.text()))
+        layout.addWidget(QLabel('Переписка — ответы появятся здесь'))
         self.transcript = QPlainTextEdit(); self.transcript.setReadOnly(True)
-        self.transcript.setPlaceholderText('Например: «Чем отличается T2 от FLAIR?»\nПосле ответа можно задать уточняющий вопрос.')
+        self.transcript.setPlaceholderText('Введите вопрос в поле «Ваш вопрос» ниже и нажмите «Спросить».')
         layout.addWidget(self.transcript, 1)
-        self.input = QPlainTextEdit(); self.input.setMaximumHeight(110)
+        lookup = QHBoxLayout(); layout.addLayout(lookup)
+        self.google = QPushButton('Открыть вопрос в Google'); self.google.clicked.connect(self.search_google); lookup.addWidget(self.google)
+        self.google.setToolTip('Открыть обычный Google-поиск в браузере. Используйте ИИ-обзор или режим ИИ, если они доступны у Google. Вопрос отправляется в браузер; текст протокола не читается.')
+        self.stoller = QPushButton('Справка Stoller'); self.stoller.clicked.connect(self.show_stoller); lookup.addWidget(self.stoller)
+        layout.addWidget(QLabel('Ваш вопрос — напишите здесь'))
+        self.input = QPlainTextEdit(); self.input.setMinimumHeight(90); self.input.setMaximumHeight(130)
         self.input.setPlaceholderText('Ваш вопрос… Ctrl+Enter — отправить')
         self.input.installEventFilter(self); layout.addWidget(self.input)
         row = QHBoxLayout(); layout.addLayout(row)
@@ -84,6 +91,11 @@ class LocalChat(QWidget):
         self.server.setText(self.library.get_setting('expert_server') or default_server_path())
         self.model.setText(self.library.get_setting('expert_model'))
 
+    def activate(self):
+        self.refresh_settings()
+        self.input.setReadOnly(False)
+        self.input.setFocus(Qt.FocusReason.OtherFocusReason)
+
     def is_busy(self): return self.thread is not None
 
     def refresh_sessions(self):
@@ -112,14 +124,16 @@ class LocalChat(QWidget):
     def render(self):
         history = self.library.chat_history(self.session_id)
         if self.pending is not None: history.append({'role': 'user', 'content': self.pending})
-        self.transcript.setPlainText('\n\n'.join(('Вы' if item['role'] == 'user' else 'Помощник') + ':\n' + item['content'] for item in history))
+        self.transcript.setPlainText('\n\n'.join(('Вы' if item['role'] == 'user' else 'Справочная карточка' if item['content'].startswith(CARD_PREFIX) else 'ИИ — ответ не проверен по источникам') + ':\n' + item['content'] for item in history))
         self.transcript.verticalScrollBar().setValue(self.transcript.verticalScrollBar().maximum())
         self.copy.setEnabled(any(item['role'] == 'assistant' for item in history))
 
     def set_busy(self, busy):
         self.send.setEnabled(not busy); self.stop.setEnabled(busy)
         self.sessions.setEnabled(not busy); self.new_button.setEnabled(not busy)
-        self.settings.setEnabled(not busy); self.input.setReadOnly(busy)
+        self.settings.setEnabled(not busy)
+        # The question field must stay writable, including while the model works.
+        self.input.setReadOnly(False)
 
     def send_message(self):
         if self.is_busy(): return
@@ -156,8 +170,9 @@ class LocalChat(QWidget):
         try: self.library.save_chat_turn(self.session_id, self.pending, text)
         except Exception as exc:
             self.receive_error('Не удалось сохранить ответ: ' + str(exc)); return
+        question = self.pending
         self.pending = None
-        self.input.clear()
+        if self.input.toPlainText().strip() == question: self.input.clear()
         self.refresh_sessions()
         self.render()
         self.status.setText('Ответ готов. Можно задать уточняющий вопрос.')
@@ -172,6 +187,26 @@ class LocalChat(QWidget):
             self.thread.cancelled.set()
             self.stop.setEnabled(False)
             self.status.setText('Останавливаю локальную модель…')
+
+    def show_stoller(self):
+        if self.is_busy():
+            self.status.setText('Дождитесь ответа или остановите текущий запрос.'); return
+        self.input.setPlainText('Классификация Stoller')
+        self.send_message()
+
+    def search_google(self):
+        from PySide6.QtGui import QDesktopServices
+        question = self.input.toPlainText().strip()
+        if not question:
+            self.status.setText('Введите вопрос в поле «Ваш вопрос», затем нажмите «Открыть вопрос в Google».')
+            self.input.setFocus(); return
+        query = QUrlQuery()
+        query.addQueryItem('q', question)
+        url = QUrl('https://www.google.com/search'); url.setQuery(query)
+        if QDesktopServices.openUrl(url):
+            self.status.setText('Вопрос открыт в браузере. ИИ-обзор и режим ИИ доступны по условиям Google; ответ не переносится сюда автоматически.')
+        else:
+            self.status.setText('Не удалось открыть браузер. Проверьте браузер по умолчанию.')
 
     def copy_answer(self):
         from PySide6.QtWidgets import QApplication

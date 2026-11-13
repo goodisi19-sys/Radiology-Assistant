@@ -1,7 +1,9 @@
+import threading
+
 from PySide6.QtCore import QThread, Signal
 from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QPlainTextEdit, QFileDialog, QCheckBox
-from expert_assistant import generate_variant, review_issues, DEFAULT_INSTRUCTION, default_server_path
+from expert_assistant import generate_variant, review_issues, DEFAULT_INSTRUCTION, default_server_path, same_text
 
 
 class GenerationThread(QThread):
@@ -10,8 +12,9 @@ class GenerationThread(QThread):
     def __init__(self, server, model, source, instruction, parent=None):
         super().__init__(parent)
         self.arguments = server, model, source, instruction
+        self.cancelled = threading.Event()
     def run(self):
-        try: self.completed.emit(generate_variant(*self.arguments))
+        try: self.completed.emit(generate_variant(*self.arguments, cancelled=self.cancelled))
         except Exception as exc: self.failed.emit(str(exc))
 
 
@@ -44,7 +47,7 @@ class ExpertDialog(QDialog):
         layout.addWidget(self.whole_document)
         layout.addWidget(QLabel('Исходный текст'))
         self.source = QPlainTextEdit(self.source_text); self.source.setReadOnly(True); layout.addWidget(self.source)
-        layout.addWidget(QLabel('Предлагаемый вариант — проверьте медицинский смысл перед применением'))
+        layout.addWidget(QLabel('Новый вариант — появится после обработки. Затем нажмите «Заменить текст в редакторе».'))
         self.result = QPlainTextEdit(); self.result.setReadOnly(True); layout.addWidget(self.result)
         self.review_confirm = QCheckBox('Я проверил отмеченные различия и хочу применить вариант')
         self.review_confirm.setVisible(False)
@@ -54,7 +57,8 @@ class ExpertDialog(QDialog):
         self.status.setWordWrap(True); layout.addWidget(self.status)
         row = QHBoxLayout(); layout.addLayout(row)
         self.generate = QPushButton('Новый вариант'); self.generate.clicked.connect(self.start_generation); row.addWidget(self.generate)
-        self.apply = QPushButton('Применить вариант'); self.apply.setEnabled(False); self.apply.clicked.connect(self.apply_variant); row.addWidget(self.apply)
+        self.stop = QPushButton('Остановить'); self.stop.setEnabled(False); self.stop.clicked.connect(self.stop_generation); row.addWidget(self.stop)
+        self.apply = QPushButton('Заменить текст в редакторе'); self.apply.setEnabled(False); self.apply.clicked.connect(self.apply_variant); row.addWidget(self.apply)
         close = QPushButton('Закрыть'); close.clicked.connect(self.close); row.addWidget(close)
 
     def path_row(self, layout, label, key, file_filter):
@@ -95,31 +99,45 @@ class ExpertDialog(QDialog):
         self.review_confirm.setChecked(False); self.review_confirm.hide()
         self.whole_document.setEnabled(False); self.instruction.setEnabled(False)
         self.apply.setEnabled(False); self.generate.setEnabled(False)
-        self.status.setText('Загрузка локальной модели и подготовка варианта…')
+        self.result.clear(); self.issues = []
+        self.stop.setEnabled(True)
+        self.status.setText('Готовлю новый текст. Если модель повторит исходник, повторю запрос один раз. Можно остановить.')
         self.thread = GenerationThread(self.server.text().strip(), self.model.text().strip(), self.source_text, self.instruction.toPlainText(), self)
         self.thread.completed.connect(self.receive_result)
         self.thread.failed.connect(self.receive_error)
         worker = self.thread
         def finished():
             self.generate.setEnabled(True)
+            self.stop.setEnabled(False)
             self.whole_document.setEnabled(True); self.instruction.setEnabled(True)
             self.thread = None
             worker.deleteLater()
         self.thread.finished.connect(finished)
         self.thread.start()
 
+    def stop_generation(self):
+        if self.thread is not None:
+            self.thread.cancelled.set()
+            self.stop.setEnabled(False)
+            self.status.setText('Останавливаю локальную модель…')
+
     def receive_result(self, text):
+        if self.thread is not None and self.thread.cancelled.is_set():
+            self.receive_error('Запрос остановлен.'); return
+        if same_text(self.source_text, text):
+            self.receive_error('Модель вернула исходный текст без изменений. Новый вариант не создан. Уточните запрос.'); return
         repeated = self.result.toPlainText() == text
         self.result.setPlainText(text)
         issues = self.issues = review_issues(self.source_text, text)
         self.review_confirm.setChecked(False)
         self.review_confirm.setVisible(bool(issues))
-        self.status.setText('\n'.join(issues) if issues else 'Проверьте находки, отрицания, сторону и сигнальные характеристики. Затем примените вариант.')
+        self.status.setText('\n'.join(issues) if issues else 'Новый вариант готов. Проверьте текст и нажмите «Заменить текст в редакторе» — до этого исходник не меняется.')
         if repeated and not issues:
             self.status.setText('Модель повторила предыдущий вариант. Можно запросить ещё один.')
         self.apply.setEnabled(not issues and bool(text.strip()))
 
     def receive_error(self, text):
+        self.result.clear(); self.review_confirm.setChecked(False); self.review_confirm.hide()
         self.status.setText(text); self.apply.setEnabled(False)
 
     def apply_variant(self):
@@ -143,6 +161,7 @@ class ExpertDialog(QDialog):
 
     def closeEvent(self, event):
         if self.is_busy():
-            self.status.setText('Дождитесь завершения локальной обработки, затем закройте окно.')
+            self.stop_generation()
+            self.status.setText('Останавливаю обработку. Закройте окно после остановки.')
             event.ignore()
         else: event.accept()

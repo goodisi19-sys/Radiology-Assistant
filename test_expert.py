@@ -47,6 +47,32 @@ class ExpertTests(unittest.TestCase):
             process.terminate.assert_called()
             process.wait.assert_called()
 
+    def test_rewrite_retries_an_unchanged_response(self):
+        with patch.object(expert, 'local_completion', side_effect=['Исходный текст.', 'Переработанный текст.']) as call:
+            self.assertEqual(expert.generate_variant('server', 'model', 'Исходный текст.'), 'Переработанный текст.')
+        self.assertEqual(call.call_count, 2)
+        self.assertIn('без изменений', call.call_args.args[2][1]['content'])
+
+    def test_rewrite_does_not_present_copy_as_success(self):
+        with patch.object(expert, 'local_completion', return_value='Исходный  текст.\n') as call:
+            with self.assertRaises(expert.UnchangedResponseError):
+                expert.generate_variant('server', 'model', 'Исходный текст.')
+        self.assertEqual(call.call_count, 2)
+
+    def test_stoller_card_bypasses_model(self):
+        from reference_cards import CARD_PREFIX
+        with patch.object(expert, 'local_completion', side_effect=AssertionError('Do not generate a known reference')):
+            answer = expert.generate_chat('', '', [{'role': 'user', 'content': 'Дай классификацию разрывов менисков по Stoller'}])
+        self.assertTrue(answer.startswith(CARD_PREFIX))
+        self.assertIn('3602385', answer)
+        self.assertIn('II — линейный', answer)
+        self.assertNotIn('III уровень', answer)
+
+    def test_repeated_long_paragraphs_are_flagged(self):
+        paragraph = 'Неверный повторяющийся ответ модели. ' * 4
+        self.assertTrue(expert.repetitive_answer('\n\n'.join([paragraph] * 3)))
+        self.assertFalse(expert.repetitive_answer('Обычный короткий ответ.'))
+
     def test_missing_local_engine(self):
         with self.assertRaisesRegex(ValueError, 'llama-server'):
             expert.generate_variant('/no/server', '/no/model.gguf', 'Текст')
