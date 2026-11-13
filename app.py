@@ -597,6 +597,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         if self.confirm_discard():
             if hasattr(self, 'yandex_dialog'): self.yandex_dialog.close()
+            if hasattr(self, 'protocol_check_dialog'): self.protocol_check_dialog.close()
             self.library.db.close()
             event.accept()
         else: event.ignore()
