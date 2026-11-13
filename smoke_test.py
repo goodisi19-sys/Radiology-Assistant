@@ -96,8 +96,17 @@ def run(result_path):
         window.editor.undo()
         assert window.editor.toPlainText() == 'Исходный протокол.'
         window.gigachat_dialog.close()
+        window.editor.setPlainText('зад цент прот l5-s1 до 4 мм с лок деформ дура мешка')
+        window.show_shorthand()
+        assert window.shorthand_dialog.apply.isEnabled()
+        window.shorthand_dialog.apply_result()
+        assert 'с локальной деформацией дурального мешка.' in window.editor.toPlainText()
+        window.export_to_path(fixed_path)
+        assert read_docx(fixed_path) == window.editor.toPlainText()
+        window.editor.undo()
+        assert window.editor.toPlainText().startswith('зад цент прот')
         window.editor.document().setModified(False); window.close()
         Path(result_path).write_text(json.dumps({'protocols': visible, 'docx': 'ok',
             'quick_lines': 'ok', 'spelling': 'ok', 'punctuation': 'ok', 'google_input': 'ok', 'yandex_exchange': 'ok',
-            'mra_paragraphs': 'ok', 'layouts_audited': 497, 'methodology': 'ok', 'protocol_check': 'ok', 'gigachat_preview': 'ok',
+            'mra_paragraphs': 'ok', 'layouts_audited': 497, 'methodology': 'ok', 'protocol_check': 'ok', 'gigachat_preview': 'ok', 'shorthand': 'ok',
             'base_sources_restored': 127, 'source_review_required': 18}), encoding='utf-8')

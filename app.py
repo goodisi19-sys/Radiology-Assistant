@@ -541,6 +541,8 @@ class MainWindow(QMainWindow):
         edit = self.menuBar().addMenu("Правка")
         edit.addAction(self.action("Оформить предложения","Ctrl+Shift+F",self.format_all_text))
         edit.addAction(self.action("Проверить опечатки", "", self.show_spelling))
+        edit.addAction(self.action("Развернуть заметку", "Ctrl+Alt+R", self.show_shorthand))
+        edit.addAction(self.action("Улучшить формулировку", "Ctrl+Alt+E", self.improve_fragment))
         edit.addAction(self.action("Найти…","Ctrl+F",self.find_text))
         edit.addAction(self.action("Заменить…","Ctrl+H",self.replace_text))
         edit.addAction(self.action("Отменить","Ctrl+Z",self.editor.undo))
@@ -584,6 +586,7 @@ class MainWindow(QMainWindow):
         if self.confirm_discard():
             if hasattr(self, 'yandex_dialog'): self.yandex_dialog.close()
             if hasattr(self, 'gigachat_dialog'): self.gigachat_dialog.close()
+            if hasattr(self, 'shorthand_dialog'): self.shorthand_dialog.close()
             if hasattr(self, 'protocol_check_dialog'): self.protocol_check_dialog.close()
             self.library.db.close()
             event.accept()
@@ -640,6 +643,8 @@ class MainWindow(QMainWindow):
         action = menu.addAction('Добавить в быстрые строки протоколов')
         action.setEnabled(self.editor.textCursor().hasSelection())
         action.triggered.connect(self.add_selection_to_quick_lines)
+        menu.addAction('Развернуть заметку', self.show_shorthand)
+        menu.addAction('Улучшить формулировку — GigaChat', self.improve_fragment)
         yandex = menu.addAction('Яндекс Редактор — через браузер')
         yandex.triggered.connect(self.show_yandex_editor)
         spelling = menu.addAction('Проверить опечатки')
@@ -656,6 +661,33 @@ class MainWindow(QMainWindow):
             if hasattr(self, 'quick_listing'): self.populate_quick_dialog()
             self.statusBar().showMessage('Строка добавлена в быстрые строки.' if added else 'Эта строка уже есть в списке.', 5000)
         except Exception as exc: QMessageBox.warning(self, 'Быстрые строки', str(exc))
+
+    def fragment_target(self):
+        cursor = QTextCursor(self.editor.textCursor())
+        if not cursor.hasSelection():
+            block = cursor.block()
+            cursor.setPosition(block.position())
+            cursor.setPosition(block.position() + block.length() - 1, QTextCursor.MoveMode.KeepAnchor)
+        return cursor
+
+    def show_shorthand(self):
+        from shorthand_dialog import ShorthandDialog
+        if hasattr(self, 'shorthand_dialog'):
+            self.shorthand_dialog.close(); self.shorthand_dialog.deleteLater()
+        self.shorthand_dialog = ShorthandDialog(self, self.fragment_target())
+        self.shorthand_dialog.show()
+
+    def improve_fragment(self):
+        from shorthand import IMPROVE_PROMPT
+        cursor = self.fragment_target()
+        self.open_fragment_gigachat(cursor, cursor.selectedText().replace('\u2029','\n'), IMPROVE_PROMPT)
+
+    def open_fragment_gigachat(self, target, source, instruction):
+        from gigachat_editor import GigaChatEditorDialog
+        if hasattr(self, 'gigachat_dialog'):
+            self.gigachat_dialog.close(); self.gigachat_dialog.deleteLater()
+        self.gigachat_dialog = GigaChatEditorDialog(self, target=target, source=source, instruction=instruction)
+        self.gigachat_dialog.show()
 
     def show_gigachat(self):
         from gigachat_editor import GigaChatEditorDialog

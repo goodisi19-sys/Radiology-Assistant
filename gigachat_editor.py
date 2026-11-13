@@ -10,13 +10,14 @@ from gigachat_client import GigaChatClient,GigaChatError,tls_context,SCOPES
 from gigachat_secret import load_key,save_key
 
 class GigaChatEditorDialog(QDialog):
-    def __init__(self, window):
+    def __init__(self, window, target=None, source=None, instruction=None):
         super().__init__(window)
         import app
         self.window=window; self.snapshot=window.editor.toPlainText()
-        self.target=QTextCursor(window.editor.textCursor())
-        if not self.target.hasSelection(): self.target.select(QTextCursor.SelectionType.Document)
+        self.target=QTextCursor(target if target is not None else window.editor.textCursor())
+        if target is None and not self.target.hasSelection(): self.target.select(QTextCursor.SelectionType.Document)
         self.source_text=self.target.selectedText().replace('\u2029','\n')
+        if source is not None: self.source_text=source
         self.secret_path=app.app_data_dir()/'gigachat-key.dpapi'
         self.inbox=queue.Queue(); self.closed=False; self.busy=False
         self.setWindowTitle('GigaChat — ИИ-редактор'); self.resize(850,760)
@@ -42,6 +43,7 @@ class GigaChatEditorDialog(QDialog):
         layout.addWidget(self.ca)
         choose=QPushButton('Выбрать дополнительный сертификат'); choose.clicked.connect(self.choose_ca); layout.addWidget(choose)
         self.instruction=QLineEdit('Сделай текст профессиональнее и связнее, сохрани клиническое содержание и структуру протокола.')
+        if instruction is not None: self.instruction.setText(instruction)
         self.instruction.setPlaceholderText('Ваше задание редактору'); layout.addWidget(self.instruction)
         layout.addWidget(QLabel('Будет отправлен этот текст — можно убрать персональные данные:'))
         self.source=QPlainTextEdit(self.source_text); layout.addWidget(self.source)

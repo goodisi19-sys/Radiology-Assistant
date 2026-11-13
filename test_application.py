@@ -80,6 +80,47 @@ class ApplicationTests(unittest.TestCase):
             self.assertTrue(dialog.apply.isEnabled())
         dialog.close()
 
+    def test_shorthand_current_line_apply_undo_and_personal_mapping(self):
+        self.window.editor.setPlainText('зад цент прот l5-s1 до 4 мм с лок деформ дура мешка\nСледующий абзац.')
+        cursor=self.window.editor.textCursor();cursor.setPosition(0);self.window.editor.setTextCursor(cursor)
+        before=self.window.editor.toPlainText()
+        self.window.show_shorthand(); dialog=self.window.shorthand_dialog
+        self.assertNotIn('Следующий',dialog.original)
+        self.assertTrue(dialog.apply.isEnabled())
+        dialog.remember()
+        self.assertIn('зад цент прот',self.window.library.get_setting('shorthand_personal'))
+        dialog.apply_result()
+        self.assertTrue(self.window.editor.toPlainText().endswith('\nСледующий абзац.'))
+        self.assertIn('дурального мешка.',self.window.editor.toPlainText())
+        self.window.editor.undo();self.assertEqual(self.window.editor.toPlainText(),before)
+
+    def test_shorthand_unknown_no_send_and_stale_guard(self):
+        self.window.editor.setPlainText('зад цент прот ь5-с1 дл 4 мм')
+        with patch('gigachat_editor.GigaChatClient') as network:
+            self.window.show_shorthand();dialog=self.window.shorthand_dialog
+            self.assertFalse(dialog.apply.isEnabled());network.assert_not_called()
+            dialog.result.setPlainText('Мой проверенный текст.')
+            self.window.editor.setPlainText('Новая редакция.')
+            dialog.apply_result();self.assertEqual(self.window.editor.toPlainText(),'Новая редакция.')
+            dialog.close()
+
+    def test_shorthand_fallback_and_improve_only_selected_fragment(self):
+        self.window.editor.setPlainText('Первый абзац.\nМоя заметка\nТретий абзац.')
+        cursor=self.window.editor.textCursor();cursor.setPosition(len('Первый абзац.\n'));self.window.editor.setTextCursor(cursor)
+        with patch('gigachat_editor.GigaChatClient') as network:
+            self.window.show_shorthand();self.window.shorthand_dialog.open_giga()
+            self.assertEqual(self.window.gigachat_dialog.source.toPlainText(),'Моя заметка')
+            network.assert_not_called()
+        self.window.gigachat_dialog.close()
+        self.window.improve_fragment()
+        self.assertEqual(self.window.gigachat_dialog.source.toPlainText(),'Моя заметка')
+        self.window.gigachat_dialog.close()
+        self.window.editor.setPlainText('Начало.\n\nКонец.')
+        cursor=self.window.editor.textCursor();cursor.setPosition(len('Начало.\n'));self.window.editor.setTextCursor(cursor)
+        self.window.improve_fragment()
+        self.assertEqual(self.window.gigachat_dialog.source.toPlainText(),'')
+        self.window.gigachat_dialog.close()
+
     def test_all_protocols_visible_and_restart(self):
         ids = []
         iterator = QTreeWidgetItemIterator(self.window.template_list)
