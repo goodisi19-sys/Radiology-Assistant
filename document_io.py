@@ -51,7 +51,7 @@ def read_docx(path):
     from docx.text.paragraph import Paragraph
     parts = []
     for item in Document(path).iter_inner_content():
-        if isinstance(item, Paragraph): parts.append(item.text)
+        if isinstance(item, Paragraph): parts.append(item.text.replace('\n', '\u2028'))
         elif isinstance(item, Table):
             parts.extend('\t'.join(cell.text for cell in row.cells) for row in item.rows)
     return '\n'.join(parts)

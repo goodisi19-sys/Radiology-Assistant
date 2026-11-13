@@ -249,6 +249,57 @@ class ApplicationTests(unittest.TestCase):
         self.assertTrue(dialog.bridge.closed)
         self.assertFalse(dialog.timer.isActive())
 
+    def test_all_497_layouts_are_audited_and_original_rows_unchanged(self):
+        self.assertEqual(len(self.window.library.layout_audit), 497)
+        before = self.window.library.db.execute('SELECT id,content FROM templates ORDER BY id').fetchall()
+        from report_format import format_report
+        for template_id, original in before:
+            rendered = self.window.library.get_template(template_id)[1]
+            formatted = format_report(rendered)
+            self.assertEqual(format_report(formatted), formatted, str(template_id))
+        self.assertEqual(before, self.window.library.db.execute('SELECT id,content FROM templates ORDER BY id').fetchall())
+
+    def test_screenshot_mra_template_and_docx(self):
+        lib = self.window.library
+        row = lib.db.execute("SELECT id,content FROM templates WHERE source='Google Drive: 1p6-C-2cJcZoFxBoHBaaXKx6H__yXWKcG'").fetchone()
+        self.assertIsNotNone(row)
+        template_id, original = row
+        self.assertIn('обычной\nформы', original)
+        rendered = lib.get_template(template_id)[1]
+        self.assertIn('обычной формы', rendered)
+        self.assertIn('клинико-лабораторными данными', rendered)
+        self.assertIn('предшествующих МР или РКТ исследований', rendered)
+        self.window.editor.setPlainText(rendered)
+        self.window.format_all_text()
+        text = self.window.editor.toPlainText()
+        self.assertNotIn('обычной.\nФормы', text)
+        self.assertNotIn('четкими.\nРовными', text)
+        target = Path(self.tmp.name) / 'mra.docx'
+        self.window.export_to_path(target)
+        self.assertEqual(read_docx(target), text)
+        self.assertFalse(lib.import_full_protocol('Копия правильного шаблона', 'ГМ', rendered, 'manual'))
+
+    def test_layout_cache_does_not_override_personal_edits(self):
+        lib = self.window.library
+        template_id = lib.db.execute("SELECT id FROM templates WHERE source='Google Drive: 1p6-C-2cJcZoFxBoHBaaXKx6H__yXWKcG'").fetchone()[0]
+        own = 'Мой отредактированный текст.\nЗаключение: без изменений.'
+        lib.db.execute('UPDATE templates SET content=? WHERE id=?', (own,template_id)); lib.db.commit()
+        self.assertEqual(lib.get_template(template_id)[1], own)
+        lib.db.close(); self.window.library = app.PhraseLibrary()
+        self.assertEqual(self.window.library.get_template(template_id)[1], own)
+
+    def test_docx_manual_break_is_not_a_new_paragraph(self):
+        from docx import Document
+        source = Path(self.tmp.name) / 'soft-break.docx'
+        doc = Document(); paragraph = doc.add_paragraph()
+        paragraph.add_run('обычной').add_break(); paragraph.add_run('формы; контуры ровные;')
+        doc.add_paragraph('Заключение:'); doc.save(source)
+        raw = read_docx(source)
+        self.assertIn('обычной\u2028формы', raw)
+        self.window.editor.setPlainText(raw)
+        self.window.format_all_text()
+        self.assertEqual(self.window.editor.toPlainText(), 'Обычной формы; контуры ровные.\nЗаключение:')
+
     def test_formatting_keeps_paragraphs(self):
         self.window.editor.setPlainText("описание\n\nзаключение")
         self.window.format_all_text()

@@ -7,3 +7,5 @@ build/
 *.spec
 core
 core.*
+
+layout-audit.json

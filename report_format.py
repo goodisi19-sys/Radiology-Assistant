@@ -1,15 +1,13 @@
 """Conservative MRI report punctuation and sentence-case formatting."""
 import re
-
-# Abbreviations whose trailing full stop is not a sentence boundary.
-ABBREVIATIONS = {"мм", "см", "мл", "мг", "г", "т", "им", "др", "рис", "стр", "т.д", "т.п", "т.е", "т.к", "т.н", "в.т.ч", "ст", "арт", "макс", "мин"}
+from template_layout import inline_breaks, ABBREVIATIONS
 
 def format_line(line: str) -> str:
     if not line.strip():
         return line
     left = len(line) - len(line.lstrip(" \t"))
     right = len(line.rstrip(" \t"))
-    prefix, body, suffix = line[:left], line[left:right], line[right:]
+    prefix, body, suffix = line[:left], inline_breaks(line[left:right]).replace('\n', '\u2028'), line[right:]
     # Remove list dashes, but retain minus signs in numeric measurements.
     body = re.sub(r'^(?:(?:[-–—•*]+[ \t]+)|(?:[–—•*]+(?=[А-Яа-яЁёA-Za-z(«]))|(?:-(?=[А-Яа-яЁёA-Za-z])))+', '', body)
     lead = re.match(r"((?:\d+[.)]\s+)*)", body).group(1)
@@ -44,7 +42,7 @@ def format_line(line: str) -> str:
     content = "".join(chars)
     # Preserve template headings and all internal semicolons. Only the end of
     # a prose line receives a full stop; no clause is rewritten or reordered.
-    heading = content.endswith(':') and len(content) <= 100 and ';' not in content
+    heading = content.endswith(':') and ';' not in content
     # A terminal question mark can encode diagnostic uncertainty.
     if not heading and not content.endswith('?'):
         content = content.rstrip(';,!?:').rstrip()
@@ -52,5 +50,6 @@ def format_line(line: str) -> str:
     return prefix + lead + content + suffix
 
 def format_report(text: str) -> str:
+    text = inline_breaks(text)
     return "".join(format_line(part.rstrip("\r\n")) + part[len(part.rstrip("\r\n")):]
                    for part in text.splitlines(keepends=True))

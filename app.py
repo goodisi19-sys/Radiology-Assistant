@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
     QCompleter, QInputDialog, QStatusBar, QTabWidget, QTreeWidget, QTreeWidgetItem, QDialog)
 
 from report_format import format_line, format_report
+from template_layout import ParagraphEvidence, odt_paragraphs
 
 APP_NAME = "Radiology Assistant"
 
@@ -43,6 +44,8 @@ class PhraseLibrary:
                     target = folder / ('before-catalog-v2-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f') + '.sqlite3')
                     with closing(sqlite3.connect(str(target))) as destination: old.backup(destination)
         self.db = sqlite3.connect(str(self.path))
+        self._layout_sources = []
+        self.db.create_function("raw_digest", 1, lambda value: hashlib.sha256(value.encode("utf-8")).hexdigest(), deterministic=True)
         self.db.create_function("casefold", 1, lambda value: (value or "").casefold())
         self.db.execute("""CREATE TABLE IF NOT EXISTS phrases(
             id INTEGER PRIMARY KEY, text TEXT UNIQUE NOT NULL, count INTEGER DEFAULT 1,
@@ -57,6 +60,8 @@ class PhraseLibrary:
         self.db.execute("CREATE TABLE IF NOT EXISTS app_settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
         for text in json.loads(bundled_data_path('quick_lines.json').read_text(encoding='utf-8'))['lines']:
             self.db.execute("INSERT OR IGNORE INTO quick_lines(text) VALUES(?)", (text,))
+        self.db.execute("CREATE TABLE IF NOT EXISTS template_layouts(template_id INTEGER PRIMARY KEY, original_digest TEXT NOT NULL, content TEXT NOT NULL, fingerprint TEXT NOT NULL, kind TEXT NOT NULL)")
+        self.db.execute("CREATE INDEX IF NOT EXISTS idx_template_layout_fingerprint ON template_layouts(fingerprint)")
         self.db.execute("CREATE TABLE IF NOT EXISTS spelling_words(word TEXT PRIMARY KEY)")
         self.db.commit()
         self.load_bundled_templates()
@@ -64,6 +69,7 @@ class PhraseLibrary:
         self.load_extra_protocols()
         self.load_drive_odt_protocols()
         self.normalize_categories()
+        self.install_bundled_layouts()
         self.db.execute("CREATE TABLE IF NOT EXISTS catalog_metadata_v2(version INTEGER)")
         self.db.commit()
 
@@ -89,14 +95,15 @@ class PhraseLibrary:
 
     def load_bundled_templates(self):
         count = self.db.execute("SELECT COUNT(*) FROM templates WHERE source=?", ("Встроенная библиотека МРТ",)).fetchone()[0]
-        if count:
-            return
         source = bundled_data_path("protocols.json.br.b64")
         if not source.exists():
             return
         try:
             packed = base64.b64decode(source.read_text(encoding="ascii"))
             data = json.loads(brotli.decompress(packed).decode("utf-8"))
+            self._layout_sources.extend({'source': 'Встроенная библиотека МРТ', 'title': title,
+                'raw': content, 'layout': content, 'kind': 'base-evidence'} for title, category, content in data)
+            if count: return
             for title, category, content in data:
                 self.db.execute("INSERT INTO templates(title,category,content,source) VALUES(?,?,?,?)",
                                 (title, category, content, "Встроенная библиотека МРТ"))
@@ -142,12 +149,38 @@ class PhraseLibrary:
         return self.db.execute(sql, args).fetchall()
 
     def search_templates(self, query: str = ""):
-        return self.db.execute("""SELECT id,title,category FROM templates
-            WHERE casefold(title) LIKE ? OR casefold(content) LIKE ? ORDER BY category,title""",
-            ("%" + query.casefold() + "%", "%" + query.casefold() + "%")).fetchall()
+        return self.db.execute("""SELECT t.id,t.title,t.category FROM templates t
+            LEFT JOIN template_layouts l ON l.template_id=t.id AND l.original_digest=raw_digest(t.content)
+            WHERE casefold(t.title) LIKE ? OR casefold(COALESCE(l.content,t.content)) LIKE ?
+            ORDER BY t.category,t.title""", ('%'+query.casefold()+'%', '%'+query.casefold()+'%')).fetchall()
 
     def get_template(self, template_id: int):
-        return self.db.execute("SELECT title,content FROM templates WHERE id=?", (template_id,)).fetchone()
+        return self.db.execute("""SELECT t.title,COALESCE(l.content,t.content) FROM templates t
+            LEFT JOIN template_layouts l ON l.template_id=t.id AND l.original_digest=raw_digest(t.content)
+            WHERE t.id=?""", (template_id,)).fetchone()
+
+    def install_bundled_layouts(self):
+        # Stored clinical text, IDs and old deduplication keys remain untouched.
+        # Layout applies only while the row matches the original bundled text.
+        evidence = ParagraphEvidence(record['layout'] for record in self._layout_sources if record['kind'] != 'base-evidence')
+        plans = {}
+        for record in self._layout_sources:
+            rendered, joined = (evidence.unwrap(record['raw']) if record['kind'] == 'base-evidence'
+                                else (record['layout'], 0))
+            for template_id, current in self.db.execute('SELECT id,content FROM templates WHERE source=? AND title=?',
+                                                       (record['source'], record['title'])):
+                if current != record['raw']: continue  # Respect personal edits, including layout edits.
+                original = hashlib.sha256(current.encode('utf-8')).hexdigest()
+                fingerprint = hashlib.sha256(re.sub(r'\s+', ' ', rendered).strip().encode('utf-8')).hexdigest()
+                plans[template_id] = (original, rendered, fingerprint, record['kind'], joined, current != rendered)
+        self.layout_audit = []
+        for template_id, (original, rendered, fingerprint, kind, joined, changed) in plans.items():
+            self.db.execute("""INSERT INTO template_layouts(template_id,original_digest,content,fingerprint,kind)
+                VALUES(?,?,?,?,?) ON CONFLICT(template_id) DO UPDATE SET original_digest=excluded.original_digest,
+                content=excluded.content,fingerprint=excluded.fingerprint,kind=excluded.kind""",
+                (template_id, original, rendered, fingerprint, kind))
+            self.layout_audit.append({'id': template_id, 'kind': kind, 'changed': changed, 'joined_boundaries': joined})
+        self.db.commit()
 
     def suggestions(self, prefix: str, limit: int = 12):
         if len(prefix.strip()) < 2:
@@ -184,8 +217,10 @@ class PhraseLibrary:
             for record in json.loads(source.read_text(encoding="utf-8")):
                 folder=record.get("folder","")
                 if any(k in folder.casefold() for k in ("мибс","2006")): continue
-                self.import_full_protocol(record["title"],folder,record["content"],
-                    "Google Drive: "+record.get("source_id",""))
+                source_name = "Google Drive: " + record.get("source_id", "")
+                self.import_full_protocol(record["title"],folder,record["content"], source_name)
+                self._layout_sources.append({'source': source_name, 'title': record['title'], 'raw': record['content'],
+                    'layout': record.get('layout_content', record['content']), 'kind': 'doc-original' if name == 'protocols_legacy.json' else 'extra'})
         self.db.commit()
 
     def load_drive_odt_protocols(self):
@@ -207,8 +242,10 @@ class PhraseLibrary:
                         root=ET.fromstring(archive.read("content.xml"))
                     lines=["".join(node.itertext()).strip() for node in root.findall(".//text:p",namespace)]
                     content="\n".join(line for line in lines if line)
-                    self.import_full_protocol(Path(title).stem,folder,content,
-                        "Google Drive: "+record.get("id",""))
+                    source_name = "Google Drive: " + record.get("id", "")
+                    self.import_full_protocol(Path(title).stem,folder,content,source_name)
+                    self._layout_sources.append({'source': source_name, 'title': Path(title).stem, 'raw': content,
+                        'layout': odt_paragraphs(root), 'kind': 'odt-original'})
                 except Exception as exc:
                     self.db.rollback()
                     raise RuntimeError(f"Ошибка протокола {title}: {exc}") from exc
@@ -221,6 +258,8 @@ class PhraseLibrary:
         fingerprint = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
         if self.db.execute("SELECT 1 FROM template_folders WHERE fingerprint=?", (fingerprint,)).fetchone():
             return False
+        if self.db.execute("""SELECT 1 FROM template_layouts l JOIN templates t ON t.id=l.template_id
+            WHERE l.fingerprint=? AND l.original_digest=raw_digest(t.content)""", (fingerprint,)).fetchone(): return False
         category = self.guess_category(folder + " " + title)
         cur = self.db.execute("INSERT INTO templates(title,category,content,source) VALUES(?,?,?,?)",
             (title,category,content,source))
@@ -268,11 +307,8 @@ class PhraseLibrary:
                     try:
                         if item.suffix.lower() == ".docx":
                             from docx import Document
-                            doc = Document(str(item))
-                            content = "\n".join(x.text for x in doc.paragraphs)
-                            for table in doc.tables:
-                                for row in table.rows:
-                                    content += "\n" + " ".join(c.text for c in row.cells)
+                            from document_io import read_docx
+                            content = read_docx(str(item))
                         elif item.suffix.lower() == ".txt":
                             content = item.read_text(encoding="utf-8", errors="ignore")
                         else:
@@ -676,7 +712,8 @@ class MainWindow(QMainWindow):
         rows=self.library.db.execute("""SELECT t.id,t.title,t.category,
             COALESCE(f.folder_path,t.category) FROM templates t
             LEFT JOIN template_folders f ON f.template_id=t.id
-            WHERE casefold(t.title) LIKE ? OR casefold(t.content) LIKE ?
+            LEFT JOIN template_layouts l ON l.template_id=t.id AND l.original_digest=raw_digest(t.content)
+            WHERE casefold(t.title) LIKE ? OR casefold(COALESCE(l.content,t.content)) LIKE ?
             ORDER BY 4,t.title""", ("%"+query.casefold()+"%","%"+query.casefold()+"%")).fetchall()
         self.template_list.clear()
         nodes={}

@@ -63,6 +63,16 @@ def run(result_path):
         assert window.editor.toPlainText() == expected
         dialog.close()
         assert dialog.bridge.closed
+        from report_format import format_report
+        mra_id = window.library.db.execute("SELECT id FROM templates WHERE source='Google Drive: 1p6-C-2cJcZoFxBoHBaaXKx6H__yXWKcG'").fetchone()[0]
+        mra = format_report(window.library.get_template(mra_id)[1])
+        assert 'обычной формы' in mra and 'клинико-лабораторными данными' in mra
+        assert 'обычной.\nФормы' not in mra
+        window.editor.setPlainText(mra)
+        fixed_path = Path(tmp) / 'mra-fixed.docx'
+        window.export_to_path(fixed_path)
+        assert read_docx(fixed_path) == mra
+        assert len(window.library.layout_audit) == 497
         window.editor.document().setModified(False); window.close()
         Path(result_path).write_text(json.dumps({'protocols': visible, 'docx': 'ok',
-            'quick_lines': 'ok', 'spelling': 'ok', 'punctuation': 'ok', 'google_input': 'ok', 'yandex_exchange': 'ok'}), encoding='utf-8')
+            'quick_lines': 'ok', 'spelling': 'ok', 'punctuation': 'ok', 'google_input': 'ok', 'yandex_exchange': 'ok', 'mra_paragraphs': 'ok', 'layouts_audited': 497}), encoding='utf-8')

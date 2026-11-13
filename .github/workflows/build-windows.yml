@@ -54,6 +54,14 @@ jobs:
         run: python -m unittest discover -v
       - name: Audit actual imported MRI library
         run: python audit_library.py
+      - name: Audit paragraph layout of all 497 protocols
+        run: python audit_layouts.py
+      - name: Upload complete layout audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: RadiologyAssistant-LibraryAudit
+          path: layout-audit.json
+          if-no-files-found: error
       - name: Build portable executable
         run: |
           pyinstaller --noconfirm --clean --onefile --windowed --add-data "protocols.json.br.b64;." --add-data "quick_lines.json;." --add-data "protocols_extra.json;." --add-data "protocols_legacy.json;." --add-data "drive_odt_01.json;." --add-data "drive_odt_02.json;." --add-data "drive_odt_03.json;." --add-data "drive_odt_04.json;." --add-data "drive_odt_05.json;." --add-data "drive_odt_06.json;." --add-data "drive_odt_07.json;." --add-data "drive_odt_08.json;." --add-data "drive_odt_09.json;." --add-data "drive_odt_10.json;." --add-data "drive_odt_11.json;." --add-data "drive_odt_12.json;." --add-data "drive_odt_13.json;." --add-data "drive_odt_14.json;." --add-data "drive_odt_15.json;." --add-data "drive_odt_16.json;." --add-data "drive_odt_17.json;." --add-data "drive_odt_18.json;." --add-data "spelling_data;spelling_data" --name RadiologyAssistant app.py
