@@ -2,7 +2,7 @@ name: Build Windows app
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, fix/library-audit-and-document-safety ]
   pull_request:
   workflow_dispatch:
 
