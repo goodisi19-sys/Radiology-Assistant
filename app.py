@@ -475,6 +475,7 @@ class MainWindow(QMainWindow):
         self.completer.popup().setStyleSheet("QAbstractItemView {background:white;color:#202b38;selection-background-color:#dcecff;selection-color:#183b60;}")
         self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self.completer.setMaxVisibleItems(5)
         self.completer.activated.connect(self.accept_completion)
         self.editor.installEventFilter(self)
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -973,8 +974,18 @@ class MainWindow(QMainWindow):
             self.completer.popup().hide(); return
         self.completion_model.setStringList(matches)
         self.completer.setCompletionPrefix('')
+        # A short, narrow list above the caret keeps report text unobstructed.
+        # Keep priority (verified / adaptive / ordinary) but show five at a time.
+        popup = self.completer.popup()
+        popup.setMaximumHeight(165)
+        visible_rows = min(len(matches), 5)
+        row_height = max(22, popup.sizeHintForRow(0))
+        popup_height = min(165, row_height * visible_rows + 12)
         rect = self.editor.cursorRect()
-        rect.setWidth(min(850, max(350, self.completer.popup().sizeHintForColumn(0) + 30)))
+        available_width = max(180, self.editor.viewport().width() - 24)
+        rect.setWidth(min(420, available_width))
+        if rect.top() > popup_height + 16:
+            rect.moveTop(rect.top() - popup_height - rect.height() - 8)
         self.completer.complete(rect)
 
     def find_text(self):
