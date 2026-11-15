@@ -974,19 +974,55 @@ class MainWindow(QMainWindow):
             self.completer.popup().hide(); return
         self.completion_model.setStringList(matches)
         self.completer.setCompletionPrefix('')
-        # A short, narrow list above the caret keeps report text unobstructed.
-        # Keep priority (verified / adaptive / ordinary) but show five at a time.
+        # QCompleter.complete() normally positions the popup BELOW its rectangle.
+        # Moving the rectangle alone is unreliable: Qt may resize/reposition
+        # the popup afterwards. Position the actual popup above the typing line.
         popup = self.completer.popup()
-        popup.setMaximumHeight(165)
-        visible_rows = min(len(matches), 5)
-        row_height = max(22, popup.sizeHintForRow(0))
-        popup_height = min(165, row_height * visible_rows + 12)
         rect = self.editor.cursorRect()
-        available_width = max(180, self.editor.viewport().width() - 24)
-        rect.setWidth(min(420, available_width))
-        if rect.top() > popup_height + 16:
-            rect.moveTop(rect.top() - popup_height - rect.height() - 8)
+        rect.setWidth(min(420, max(160, self.editor.viewport().width() - 24)))
         self.completer.complete(rect)
+        self.position_completion_popup()
+        # Qt can adjust a freshly shown popup during the next event cycle.
+        QTimer.singleShot(0, self.position_completion_popup)
+
+    def position_completion_popup(self):
+        if self._closing or not hasattr(self, 'completer'):
+            return
+        popup = self.completer.popup()
+        if not popup.isVisible():
+            return
+        viewport = self.editor.viewport()
+        caret = self.editor.cursorRect()
+        caret_global = viewport.mapToGlobal(caret.topLeft())
+        viewport_global = viewport.mapToGlobal(viewport.rect().topLeft())
+        screen = QApplication.screenAt(caret_global) or self.editor.screen()
+        screen_area = screen.availableGeometry() if screen else None
+        gap = 12
+
+        # Show several choices, but do not cover the CURRENT line. Shrink the
+        # list on short windows rather than allowing it to overlap the caret.
+        rows = min(self.completion_model.rowCount(), 5)
+        row_height = max(22, popup.sizeHintForRow(0))
+        top_edge = max(viewport_global.y(), screen_area.top() if screen_area else viewport_global.y())
+        bottom_edge = min(viewport_global.y() + viewport.height(),
+                          screen_area.bottom() if screen_area else viewport_global.y() + viewport.height())
+        space_above = max(0, caret_global.y() - gap - top_edge)
+        space_below = max(0, bottom_edge - (caret_global.y() + caret.height() + gap))
+        use_above = space_above >= row_height + 8 or space_above >= space_below
+        available = space_above if use_above else space_below
+        if available < row_height + 8:
+            popup.hide()
+            return
+        height = min(rows * row_height + 8, available, 165)
+        width = min(420, viewport.width() - 12)
+        popup.resize(max(160, width), height)
+        if use_above:
+            y = caret_global.y() - gap - popup.height()
+        else:
+            y = caret_global.y() + caret.height() + gap
+        x = max(viewport_global.x(),
+                min(caret_global.x(), viewport_global.x() + viewport.width() - popup.width()))
+        popup.move(x, y)
 
     def find_text(self):
         q,ok=QInputDialog.getText(self,"Найти","Текст:")
