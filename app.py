@@ -645,14 +645,24 @@ class MainWindow(QMainWindow):
             self.completer.popup().hide()
             return
         prefix = match.group(1)
-        matches = self.library.suggestions(prefix, 20)
+        # Show only a few options, above the caret when there is room.
+        matches = self.library.suggestions(prefix, 5)
         if not matches:
             self.completer.popup().hide()
             return
         self.completer.setModel(QStringListModel(matches, self.completer))
         self.completer.setCompletionPrefix(prefix)
+        popup = self.completer.popup()
+        popup.setUniformItemSizes(True)
+        popup.setMaximumHeight(145)
         rect = self.editor.cursorRect()
-        rect.setWidth(max(350, self.completer.popup().sizeHintForColumn(0) + 30))
+        rect.setWidth(min(400, max(280, self.editor.viewport().width() - 30)))
+        row_height = max(22, popup.sizeHintForRow(0))
+        popup_height = min(145, row_height * len(matches) + 8)
+        # QCompleter positions relative to this rectangle: a negative y
+        # places its list above the insertion point, without covering typing.
+        if rect.top() >= popup_height + 12:
+            rect.moveTop(rect.top() - popup_height - rect.height() - 8)
         self.completer.complete(rect)
 
     def find_text(self):
