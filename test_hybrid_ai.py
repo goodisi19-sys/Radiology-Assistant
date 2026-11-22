@@ -96,6 +96,12 @@ class CoordinatorTests(unittest.TestCase):
         h.semantic_search('последний',[(2,'КТ')],lambda q,r:None)
         self.assertEqual(h.pending_search[0],'последний')
         self.assertEqual(h.pending_search[1],[(2,'КТ')])
+    def test_resource_sampling_does_not_postpone_idle_analysis(self):
+        from PySide6.QtTest import QTest
+        h=self.w.hybrid;h.timer.start();QTest.qWait(80)
+        remaining=h.timer.remainingTime();h.resources()
+        self.assertLessEqual(h.timer.remainingTime(),remaining+20)
+
     def test_bounded_caches(self):
         self.assertEqual(self.w.hybrid.executor._max_workers,1)
         self.w.editor.setPlainText('Новая запись.');self.assertTrue(self.w.hybrid.timer.isActive())

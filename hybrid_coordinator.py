@@ -25,7 +25,7 @@ class HybridCoordinator:
             if not self.busy and self.backend.last_used and time.monotonic()-self.backend.last_used>120:self.backend.cancel()
             previous_deep=self.resource_state.get('deep',False)
             self.resource_state=self.policy.choose(sample(),self.window.library.get_setting('hybrid_mode') or 'Автоматический')
-            self.timer.setInterval(4000)
+            if self.timer.interval()!=4000:self.timer.setInterval(4000)
             if previous_deep and not self.resource_state.get('deep'):self.backend.cancel()
             if self.window.isMinimized() or not self.resource_state['bert'] or not self.window.library.ai.enabled('neural_enabled'):
                 self.backend.cancel();self.completion_scores.clear();self.last_status='LocalAI активен — нейроанализ приостановлен'
