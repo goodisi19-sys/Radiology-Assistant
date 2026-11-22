@@ -1,27 +1,49 @@
 """Local module controls and explicit memory management; no remote services."""
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QCheckBox,QLabel,QComboBox,QPushButton,QListWidget,QListWidgetItem,QMessageBox)
 
 class AISettings(QDialog):
     def __init__(self,window):
         super().__init__(window);self.window=window;self.setWindowTitle('Локальный ИИ');self.resize(650,540)
-        layout=QVBoxLayout(self);layout.addWidget(QLabel('Автономный словарный модуль; CPU, без сети и генеративной модели.'))
+        layout=QVBoxLayout(self);layout.addWidget(QLabel('Автономный гибридный модуль; CPU, без внешних API.'))
         for key,label in [('live_spelling','Активная орфография'),('context_corrections','Контекстные исправления'),('grammar_warnings','Грамматические предупреждения'),('smart_completion','Умное автодополнение'),('self_learning','Самообучение по подтверждённым действиям'),('medical_check','Медицинская проверка'),('auto_area','Автоматическое определение анатомической области')]:
             check=QCheckBox(label);check.setChecked(window.library.ai.enabled(key))
             check.toggled.connect(lambda value,k=key:self.change(k,value));layout.addWidget(check)
-        mode=QComboBox();mode.addItems(['Быстрый','Расширенный']);mode.setCurrentText(window.library.get_setting('ai_mode') or 'Быстрый')
-        mode.currentTextChanged.connect(self.change_mode);layout.addWidget(mode)
-        self.status=QLabel();layout.addWidget(self.status);self.items=QListWidget();layout.addWidget(self.items)
+        neural=QCheckBox('Нейросетевые компоненты (автоматически, в фоне)')
+        neural.setChecked(window.library.ai.enabled('neural_enabled'))
+        neural.toggled.connect(lambda value:self.change('neural_enabled',value));layout.addWidget(neural)
+        resource_mode=QComboBox();resource_mode.addItems(['Автоматический','Экономичный','Сбалансированный','Расширенный'])
+        resource_mode.setCurrentText(window.library.get_setting('hybrid_mode') or 'Автоматический')
+        resource_mode.currentTextChanged.connect(self.change_resource_mode);layout.addWidget(resource_mode)
+        self.activity=QLabel();self.activity.setWordWrap(True);layout.addWidget(self.activity)
+        self.activity_timer=QTimer(self);self.activity_timer.setInterval(1500);self.activity_timer.timeout.connect(self.refresh_activity);self.activity_timer.start()
+        self.refresh_activity()
+        self.status=QLabel();self.status.setWordWrap(True);layout.addWidget(self.status);self.items=QListWidget();layout.addWidget(self.items)
         for name,fn in [('Исключить выбранную формулировку',self.exclude),('Резервная копия всей памяти',window.backup_database),('Очистить память обучения',self.clear)]:
             button=QPushButton(name);button.clicked.connect(fn);layout.addWidget(button)
         self.refresh()
+    def refresh_activity(self):
+        hybrid=getattr(self.window,'hybrid',None)
+        if not hybrid:return
+        state=hybrid.resource_state;resource=state.get('resources',{})
+        self.activity.setText(f"{hybrid.last_status}; режим: {state.get('mode','—')}; CPU системы: {resource.get('cpu',0):.0f} %; свободно ОЗУ: {resource.get('available_gb',0):.1f} ГиБ. "
+            'SAGE оценивает готовые варианты исправлений; её ответы не обучают память.')
+    def change_resource_mode(self,value):
+        self.window.library.set_setting('hybrid_mode',value)
+        self.change_mode('Расширенный' if value=='Расширенный' else 'Быстрый')
+        if hasattr(self.window,'hybrid'):self.window.hybrid.resources()
     def change_mode(self,value):
         self.window.library.set_setting('ai_mode',value);self.window.library.ai.refresh_memory()
     def change(self,key,value):
         self.window.library.set_setting(key,'1' if value else '0')
         if key=='live_spelling':self.window.live_spelling.set_enabled(value)
+        if key=='neural_enabled' and hasattr(self.window,'hybrid'):
+            self.window.hybrid.resources()
+            if not value:self.window.library.ai.neural_scores.clear();self.window.library.ai.deep_scores.clear()
     def refresh(self):
         ai=self.window.library.ai;self.status.setText('Готов. '+', '.join(f'{k}: {v}' for k,v in ai.stats().items()))
+        feedback=ai.db.execute('SELECT coalesce(sum(uses),0),sum(CASE WHEN accepted=0 THEN uses ELSE 0 END) FROM hybrid_feedback').fetchone()
+        self.status.setText(self.status.text()+f'; обратная связь: {feedback[0]}, отклонения: {feedback[1] or 0}')
         self.items.clear()
         for original,replacement,area,n in ai.db.execute('SELECT original,replacement,area,uses FROM ai_corrections ORDER BY uses DESC LIMIT 200'):
             item=QListWidgetItem(f'{original} → {replacement} ({n})');item.setData(Qt.ItemDataRole.UserRole,('correction',original,replacement,area));self.items.addItem(item)
@@ -37,7 +59,9 @@ class AISettings(QDialog):
         ai=self.window.library.ai;data=item.data(Qt.ItemDataRole.UserRole)
         if data:
             with ai.db:
-                if data[0]=='correction':ai.db.execute('DELETE FROM ai_corrections WHERE original=? AND replacement=? AND area=?',data[1:])
+                if data[0]=='correction':
+                    ai.db.execute('DELETE FROM ai_corrections WHERE original=? AND replacement=? AND area=?',data[1:])
+                    ai.db.execute('DELETE FROM hybrid_feedback WHERE original=? AND candidate=?',(data[1],data[2]))
                 elif data[0]=='word':ai.db.execute('DELETE FROM ai_words WHERE word=?',(data[1],))
             ai.refresh_memory()
         else:ai.exclude(item.text())

@@ -136,6 +136,10 @@ def language_findings(text):
         previous=value
     for m in re.finditer(r'\b(?:срединные структура|контуры ровный|размеры сохранен|структура однородные)\b',text,re.I):
         result.append(Finding(m.start(),m.end(),'Возможная ошибка согласования — проверьте окончания',True))
+    from medical_grammar import candidates
+    for start,end,_,_ in candidates(text):
+        if not any(x.start<=start and x.end>=end for x in result):
+            result.append(Finding(start,end,'Возможная ошибка согласования — проверьте окончание',True))
     for m in re.finditer(r'(?m)\S[^\n]{15,}(?<![.;:!?])$',text):
         if not re.match(r'\s*(?:Методика|На серии|Исследование выполнено)',m.group(),re.I):
             result.append(Finding(m.end()-1,m.end(),'Возможно, пропущен знак в конце строки',True))

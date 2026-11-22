@@ -1,4 +1,9 @@
 from __future__ import annotations
+import sys
+if '--hybrid-worker' in sys.argv:
+    from hybrid_worker import main
+    main()
+    raise SystemExit(0)
 from contextlib import closing
 import difflib
 import os, sys, re, sqlite3, zipfile, json, base64, brotli, hashlib, datetime, io, xml.etree.ElementTree as ET
@@ -38,7 +43,7 @@ class PhraseLibrary:
         if self.path.exists():
             with closing(sqlite3.connect(str(self.path))) as old:
                 migrated = old.execute("SELECT 1 FROM sqlite_master WHERE name='catalog_metadata_v2'").fetchone()
-                if not migrated or not old.execute("SELECT 1 FROM sqlite_master WHERE name='local_ai_metadata'").fetchone():
+                if not migrated or not old.execute("SELECT 1 FROM sqlite_master WHERE name='local_ai_metadata'").fetchone() or not old.execute("SELECT 1 FROM sqlite_master WHERE name='hybrid_memory_version'").fetchone():
                     folder = app_data_dir() / 'backups'
                     folder.mkdir(exist_ok=True)
                     target = folder / ('before-catalog-v2-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f') + '.sqlite3')
@@ -182,6 +187,8 @@ class PhraseLibrary:
         return rows
 
     def get_template(self, template_id: int):
+        if template_id<0:
+            return self.db.execute('SELECT title,content FROM verified_standards WHERE id=?',(-template_id,)).fetchone()
         return self.db.execute("""SELECT t.title,COALESCE(l.content,t.content) FROM templates t
             LEFT JOIN template_layouts l ON l.template_id=t.id AND l.original_digest=raw_digest(t.content)
             WHERE t.id=?""", (template_id,)).fetchone()
@@ -476,6 +483,10 @@ class MainWindow(QMainWindow):
         self.autosave_timer.timeout.connect(self.autosave_draft)
         self.autosave_timer.start(30000)
         self.update_status()
+        from hybrid_coordinator import HybridCoordinator
+        self.hybrid_indicator = QLabel('LocalAI активен')
+        self.statusBar().addPermanentWidget(self.hybrid_indicator)
+        self.hybrid = HybridCoordinator(self)
 
     def build_ui(self):
         self.setStatusBar(QStatusBar())
@@ -658,6 +669,11 @@ class MainWindow(QMainWindow):
         if answer == QMessageBox.StandardButton.Save: return bool(self.save_file())
         return answer == QMessageBox.StandardButton.Discard
 
+    def changeEvent(self,event):
+        if event.type()==QEvent.Type.WindowStateChange and hasattr(self,'hybrid'):
+            self.hybrid.resources()
+        super().changeEvent(event)
+
     def closeEvent(self, event):
         if self.confirm_discard():
             self._closing = True
@@ -668,6 +684,7 @@ class MainWindow(QMainWindow):
             self.status_timer.stop()
             if hasattr(self,'search_timer'):self.search_timer.stop()
             self.live_spelling.stop()
+            if hasattr(self,'hybrid'): self.hybrid.close()
             if hasattr(self, 'shorthand_dialog'): self.shorthand_dialog.close()
             if hasattr(self, 'protocol_check_dialog'): self.protocol_check_dialog.close()
             self.library.db.close()
@@ -676,6 +693,7 @@ class MainWindow(QMainWindow):
 
     def new_file(self):
         if not self.confirm_discard(): return
+        if hasattr(self,'hybrid'):self.hybrid.reset()
         self.editor.clear(); self.current_file=None; self.editor.document().setModified(False); self.update_status()
 
     def open_file(self):
@@ -907,7 +925,12 @@ class MainWindow(QMainWindow):
         if self._closing:return
         if not hasattr(self, 'phrases'): return
         self.phrases.clear()
-        rows = self.library.quick_lines(self.search.text().strip())
+        query=self.search.text().strip()
+        rows = self.library.quick_lines(query)
+        if query and hasattr(self,'hybrid'):
+            if getattr(self,'_semantic_phrase_query',None)==query:
+                rows+= [r[1] for r in self._semantic_phrase_rows if r[1] not in rows]
+            else:self.hybrid.semantic_search(query,[(i,t) for i,t in enumerate(self.library.quick_lines())],self.receive_semantic_phrases)
         area=self.area_filter.currentText() if hasattr(self,'area_filter') else 'Все области'
         for text in rows:
             if area!='Все области':
@@ -934,6 +957,23 @@ class MainWindow(QMainWindow):
             LEFT JOIN template_layouts l ON l.template_id=t.id AND l.original_digest=raw_digest(t.content)
             WHERE casefold(t.title) LIKE ? OR casefold(COALESCE(l.content,t.content)) LIKE ?
             ORDER BY 4,t.title""", ("%"+query.casefold()+"%","%"+query.casefold()+"%")).fetchall()
+        if query:
+            corpus=self.library.db.execute("SELECT t.id,t.title,t.category,COALESCE(l.content,t.content) FROM templates t LEFT JOIN template_layouts l ON l.template_id=t.id").fetchall()
+            standards=self.library.db.execute('SELECT -id,title,category,content FROM verified_standards').fetchall()
+            corpus+=standards
+            lexical=self.library.ai.search(query,corpus)
+            ids={r[0] for r in rows}
+            extra=[r[0] for r in lexical if r[0] not in ids]
+            if getattr(self,'_semantic_template_query',None)==query:
+                extra += [r[0] for r in self._semantic_template_rows if r[0] not in ids and r[0] not in extra]
+            standard_ids={r[0] for r in standards}
+            rows += [(key,title,category,'Личные стандарты/'+category,'personal') for key,title,category,_ in standards if key in extra]
+            extra=[key for key in extra if key not in standard_ids]
+            if extra:
+                marks=','.join('?' for _ in extra)
+                rows+=self.library.db.execute(f"SELECT t.id,t.title,t.category,COALESCE(f.folder_path,t.category),l.kind FROM templates t LEFT JOIN template_folders f ON f.template_id=t.id LEFT JOIN template_layouts l ON l.template_id=t.id WHERE t.id IN ({marks})",extra).fetchall()
+            if hasattr(self,'hybrid') and getattr(self,'_semantic_template_query',None)!=query:
+                self.hybrid.semantic_search(query,corpus,self.receive_semantic_templates)
         area=self.area_filter.currentText() if hasattr(self,'area_filter') else 'Все области'
         if area!='Все области':
             from radiology_ai import classify
@@ -957,6 +997,14 @@ class MainWindow(QMainWindow):
         total=self.library.db.execute("SELECT COUNT(*) FROM templates").fetchone()[0]
         self.template_count.setText(f"Протоколов в базе: {total} | Найдено: {len(rows)}")
         if query: self.template_list.expandAll()
+
+    def receive_semantic_templates(self,query,rows):
+        if self._closing or query!=self.template_search.text().strip():return
+        self._semantic_template_query=query;self._semantic_template_rows=rows;self.refresh_templates()
+
+    def receive_semantic_phrases(self,query,rows):
+        if self._closing or query!=self.search.text().strip():return
+        self._semantic_phrase_query=query;self._semantic_phrase_rows=rows;self.refresh_phrases()
 
     def eventFilter(self, obj, event):
         if obj is getattr(self, "editor", None) and event.type() == QEvent.Type.KeyPress:
@@ -1094,11 +1142,13 @@ class MainWindow(QMainWindow):
                 self._adaptive_options[label] = candidate
         personal = [phrase for phrase in normal if self.library.db.execute("SELECT 1 FROM phrases WHERE text=? AND source='Личный стандарт'", (phrase,)).fetchone()]
         self._word_options={}
+        from radiology_ai import classify
+        completion_area=classify(self.editor.document().firstBlock().text()+' '+cursor.block().text()) if self.library.ai.enabled('auto_area') else ''
         if prefix:
-            for value in self.library.ai.complete(prefix,before[:-len(prefix)]):self._word_options[value]=prefix
+            for value in self.library.ai.ranked_completion(prefix,before[:-len(prefix)],completion_area):self._word_options[value]=prefix
         if prefix and self.library.ai.enabled('context_corrections'):
             from radiology_ai import classify
-            for value in self.library.ai.corrections(prefix,before[:-len(prefix)],'',(classify(self.editor.document().firstBlock().text()+' '+self.editor.textCursor().block().text()) if self.library.ai.enabled('auto_area') else '')):
+            for value in self.library.ai.ranked_corrections(prefix,before[:-len(prefix)],'',(classify(self.editor.document().firstBlock().text()+' '+self.editor.textCursor().block().text()) if self.library.ai.enabled('auto_area') else '')):
                 self._word_options[value]=prefix
         if before.endswith(' ') and self.library.ai.enabled('self_learning'):
             for value in self.library.ai.continuations(before):

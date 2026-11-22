@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "rubert_revision": "e8ed3b0c8bbf4fb6984c3de043bf7d2f4e5969ae",
+  "files": {
+    "rubert-tiny/tokenizer.json": "b177f8e2180f8c6e966217bafa371a76523c1d079a1a83e089ffcb2296845231",
+    "rubert-tiny/README.md": "7d9f9442e41d06708dfa56bd194bfc7b57b18cf5b93094ee0f2cbcb21df8b1d2",
+    "rubert-tiny/ORIGIN.json": "e34e44f6de18f4f4e942d5d24d6d7b52d658125e54fd58cae8312bdb25b3ad84",
+    "rubert-tiny/model.int8.onnx": "dc1d844844d4f2c698e95b762ca2deac831d6f138228b319d265fae47d10b2cd",
+    "rubert-tiny/config.json": "b7c05fdfcd0074315a9261876e0b5933856ad30fdb0a04017644c2857d102331",
+    "sage/tokenizer.json": "82820772be98cb022abf504bc3a1fd7103e9d6edbf1920a10cc9174e951b56b6",
+    "sage/README.md": "30b784cc6359336aa8c16447df27d247b116a11d04db33ed23cd558282b89785",
+    "sage/ORIGIN.json": "2c3988f25bd183efd39646bfa7de0e224c66b2d5601edc9be752424ddb9c9b00",
+    "sage/scorer.int8.onnx": "66dbcdec4ed2e028a5a405d6119819568f5fa9a807b5f49d3f5fc61dc0a41528",
+    "sage/config.json": "b9aa97e1e640f00b29a4154d2fe833f600555a82f2e845d4151f1032ffd93aa0",
+    "rubert-tiny2/tokenizer.json": "45cc9f974145661db6bc020795839d1dc371adc19a9c78b910393209b4fe5efc",
+    "rubert-tiny2/README.md": "6eec7047e9db76ee30e4c9dd542a25cf0c4f1f93a2119db56cd10f0c393fc00f",
+    "rubert-tiny2/ORIGIN.json": "6dcef99139fe47af33bcffd7fe91a447cbba5954e19a6d5c93027d31732f5cf8",
+    "rubert-tiny2/model.int8.onnx": "658dfad9877aebdb47f43082d029aaecf526dd18231bd7da3c6fe188701bc5ef",
+    "rubert-tiny2/config.json": "adee8b3e344bcb8379f44d0b3577c267d52881341e05d973c43e49974778dfff"
+  },
+  "encoder_archive": {
+    "path": "build_assets/radiology-encoders-int8-v1.zip",
+    "sha256": "dccba2b6818cdd71f3a8aacfedb2938580c3f56a809e05068b132538c8fbe320"
+  },
+  "sage_revision": "ed51b4a46603931380951a3d8456685c9215864f",
+  "sage_archive": {
+    "path": "build_assets/radiology-sage-int8-v1.zip",
+    "sha256": "787fd0ebe81c92b6fa716a353674fc4530394f7a8dc9bca4c530db4da1ebe877"
+  }
+}

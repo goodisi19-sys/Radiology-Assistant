@@ -26,12 +26,21 @@ class FavoritesPanel(QWidget):
         q = self.search.text().casefold().strip()
         import re
         rows=self.db.execute('SELECT id,title,category,html FROM favorites ORDER BY category,title').fetchall()
-        rows=self.window.library.ai.search(q,[(k,t,c,re.sub('<[^>]+>',' ',h)) for k,t,c,h in rows])
+        corpus=[(k,t,c,re.sub('<[^>]+>',' ',h)) for k,t,c,h in rows]
+        rows=self.window.library.ai.search(q,corpus)
+        if q and hasattr(self.window,'hybrid'):
+            if getattr(self,'semantic_query',None)==q:
+                rows+=[r for r in self.semantic_rows if r[0] not in {x[0] for x in rows}]
+            else:self.window.hybrid.semantic_search(q,corpus,self.receive_semantic)
         area=self.window.area_filter.currentText() if hasattr(self.window,'area_filter') else 'Все области'
         for key,title,category,*_ in rows:
             if area!='Все области' and area!=category:continue
             item = QListWidgetItem(category + ' / ' + title)
             item.setData(Qt.ItemDataRole.UserRole,key);self.items.addItem(item)
+
+    def receive_semantic(self,query,rows):
+        if self.window._closing or query!=self.search.text().casefold().strip():return
+        self.semantic_query=query;self.semantic_rows=rows;self.refresh()
 
     def store(self, title, category, html):
         self.db.execute('INSERT INTO favorites(title,category,html) VALUES(?,?,?) ON CONFLICT(title,category) DO UPDATE SET html=excluded.html', (title,category,html))

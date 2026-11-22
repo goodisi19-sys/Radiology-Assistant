@@ -39,6 +39,10 @@ def classify(text, fallback='Другие исследования'):
     return best if scores[best] else fallback
 
 
+def modality(text):
+    t=text.casefold()
+    return 'КТ' if re.search(r'\bкт\b|компьютерн',t) else ('МРТ' if re.search(r'\bмрт?\b|магнитно',t) else '')
+
 def safe_lines(text):
     for line in text.splitlines():
         if SENSITIVE.search(line): continue
@@ -59,11 +63,29 @@ class LocalAI:
         INSERT INTO local_ai_metadata SELECT 1 WHERE NOT EXISTS(SELECT 1 FROM local_ai_metadata);''')
         self.words=Counter(); self.bigrams=Counter(); self.area_words=defaultdict(Counter)
         for text,area in corpus: normalized(text); self.index(text,area)
+        # Reuse the pre-existing medical lexicon for candidates, not just acceptance.
+        from spell_check import MEDICAL_WORDS
+        self.words.update(MEDICAL_WORDS)
         self.base_words=self.words.copy(); self.base_bigrams=self.bigrams.copy()
         self.base_areas={k:v.copy() for k,v in self.area_words.items()}
         for word,count in db.execute('SELECT word,uses FROM ai_words ORDER BY uses DESC LIMIT 20000'): self.words[word]+=count
         for (word,) in db.execute('SELECT word FROM spelling_words'): self.words[word.casefold()]+=1
         self.refresh_memory()
+        from personal_ranker import PersonalRanker
+        self.ranker=PersonalRanker(db)
+        self.neural_scores={};self.deep_scores={}
+
+    def ranked_corrections(self,word,before='',after='',area=''):
+        values=self.corrections(word,before,after,area)
+        if not hasattr(self,'ranker'):return values
+        key=(word,before.rsplit('\n',1)[-1],after.split('\n',1)[0],area)
+        scores=self.neural_scores.get(key,{})
+        return tuple(self.ranker.rank(word,values,area,modality(before+after),scores,self.deep_scores.get(key,{})))
+
+    def ranked_completion(self,prefix,before='',area=''):
+        values=self.complete(prefix,before,area)
+        if not hasattr(self,'ranker'):return values
+        return tuple(self.ranker.rank(prefix,values,area,modality(before),self.neural_scores.get((prefix,before,'',area),{}),self.deep_scores.get((prefix,before,'',area),{})))
 
     def enabled(self, key):
         row=self.db.execute('SELECT value FROM app_settings WHERE key=?',(key,)).fetchone()
@@ -108,11 +130,15 @@ class LocalAI:
             for w,n in counts.items(): self.db.execute('INSERT INTO ai_words VALUES(?,?) ON CONFLICT(word) DO UPDATE SET uses=uses+excluded.uses',(w,n))
             for (ctx,p),n in grams.items(): self.db.execute('INSERT INTO ai_ngrams VALUES(?,?,?) ON CONFLICT(context,phrase) DO UPDATE SET uses=uses+excluded.uses',(ctx,p,n))
         self.index(clean); self.refresh_memory()
+        if hasattr(self,'ranker'):
+            for line in clean.splitlines():self.ranker.add_example(line,classify(line),modality(line))
         return sum(counts.values())
 
     def confirm_correction(self, original, replacement, area=''):
         if not self.enabled('self_learning') or not re.fullmatch('[А-Яа-яЁёA-Za-z]+',original) or not WORDS.fullmatch(replacement):return
         if CRITICAL.fullmatch(original) or CRITICAL.fullmatch(replacement):return
+        if hasattr(self,'ranker'):
+            self.ranker.feedback(original,replacement,self.corrections(original,area=area),area)
         with self.db:
             self.db.execute('INSERT INTO ai_corrections VALUES(?,?,?,1) ON CONFLICT(original,replacement,area) DO UPDATE SET uses=uses+1',(original.casefold(),replacement.casefold(),area))
         self.words[replacement.casefold()]+=1; self.refresh_memory()
@@ -141,7 +167,7 @@ class LocalAI:
         if not WORDS.fullmatch(prefix) or len(prefix)<2 or CRITICAL.fullmatch(prefix):return ()
         q=prefix.casefold();previous=(WORDS.findall(before.casefold()) or [''])[-1];ranked=[]
         for word,count in self.words.items():
-            if len(word)<=len(q) or CRITICAL.fullmatch(word):continue
+            if len(word)<=len(q) or CRITICAL.fullmatch(word) or word in self.excluded:continue
             distance=DamerauLevenshtein.distance(q,word[:len(q)])
             if distance>(1 if len(q)>=4 else 0):continue
             score=distance*10-math.log1p(self.bigrams[previous,word])*2-math.log1p(count)*.3-math.log1p(self.area_words[area][word])*.5
@@ -158,11 +184,15 @@ class LocalAI:
         with self.db:
             self.db.execute('INSERT OR IGNORE INTO ai_exclusions VALUES(?)',(phrase,))
             self.db.execute('DELETE FROM ai_ngrams WHERE phrase=?',(phrase,))
+            if hasattr(self,'ranker'):
+                self.db.execute('DELETE FROM hybrid_examples WHERE text=?',(phrase,))
+                self.db.execute('DELETE FROM hybrid_feedback WHERE candidate=?',(phrase,))
         self.refresh_memory()
 
     def clear(self):
         with self.db:
             for table in ('ai_corrections','ai_words','ai_ngrams'): self.db.execute('DELETE FROM '+table)
+        if hasattr(self,'ranker'):self.ranker.clear();self.neural_scores.clear();self.deep_scores.clear()
         # Keep processed source digests to prevent silent re-learning on restart.
         self.refresh_memory()
 

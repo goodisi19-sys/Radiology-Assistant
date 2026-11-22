@@ -132,7 +132,10 @@ class SpellingDialog(QDialog):
         if index < 0 or index >= len(self.matches): return
         issue = self.matches[index]
         from radiology_ai import classify
-        options=self.window.library.ai.corrections(issue.word,self.snapshot[:issue.start],self.snapshot[issue.end:],classify(self.snapshot))
+        before=self.snapshot[:issue.start];after=self.snapshot[issue.end:]
+        line=before.rsplit('\n',1)[-1]+issue.word+after.split('\n',1)[0]
+        area=classify(self.snapshot.split('\n',1)[0]+' '+line) if self.window.library.ai.enabled('auto_area') else ''
+        options=self.window.library.ai.ranked_corrections(issue.word,before,after,area)
         self.suggestions.addItems(options or suggest(issue.word))
         if self.window.editor.toPlainText() != self.snapshot: return
         cursor = self.window.editor.textCursor()

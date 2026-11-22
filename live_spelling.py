@@ -17,6 +17,7 @@ class LiveSpelling(QSyntaxHighlighter):
         self.ignored=set(); self.generation=0; self.cache=OrderedDict(); self.pending=set()
         self.results=SimpleQueue(); self.worker=ThreadPoolExecutor(max_workers=1,thread_name_prefix='spelling')
         self.poll=QTimer(self); self.poll.setInterval(50); self.poll.timeout.connect(self.drain); self.poll.start()
+        self.grammar_mark=QTextCharFormat();self.grammar_mark.setUnderlineStyle(QTextCharFormat.UnderlineStyle.SpellCheckUnderline);self.grammar_mark.setUnderlineColor(QColor('#2876b7'))
         self.mark = QTextCharFormat()
         self.mark.setUnderlineStyle(QTextCharFormat.UnderlineStyle.SpellCheckUnderline)
         self.mark.setUnderlineColor(QColor('#df3030'))
@@ -70,6 +71,9 @@ class LiveSpelling(QSyntaxHighlighter):
                     except Exception as exc:self.results.put((key,(),str(exc)))
                 future.add_done_callback(complete)
             return
+        if self.window.library.ai.enabled('grammar_warnings'):
+            from medical_grammar import candidates
+            for start,end,_,_ in candidates(text):self.setFormat(qt_offset(text,start),qt_offset(text,end)-qt_offset(text,start),self.grammar_mark)
         for issue in self.cache[text]:
             start = qt_offset(text, issue.start)
             self.setFormat(start, qt_offset(text, issue.end) - start, self.mark)
@@ -110,17 +114,31 @@ class LiveSpelling(QSyntaxHighlighter):
             target.setPosition(block.position() + end, QTextCursor.MoveMode.KeepAnchor)
             submenu = menu.addMenu('Исправить: ' + issue.word)
             from radiology_ai import classify
-            options = self.window.library.ai.corrections(issue.word,text[:issue.start],text[issue.end:],(classify(text) if self.window.library.ai.enabled('auto_area') else '')) if self.window.library.ai.enabled('context_corrections') else ()
+            options = self.window.library.ai.ranked_corrections(issue.word,text[:issue.start],text[issue.end:],(classify(self.window.editor.document().firstBlock().text()+' '+text) if self.window.library.ai.enabled('auto_area') else '')) if self.window.library.ai.enabled('context_corrections') else ()
             options = options or suggest(issue.word)
             for candidate in options:
                 submenu.addAction(candidate, lambda c=candidate: self.replace(target, issue.word, c))
             if not options:
                 submenu.addAction('Нет вариантов').setEnabled(False)
+            rejected=submenu.addMenu('Отклонить вариант')
+            for candidate in options:
+                rejected.addAction(candidate,lambda c=candidate:self.reject(issue.word,c,options))
             submenu.addSeparator()
             submenu.addAction('Добавить в личный словарь', lambda: self.accept(issue.word))
             submenu.addAction('Пропустить в этом сеансе', lambda: self.ignore(issue.word))
             break
 
+        if self.window.library.ai.enabled('grammar_warnings'):
+            from medical_grammar import candidates
+            from hybrid_safety import safe_pair
+            for start,end,word,value in candidates(text):
+                if not qt_offset(text,start)<=offset<=qt_offset(text,end) or not safe_pair(word,value):continue
+                target=QTextCursor(cursor);target.setPosition(block.position()+qt_offset(text,start));target.setPosition(block.position()+qt_offset(text,end),QTextCursor.MoveMode.KeepAnchor)
+                menu.addAction('Возможное согласование: '+value,lambda:self.replace(target,word,value));break
+
+    def reject(self,original,candidate,options):
+        if self.window.library.ai.enabled('self_learning'):
+            self.window.library.ai.ranker.feedback(original,candidate,options,accepted=False)
     def replace(self, cursor, expected, replacement):
         if cursor.document() is not self.window.editor.document() or cursor.selectedText() != expected: return False
         cursor.beginEditBlock()
