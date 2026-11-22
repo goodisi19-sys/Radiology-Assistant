@@ -1165,7 +1165,7 @@ class MainWindow(QMainWindow):
         cursor=self.editor.textCursor()
         if self._completion_snapshot!=(self.editor.toPlainText(),cursor.position(),cursor.anchor()):return
         before=cursor.block().text().encode('utf-16-le')[:cursor.positionInBlock()*2].decode('utf-16-le')
-        state=self.protocol_context.at(cursor.position())
+        state=self.protocol_context.at_qt(cursor.position())
         self.phrase_memory.record(before,option['phrase'],state['area'],state['modality'],option['source_id'],accepted=False)
         popup.hide()
 
@@ -1182,7 +1182,7 @@ class MainWindow(QMainWindow):
             previous_text=self.editor.toPlainText()
             cursor.beginEditBlock();cursor.insertText(library_option['suffix']+' ');cursor.endEditBlock()
             if self.library.ai.enabled('self_learning'):
-                state=self.protocol_context.at(cursor.position())
+                state=self.protocol_context.at_qt(cursor.position())
                 event=self.phrase_memory.record(before,library_option['phrase'],state['area'],state['modality'],library_option.get('source_id','library'))
                 self._accept_events.append((event,previous_text,self.editor.toPlainText()))
                 self._accept_events=self._accept_events[-100:]
@@ -1232,7 +1232,7 @@ class MainWindow(QMainWindow):
         cursor=self.editor.textCursor();before=cursor.block().text().encode('utf-16-le')[:cursor.positionInBlock()*2].decode('utf-16-le')
         if before.endswith((' ', ';', ',')):
             self.protocol_context.update(self.editor.toPlainText(),self.editor.document().revision())
-            state=self.protocol_context.at(cursor.position())
+            state=self.protocol_context.at_qt(cursor.position())
             self.completion_index.suggest(before,'',state['area'],state['modality'],30)
     def update_suggestions(self):
         if self._closing or not hasattr(self,'completer'): return
@@ -1255,7 +1255,7 @@ class MainWindow(QMainWindow):
         from radiology_ai import classify
         from context_retrieval import context_key
         document=self.editor.toPlainText();self.protocol_context.update(document,self.editor.document().revision())
-        document_state=self.protocol_context.at(cursor.position())
+        document_state=self.protocol_context.at_qt(cursor.position())
         after=cursor.block().text().encode('utf-16-le')[cursor.positionInBlock()*2:].decode('utf-16-le')
         completion_area=document_state['area'] if self.library.ai.enabled('auto_area') else ''
         if not cursor.hasSelection() and document_state['section']!='method':

@@ -58,6 +58,9 @@ class ProtocolContextState:
         self.cache=dict(list(active.items())[-2048:]);self.facts=tuple(facts);self.changed_blocks=changed
         self.area=classify(text);self.modality=modality(text);self.section=section
         return self
+    def at_qt(self,position):
+        # Qt positions count UTF-16 units; extracted evidence uses Python offsets.
+        return self.at(len(self.text.encode('utf-16-le')[:position*2].decode('utf-16-le',errors='ignore')))
     def at(self,position):
         before=self.text[:position];head=re.findall(r'(?im)^\s*(описание|заключение|методика)\s*[:：]',before)
         section={'описание':'description','заключение':'conclusion','методика':'method'}.get(head[-1].lower(),'description') if head else 'description'

@@ -101,3 +101,11 @@ class GlossaryProvenanceTests(unittest.TestCase):
    restored.save('термин','Проверено врачом.','google',verified=True)
    restored.save('термин','Новая статья.','google',evidence='google-ai-container-v2')
    self.assertEqual(restored.records['термин']['definition'],'Проверено врачом.')
+
+class UnicodeContextTests(unittest.TestCase):
+ def test_qt_cursor_does_not_cross_following_heading(self):
+  text='😀 Описание: Контуры ровные.\nЗаключение: Норма.'
+  state=ProtocolContextState().update(text);position=text.index('Заключение')-1
+  qt=len(text[:position].encode('utf-16-le'))//2
+  self.assertEqual(state.at_qt(qt)['section'],'description')
+  self.assertEqual(state.at_qt(len(text.encode('utf-16-le'))//2)['section'],'conclusion')
