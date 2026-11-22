@@ -30,6 +30,8 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+      - name: Verify and extract bundled INT8 models
+        run: python tools/prepare_hybrid_models.py
       - name: Restore source-verified conversion cache
         run: python prepare_catalog.py
       - name: Verify bundled MRI protocol catalog
@@ -42,6 +44,10 @@ jobs:
         run: python -m unittest discover -v
       - name: Measure local module performance
         run: python benchmark_ai.py
+      - name: Benchmark held-out medical ranking and resource policy
+        run: |
+          python benchmark_hybrid.py
+          python benchmark_hybrid_gui.py
       - name: Audit actual imported MRI library
         run: python audit_library.py
       - name: Audit paragraph layout of all 497 protocols
@@ -49,6 +55,11 @@ jobs:
       - name: Build portable executable
         run: |
           pyinstaller --noconfirm --clean --onefile --windowed --add-data "protocols.json.br.b64;." --add-data "quick_lines.json;." --add-data "protocols_extra.json;." --add-data "protocols_legacy.json;." --add-data "protocol_sources.json;." --add-data "protocol_source_map.json;." --add-data "drive_odt_01.json;." --add-data "drive_odt_02.json;." --add-data "drive_odt_03.json;." --add-data "drive_odt_04.json;." --add-data "drive_odt_05.json;." --add-data "drive_odt_06.json;." --add-data "drive_odt_07.json;." --add-data "drive_odt_08.json;." --add-data "drive_odt_09.json;." --add-data "drive_odt_10.json;." --add-data "drive_odt_11.json;." --add-data "drive_odt_12.json;." --add-data "drive_odt_13.json;." --add-data "drive_odt_14.json;." --add-data "drive_odt_15.json;." --add-data "drive_odt_16.json;." --add-data "drive_odt_17.json;." --add-data "drive_odt_18.json;." --add-data "spelling_data;spelling_data" --name RadiologyAssistant app.py
+      - name: Install external model assets beside executable
+        shell: pwsh
+        run: |
+          Copy-Item models dist/models -Recurse
+          Copy-Item model-lock.json dist/
       - name: Test packaged Windows executable
         shell: pwsh
         env:
@@ -64,6 +75,11 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path package | Out-Null
           Copy-Item dist/RadiologyAssistant.exe package/
+          Copy-Item dist/models package/models -Recurse
+          Copy-Item model-lock.json package/
+          Copy-Item HYBRID_AI_AUDIT.md package/
+          Copy-Item hybrid-benchmark.json package/
+          Copy-Item hybrid-gui-benchmark.json package/
           Copy-Item USER_GUIDE.md package/
           Copy-Item spelling_data/README_ru_RU.txt package/СЛОВАРЬ-ЛИЦЕНЗИЯ.txt
           Copy-Item spelling_data/LICENSE-spylls.txt package/
@@ -77,14 +93,14 @@ jobs:
           Copy-Item exe-smoke.json package/
           Copy-Item performance-results.json package/
           python package_licenses.py
-          Compress-Archive -Path package/* -DestinationPath RadiologyAssistant-LocalAI-run${{ github.run_id }}.zip
+          Compress-Archive -Path package/* -DestinationPath RadiologyAssistant-HybridAI-run${{ github.run_id }}.zip
       - name: Upload build artifact
         id: artifact
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: RadiologyAssistant-Windows
-          path: RadiologyAssistant-LocalAI-run${{ github.run_id }}.zip
+          path: RadiologyAssistant-HybridAI-run${{ github.run_id }}.zip
           retention-days: 7
           if-no-files-found: error
 
@@ -94,8 +110,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "localai-run${{ github.run_id }}"
-          gh release create $tag "RadiologyAssistant-LocalAI-run${{ github.run_id }}.zip" --target "${{ github.sha }}" --prerelease --title "Radiology Assistant LocalAI run ${{ github.run_id }}" --notes "Windows EXE passed packaged smoke tests. Actions storage quota prevented artifact upload; this new release preserves previous builds."
+          $tag = "hybridai-run${{ github.run_id }}"
+          gh release create $tag "RadiologyAssistant-HybridAI-run${{ github.run_id }}.zip" --target "${{ github.sha }}" --prerelease --title "Radiology Assistant HybridAI run ${{ github.run_id }}" --notes "Windows EXE passed packaged smoke tests. Actions storage quota prevented artifact upload; this new release preserves previous builds."
           if ($LASTEXITCODE -ne 0) { throw "ZIP publication failed" }
       - name: Require a downloadable build
         if: steps.artifact.outcome == 'failure' && github.event_name == 'pull_request'

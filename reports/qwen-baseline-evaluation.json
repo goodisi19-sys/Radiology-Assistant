@@ -1,0 +1,108 @@
+{
+  "synthetic_only": true,
+  "clinical_validation": false,
+  "comparison": {
+    "rubert-tiny": {
+      "load_s": 0.2828555679989222,
+      "analysis_ms": [
+        3.6519870009215083,
+        3.2484889998158906,
+        16.377963998820633,
+        7.600756000101683,
+        1.0160819983866531,
+        1.0718269986682571,
+        0.8641229997010669,
+        0.6988940003793687
+      ],
+      "correction_top1": [
+        6,
+        8
+      ],
+      "search_top1": [
+        3,
+        4
+      ],
+      "rss_delta_mib": 63.67578125
+    },
+    "rubert-tiny2": {
+      "load_s": 0.2914257060001546,
+      "analysis_ms": [
+        2.315801999429823,
+        0.8321740006067557,
+        0.7616589991812361,
+        0.842460000058054,
+        1.0061969987873454,
+        0.9985060005419655,
+        0.6591639994439902,
+        0.6426389991247561
+      ],
+      "correction_top1": [
+        7,
+        8
+      ],
+      "search_top1": [
+        2,
+        4
+      ],
+      "rss_delta_mib": 40.44921875
+    },
+    "qwen": {
+      "cold_process_each_task": true,
+      "wall_s": [
+        2.4775643249995483,
+        1.2258550280002964,
+        1.15835078300006,
+        1.2627237369997601,
+        1.3263518160001695,
+        1.27818595700046,
+        1.2841662319988245,
+        1.8211466249995283
+      ],
+      "correction_top1": [
+        4,
+        8
+      ],
+      "timeouts": 0,
+      "invalid_outputs": 0,
+      "peak_child_rss_mib": 734.67578125,
+      "sampled_child_cpu_peak_percent": 0,
+      "sampled_child_cpu_mean_percent": 0.0
+    }
+  },
+  "qwen_rank_validated": false,
+  "local_ai": {
+    "top1": [
+      7,
+      8
+    ],
+    "cold_ms": [
+      3.883556000801036,
+      2.0844529990426963,
+      2.7315990009810776,
+      3.51334799961478,
+      1.3920689998485614,
+      1.9816479998553405,
+      2.638869000293198,
+      1.4038169993000338
+    ]
+  },
+  "local_plus_rubert": {
+    "top1": [
+      7,
+      8
+    ]
+  },
+  "personalization": {
+    "before": [
+      "ровный",
+      "ровные"
+    ],
+    "after": [
+      "ровные",
+      "ровный"
+    ],
+    "weights_changed": true,
+    "explicit_only": true
+  },
+  "resource_limits": "4/8/16 GB policy simulations are unit tests; not physical-host measurements."
+}

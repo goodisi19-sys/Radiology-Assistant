@@ -140,8 +140,18 @@ def run(result_path):
         window.library.ai.exclude('ошибочно изученная фраза')
         assert 'ошибочно изученная фраза' in window.library.ai.excluded
         assert window.library.backup().exists()
+        from model_assets import verify_files
+        verify_files()
+        from hybrid_backend import NeuralBackend
+        neural=NeuralBackend()
+        try:
+            semantic=neural.semantic('Срединные структуры не смещены.',['Срединные структуры не смещены.','МРТ коленного сустава.'])
+            assert semantic['scores'][0]>semantic['scores'][1]
+            deep=neural.deep('Контруы ровные.',['Контуры ровные.','Контур ровный.'])
+            assert deep['scores'][0]>deep['scores'][1]
+        finally:neural.close()
         window.editor.document().setModified(False); window.close()
         Path(result_path).write_text(json.dumps({'protocols': visible, 'docx': 'ok', 'view_scale': 'ok',
             'quick_lines': 'ok', 'spelling': 'ok', 'punctuation': 'ok', 'google_input': 'ok', 'yandex_exchange': 'ok',
-            'mra_paragraphs': 'ok', 'layouts_audited': 497, 'methodology': 'ok', 'protocol_check': 'ok', 'live_spelling': 'ok', 'favorites': 'ok', 'shorthand': 'ok', 'adaptive_completion': 'ok', 'fragment_flow': 'ok', 'local_ai': 'ok', 'critical_tokens': 'ok', 'explicit_learning': 'ok', 'memory_backup': 'ok',
+            'mra_paragraphs': 'ok', 'layouts_audited': 497, 'methodology': 'ok', 'protocol_check': 'ok', 'live_spelling': 'ok', 'favorites': 'ok', 'shorthand': 'ok', 'adaptive_completion': 'ok', 'fragment_flow': 'ok', 'local_ai': 'ok', 'bundled_rubert': 'ok', 'bundled_sage': 'ok', 'critical_tokens': 'ok', 'explicit_learning': 'ok', 'memory_backup': 'ok',
             'base_sources_restored': 127, 'source_review_required': 18}), encoding='utf-8')

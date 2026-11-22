@@ -4,8 +4,8 @@ from pathlib import Path
 import shutil,sys
 
 root=Path('package')/'THIRD_PARTY';root.mkdir(parents=True,exist_ok=True)
-lines=['Dependency notices. No new third-party runtime dependencies were added for LocalAI.']
-for name in ('PySide6','PySide6-Essentials','PySide6-Addons','shiboken6','rapidfuzz','spylls','python-docx','lxml','brotli','pyinstaller'):
+lines=['Dependency notices. Hybrid runtime dependencies; model notices are in models/.']
+for name in ('PySide6','PySide6-Essentials','PySide6-Addons','shiboken6','rapidfuzz','spylls','python-docx','lxml','brotli','pyinstaller','onnxruntime','tokenizers','psutil','numpy'):
     dist=metadata.distribution(name);lines.append(f'{dist.metadata["Name"]} {dist.version}')
     for file in dist.files or []:
         p=Path(str(file));base=p.name.upper()
