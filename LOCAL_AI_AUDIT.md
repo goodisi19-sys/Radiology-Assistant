@@ -1,5 +1,7 @@
 # Локальный модуль: архитектура и проверка
 
+Исторический отчёт словарной версии. Текущие дополнения: HYBRID_AI_AUDIT.md и GOOGLE_TERM_AUDIT.md.
+
 База изменений: fdaeda1fca9d1d29c73cf02ca8a8fbcb4831dbbd.
 Рабочая ветка: fix/library-audit-and-document-safety. Main не изменяется.
 

@@ -49,7 +49,7 @@ class NeuralBackend:
             p.stdin.write(json.dumps(task,ensure_ascii=False)+'\n');p.stdin.flush()
             raw=answers.get(timeout=12 if cold else timeout)
             result=json.loads(raw)
-            if 'error' in result:raise RuntimeError(result['error'])
+            if 'error' in result:raise RuntimeError(result['error']+':'+result.get('error_type','')+'@'+result.get('stage',''))
             return result
         except Exception:
             self.cancel();raise

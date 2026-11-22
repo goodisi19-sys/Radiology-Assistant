@@ -25,9 +25,9 @@ This is a practical report-writing editor, not a replacement for Microsoft Word.
 ## Проверка разработки
 
 Полная библиотека из 497 записей требует `protocols_legacy.json` и
-`protocol_sources.json`. GitHub Actions создаёт их командой
-`python convert_legacy.py` (необходимы antiword и LibreOffice Writer только
-на машине сборки; на рабочем Windows устанавливать их не нужно).
+`protocol_sources.json`. GitHub Actions восстанавливает их командой `python prepare_catalog.py` из
+проверенного кэша. Antiword и LibreOffice нужны только при повторной конвертации
+изменённых старых исходников, не на рабочем Windows.
 Затем выполните `python -m unittest discover -v`, `python check_catalog.py`
 и `python audit_library.py`. Детали и ограничения: [AUDIT.md](AUDIT.md).
 Перед миграцией старой базы создаётся резервная копия в подпапке `backups`.
@@ -72,8 +72,8 @@ API-ключ и локальная нейросеть не нужны. Подр�
 
 Исправления ранжируются по медицинской лексике, ближайшему контексту и подтверждённым
 выборам; автоматических медицинских замен нет. Используются существующие RapidFuzz,
-Hunspell/Spylls и стандартная SQLite. Новые бинарные зависимости, GPU и внешние API
-не требуются. Подробности и ограничения — в USER_GUIDE.md и LOCAL_AI_AUDIT.md.
+Hunspell/Spylls и стандартная SQLite. Нейромодули используют CPU ONNX Runtime;
+GPU и внешние API не требуются. Подробности и ограничения — в USER_GUIDE.md и LOCAL_AI_AUDIT.md.
 
 DOC-конвертация сохранена в воспроизводимом кэше `converted_catalog.json.gz`.
 `python prepare_catalog.py` проверяет SHA-256 всех исходных DOC-пакетов и восстанавливает
@@ -83,6 +83,8 @@ DOC-конвертация сохранена в воспроизводимом 
 Промежуточный Actions artifact для передачи конвертации больше не нужен.
 
 Если квота Actions artifacts исчерпана, успешная сборка публикует отдельный prerelease
-`localai-run<ID>` с ZIP; прежние версии не удаляются и не перезаписываются.
+`hybridai-run<ID>` с ZIP; прежние версии не удаляются и не перезаписываются.
 
 Гибридная сборка: модели восстанавливаются `python tools/prepare_hybrid_models.py`; затем `python benchmark_hybrid.py` и `python benchmark_hybrid_gui.py`. Обучение только по подтверждённым действиям.
+
+Автоматическая справка по редким медицинским терминам использует скрытый Qt WebEngine и только www.google.com. Сетевой сервис отделён от локальных моделей; его можно отключить во вкладке Google. Непроверенные ответы не обучают модели. Ограничения и проверка конфиденциальности: GOOGLE_TERM_AUDIT.md.

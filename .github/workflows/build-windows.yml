@@ -40,6 +40,15 @@ jobs:
           if (!(Test-Path protocols.json.br.b64)) { throw "Missing de-identified MRI protocol catalog" }
       - name: Verify MRI catalog and Python source
         run: python check_catalog.py
+      - name: Build isolated console inference worker
+        run: pyinstaller --noconfirm --clean --onedir --console --hidden-import onnxruntime.capi.onnxruntime_pybind11_state --hidden-import tokenizers.tokenizers --copy-metadata onnxruntime --copy-metadata tokenizers --name RadiologyNeuralWorker hybrid_worker.py
+      - name: Install external model assets beside executable
+        shell: pwsh
+        run: |
+          Copy-Item models dist/models -Recurse
+          Copy-Item model-lock.json dist/
+      - name: Probe compiled neural worker
+        run: python tools/probe_worker.py dist
       - name: Test automatic report formatting
         run: python -m unittest discover -v
       - name: Measure local module performance
@@ -54,14 +63,7 @@ jobs:
         run: python audit_layouts.py
       - name: Build portable executable
         run: |
-          pyinstaller --noconfirm --clean --onefile --windowed --add-data "protocols.json.br.b64;." --add-data "quick_lines.json;." --add-data "protocols_extra.json;." --add-data "protocols_legacy.json;." --add-data "protocol_sources.json;." --add-data "protocol_source_map.json;." --add-data "drive_odt_01.json;." --add-data "drive_odt_02.json;." --add-data "drive_odt_03.json;." --add-data "drive_odt_04.json;." --add-data "drive_odt_05.json;." --add-data "drive_odt_06.json;." --add-data "drive_odt_07.json;." --add-data "drive_odt_08.json;." --add-data "drive_odt_09.json;." --add-data "drive_odt_10.json;." --add-data "drive_odt_11.json;." --add-data "drive_odt_12.json;." --add-data "drive_odt_13.json;." --add-data "drive_odt_14.json;." --add-data "drive_odt_15.json;." --add-data "drive_odt_16.json;." --add-data "drive_odt_17.json;." --add-data "drive_odt_18.json;." --add-data "spelling_data;spelling_data" --name RadiologyAssistant app.py
-      - name: Build isolated console inference worker
-        run: pyinstaller --noconfirm --clean --onedir --console --name RadiologyNeuralWorker hybrid_worker.py
-      - name: Install external model assets beside executable
-        shell: pwsh
-        run: |
-          Copy-Item models dist/models -Recurse
-          Copy-Item model-lock.json dist/
+          pyinstaller --noconfirm --clean --onefile --windowed --hidden-import onnxruntime.capi.onnxruntime_pybind11_state --hidden-import tokenizers.tokenizers --copy-metadata onnxruntime --copy-metadata tokenizers --add-data "protocols.json.br.b64;." --add-data "quick_lines.json;." --add-data "protocols_extra.json;." --add-data "protocols_legacy.json;." --add-data "protocol_sources.json;." --add-data "protocol_source_map.json;." --add-data "drive_odt_01.json;." --add-data "drive_odt_02.json;." --add-data "drive_odt_03.json;." --add-data "drive_odt_04.json;." --add-data "drive_odt_05.json;." --add-data "drive_odt_06.json;." --add-data "drive_odt_07.json;." --add-data "drive_odt_08.json;." --add-data "drive_odt_09.json;." --add-data "drive_odt_10.json;." --add-data "drive_odt_11.json;." --add-data "drive_odt_12.json;." --add-data "drive_odt_13.json;." --add-data "drive_odt_14.json;." --add-data "drive_odt_15.json;." --add-data "drive_odt_16.json;." --add-data "drive_odt_17.json;." --add-data "drive_odt_18.json;." --add-data "spelling_data;spelling_data" --name RadiologyAssistant app.py
       - name: Test packaged Windows executable
         shell: pwsh
         env:
@@ -75,6 +77,20 @@ jobs:
             throw "EXE smoke test failed"
           }
           Get-Content $result
+      - name: Test packaged Chromium renderer without network
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QTWEBENGINE_CHROMIUM_FLAGS: --disable-gpu
+        run: |
+          $result = Join-Path $PWD "browser-smoke.json"
+          $process = Start-Process dist/RadiologyAssistant.exe -ArgumentList "--browser-smoke-test", "`"$result`"" -PassThru
+          if (!$process.WaitForExit(30000)) { $process.Kill(); throw "Browser smoke test timed out" }
+          if ($process.ExitCode -ne 0 -or !(Test-Path $result)) {
+            if (Test-Path "$result.error.txt") { Get-Content "$result.error.txt" }
+            throw "Browser renderer test failed"
+          }
+          Get-Content $result
       - name: Package
         shell: pwsh
         run: |
@@ -84,6 +100,9 @@ jobs:
           Copy-Item dist/RadiologyNeuralWorker package/RadiologyNeuralWorker -Recurse
           Copy-Item model-lock.json package/
           Copy-Item HYBRID_AI_AUDIT.md package/
+          Copy-Item GOOGLE_TERM_AUDIT.md package/
+          Copy-Item browser-smoke.json package/
+          Expand-Archive build_assets/chromium-6.8-licenses.zip package/THIRD_PARTY/Chromium
           Copy-Item hybrid-benchmark.json package/
           Copy-Item hybrid-gui-benchmark.json package/
           Copy-Item USER_GUIDE.md package/

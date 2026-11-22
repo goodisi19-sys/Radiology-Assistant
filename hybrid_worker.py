@@ -66,8 +66,11 @@ def main():
                 if encoder is None:encoder=Encoder(task['root'],task.get('threads',2),task.get('cache'))
                 scores=encoder.rank(task['context'],task['options'][:600])
             result={'scores':scores,'ms':(time.perf_counter()-start)*1000}
-        except Exception:
-            result={'error':'encoder_unavailable'}
+        except Exception as exc:
+            import traceback
+            frame=traceback.extract_tb(exc.__traceback__)[-1]
+            result={'error':'encoder_unavailable','error_type':type(exc).__name__,'stage':Path(frame.filename).name+':'+str(frame.lineno)}
+            if task.get('diagnostic'):result['traceback']=traceback.format_exc()
         print(json.dumps(result),flush=True)
 
 
