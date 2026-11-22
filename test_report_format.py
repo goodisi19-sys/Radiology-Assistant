@@ -2,6 +2,10 @@ import unittest
 from report_format import format_line, format_report
 
 class ReportFormatTests(unittest.TestCase):
+    def test_dimension_separator_and_method_unchanged(self):
+        self.assertEqual(format_line('Размеры 30 × 21 х 36 мм'), 'Размеры 30x21x36 мм.')
+        method='На серии МР томограмм T1W, T2W без контраста:'
+        self.assertEqual(format_line(method),method)
     def test_lowercase_and_final_period(self):
         self.assertEqual(format_line("признаки артроза"), "Признаки артроза.")
     def test_multi_sentence(self):

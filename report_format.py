@@ -3,11 +3,15 @@ import re
 from template_layout import inline_breaks, ABBREVIATIONS
 
 def format_line(line: str) -> str:
+    if re.match(r'(?i)^\s*(?:На серии|Методика\s*[:：]|Исследование выполнено)',line):
+        return line
     if not line.strip():
         return line
     left = len(line) - len(line.lstrip(" \t"))
     right = len(line.rstrip(" \t"))
     prefix, body, suffix = line[:left], inline_breaks(line[left:right]).replace('\n', '\u2028'), line[right:]
+    body=re.sub(r'\d+(?:[.,]\d+)?(?:\s*[xX×хХ]\s*\d+(?:[.,]\d+)?){1,2}(?=\s*(?:мм|см)\b)',
+                lambda m:re.sub(r'\s*[xX×хХ]\s*','x',m.group()),body)
     # Remove list dashes, but retain minus signs in numeric measurements.
     body = re.sub(r'^(?:(?:[-–—•*]+[ \t]+)|(?:[–—•*]+(?=[А-Яа-яЁёA-Za-z(«]))|(?:-(?=[А-Яа-яЁёA-Za-z])))+', '', body)
     lead = re.match(r"((?:\d+[.)]\s+)*)", body).group(1)

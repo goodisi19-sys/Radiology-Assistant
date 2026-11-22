@@ -1,5 +1,8 @@
 """Per-block, non-destructive spelling decoration and explicit replacements."""
 from functools import lru_cache
+from concurrent.futures import ThreadPoolExecutor
+from collections import OrderedDict
+from queue import SimpleQueue
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor, QTextCursor
 from spell_check import WORD, find_typos, suggest, qt_offset
@@ -11,6 +14,9 @@ class LiveSpelling(QSyntaxHighlighter):
         self.enabled = window.library.get_setting('live_spelling') != '0'
         self.ready = False
         self.personal = frozenset()
+        self.ignored=set(); self.generation=0; self.cache=OrderedDict(); self.pending=set()
+        self.results=SimpleQueue(); self.worker=ThreadPoolExecutor(max_workers=1,thread_name_prefix='spelling')
+        self.poll=QTimer(self); self.poll.setInterval(50); self.poll.timeout.connect(self.drain); self.poll.start()
         self.mark = QTextCharFormat()
         self.mark.setUnderlineStyle(QTextCharFormat.UnderlineStyle.SpellCheckUnderline)
         self.mark.setUnderlineColor(QColor('#df3030'))
@@ -21,7 +27,9 @@ class LiveSpelling(QSyntaxHighlighter):
 
     @lru_cache(maxsize=2048)
     def issues(self, text):
-        return tuple(find_typos(text, self.personal))
+        result=tuple(find_typos(text, self.personal | frozenset(self.ignored)))
+        self.cache[text]=result
+        return result
 
     def reload_words(self):
         if self.window._closing: return
@@ -30,12 +38,16 @@ class LiveSpelling(QSyntaxHighlighter):
         for (content,) in db.execute('SELECT content FROM verified_standards'):
             words.update(m.group().casefold() for m in WORD.finditer(content))
         self.personal = frozenset(words)
+        self.window.library.ai.refresh_memory()
         self.issues.cache_clear()
+        self.generation+=1; self.cache.clear(); self.pending.clear()
         self.ready = True
         self.rehighlight()
 
     def stop(self):
         self.timer.stop()
+        self.poll.stop(); self.generation+=1
+        self.worker.shutdown(wait=False,cancel_futures=True)
         self.ready = False
         self.issues.cache_clear()
 
@@ -47,9 +59,39 @@ class LiveSpelling(QSyntaxHighlighter):
 
     def highlightBlock(self, text):
         if not getattr(self, 'ready', False) or not self.enabled: return
-        for issue in self.issues(text):
+        if text not in self.cache:
+            key=(self.generation,text)
+            if key not in self.pending and len(self.pending)<256:
+                self.pending.add(key)
+                personal=self.personal | frozenset(self.ignored)
+                future=self.worker.submit(find_typos,text,personal)
+                def complete(f, key=key):
+                    try:self.results.put((key,tuple(f.result()),None))
+                    except Exception as exc:self.results.put((key,(),str(exc)))
+                future.add_done_callback(complete)
+            return
+        for issue in self.cache[text]:
             start = qt_offset(text, issue.start)
             self.setFormat(start, qt_offset(text, issue.end) - start, self.mark)
+
+    def drain(self):
+        changed=set()
+        while not self.results.empty():
+            (generation,text),issues,error=self.results.get(); self.pending.discard((generation,text))
+            if generation!=self.generation or self.window._closing:continue
+            if error:
+                self.failure=error;self.cache[text]=()
+                self.window.statusBar().showMessage('Орфография недоступна: '+error,5000);continue
+            self.cache[text]=issues; self.cache.move_to_end(text); changed.add(text)
+            if len(self.cache)>2048:self.cache.popitem(last=False)
+        if changed:
+            block=self.document().begin()
+            while block.isValid():
+                if block.text() in changed or (block.text() not in self.cache and len(self.pending)<128):self.rehighlightBlock(block)
+                block=block.next()
+
+    def ignore(self, word):
+        self.ignored.add(word.casefold()); self.reload_words()
 
     def add_menu(self, menu, cursor):
         if not self.enabled: return
@@ -57,20 +99,26 @@ class LiveSpelling(QSyntaxHighlighter):
         block = cursor.block()
         text = block.text()
         offset = cursor.position() - block.position()
-        for issue in self.issues(text):
+        if text not in self.cache:
+            menu.addAction('Словарь проверяет абзац…').setEnabled(False)
+            self.rehighlightBlock(block);return
+        for issue in self.cache[text]:
             start, end = qt_offset(text, issue.start), qt_offset(text, issue.end)
             if not start <= offset <= end: continue
             target = QTextCursor(cursor)
             target.setPosition(block.position() + start)
             target.setPosition(block.position() + end, QTextCursor.MoveMode.KeepAnchor)
             submenu = menu.addMenu('Исправить: ' + issue.word)
-            options = suggest(issue.word)
+            from radiology_ai import classify
+            options = self.window.library.ai.corrections(issue.word,text[:issue.start],text[issue.end:],(classify(text) if self.window.library.ai.enabled('auto_area') else '')) if self.window.library.ai.enabled('context_corrections') else ()
+            options = options or suggest(issue.word)
             for candidate in options:
                 submenu.addAction(candidate, lambda c=candidate: self.replace(target, issue.word, c))
             if not options:
                 submenu.addAction('Нет вариантов').setEnabled(False)
             submenu.addSeparator()
             submenu.addAction('Добавить в личный словарь', lambda: self.accept(issue.word))
+            submenu.addAction('Пропустить в этом сеансе', lambda: self.ignore(issue.word))
             break
 
     def replace(self, cursor, expected, replacement):
@@ -78,6 +126,7 @@ class LiveSpelling(QSyntaxHighlighter):
         cursor.beginEditBlock()
         cursor.insertText(replacement)
         cursor.endEditBlock()
+        self.window.library.ai.confirm_correction(expected,replacement)
         return True
 
     def accept(self, word):

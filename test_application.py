@@ -93,9 +93,11 @@ class ApplicationTests(unittest.TestCase):
         from test_adaptive_completion import SAMPLE,QUERY
         self.window.editor.setPlainText(SAMPLE)
         self.window.export_to_path(Path(self.tmp.name)/'learn.docx')
+        self.assertEqual(self.window.library.adaptive.count(),0)
+        self.window.learn_confirmed_description()
         self.assertGreater(self.window.library.adaptive.count(),0)
         self.window.show()
-        self.window.editor.setPlainText(QUERY)
+        self.window.editor.setPlainText('\n'*7+QUERY)
         cursor=self.window.editor.textCursor();cursor.movePosition(QTextCursor.MoveOperation.End);self.window.editor.setTextCursor(cursor)
         self.window.update_suggestions()
         self.assertTrue(self.window._adaptive_options)
@@ -106,11 +108,11 @@ class ApplicationTests(unittest.TestCase):
         text=self.window.editor.toPlainText()
         self.assertIn('L4-L5 до 5 мм, с локальной деформацией',text)
         self.assertNotIn('L5-S1',text)
-        self.window.editor.undo();self.assertEqual(self.window.editor.toPlainText(),QUERY)
+        self.window.editor.undo();self.assertEqual(self.window.editor.toPlainText(),'\n'*7+QUERY)
 
     def test_adaptive_enter_does_not_accept_clinical_suggestion(self):
         from test_adaptive_completion import SAMPLE,QUERY
-        self.window.library.adaptive.learn(SAMPLE)
+        self.window.library.adaptive.learn(SAMPLE,verified=True)
         self.window.show();self.window.editor.setPlainText(QUERY)
         cursor=self.window.editor.textCursor();cursor.movePosition(QTextCursor.MoveOperation.End);self.window.editor.setTextCursor(cursor)
         self.window.update_suggestions()

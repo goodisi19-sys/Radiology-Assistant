@@ -9,7 +9,7 @@ from PySide6.QtGui import QAction, QFont, QTextCharFormat, QTextCursor, QTextDoc
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QPlainTextEdit, QTextEdit, QLineEdit, QListWidget, QListWidgetItem,
     QPushButton, QLabel, QFileDialog, QMessageBox, QToolBar, QFontComboBox, QSpinBox,
-    QCompleter, QInputDialog, QStatusBar, QTabWidget, QTreeWidget, QTreeWidgetItem, QDialog)
+    QCompleter, QInputDialog, QStatusBar, QTabWidget, QTreeWidget, QTreeWidgetItem, QDialog, QComboBox)
 
 from report_format import format_line, format_report
 from template_layout import ParagraphEvidence, odt_paragraphs
@@ -38,7 +38,7 @@ class PhraseLibrary:
         if self.path.exists():
             with closing(sqlite3.connect(str(self.path))) as old:
                 migrated = old.execute("SELECT 1 FROM sqlite_master WHERE name='catalog_metadata_v2'").fetchone()
-                if not migrated:
+                if not migrated or not old.execute("SELECT 1 FROM sqlite_master WHERE name='local_ai_metadata'").fetchone():
                     folder = app_data_dir() / 'backups'
                     folder.mkdir(exist_ok=True)
                     target = folder / ('before-catalog-v2-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f') + '.sqlite3')
@@ -74,20 +74,33 @@ class PhraseLibrary:
         self.install_bundled_layouts()
         from adaptive_completion import AdaptiveMemory
         self.adaptive = AdaptiveMemory(self.db)
+        from radiology_ai import LocalAI
+        self.ai = LocalAI(self.db, self.db.execute('SELECT content,category FROM templates').fetchall())
+        self.db.execute("CREATE TABLE IF NOT EXISTS quick_line_details(text TEXT PRIMARY KEY, category TEXT NOT NULL, builtin INTEGER NOT NULL DEFAULT 0)")
+        builtins=json.loads(bundled_data_path('quick_lines.json').read_text(encoding='utf-8'))['lines']
+        self.db.executemany('INSERT OR IGNORE INTO quick_line_details VALUES(?,?,1)',[(t,self.guess_category(t)) for t in builtins])
         for (content,) in self.db.execute('SELECT content FROM verified_standards').fetchall():
-            if content: self.adaptive.learn(content, verified=True)
+            if content and self.ai.enabled('self_learning') and self.get_setting('restore_verified_memory')!='0':
+                self.adaptive.learn(content, verified=True)
+                self.ai.learn_text(content,confirmed=True)
         self.db.execute("CREATE TABLE IF NOT EXISTS catalog_metadata_v2(version INTEGER)")
         self.db.commit()
 
     def quick_lines(self, query=''):
-        return [row[0] for row in self.db.execute(
+        rows=[row[0] for row in self.db.execute(
             "SELECT text FROM quick_lines WHERE instr(casefold(text),?)>0 ORDER BY id DESC", (query.casefold(),))]
+        if query and not rows and hasattr(self,'ai'):
+            rows=[r[1] for r in self.ai.search(query,[(n,t) for n,(t,) in enumerate(self.db.execute('SELECT text FROM quick_lines'))])]
+        return rows
 
-    def add_quick_line(self, text):
+    def add_quick_line(self, text, category=None):
         text = text.strip()
         if not text: return False
+        identity=lambda t:re.sub(r'\s+',' ',t).strip().casefold()
+        if any(identity(t)==identity(text) for t, in self.db.execute('SELECT text FROM quick_lines')):return False
         if len(text) > 12000: raise ValueError('Выберите строку или фрагмент до 12 000 символов.')
         result = self.db.execute("INSERT OR IGNORE INTO quick_lines(text) VALUES(?)", (text,))
+        self.db.execute('INSERT OR IGNORE INTO quick_line_details VALUES(?,?,0)',(text,category or self.guess_category(text)))
         self.db.commit()
         return result.rowcount > 0
 
@@ -134,12 +147,14 @@ class PhraseLibrary:
             if self.add(phrase,"Личный стандарт",category):
                 self.db.execute("UPDATE phrases SET count=count+10 WHERE text=?", (phrase,))
         self.db.commit()
-        self.adaptive.learn(content, verified=True)
+        if self.ai.enabled('self_learning'):
+            self.adaptive.learn(content, verified=True)
+            self.ai.learn_text(content, confirmed=True)
 
     def backup(self):
         folder = app_data_dir() / "backups"
         folder.mkdir(exist_ok=True)
-        target = folder / ("library-" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + ".sqlite3")
+        target = folder / ("library-" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f") + ".sqlite3")
         with closing(sqlite3.connect(str(target))) as destination: self.db.backup(destination)
         return target
 
@@ -156,10 +171,14 @@ class PhraseLibrary:
         return self.db.execute(sql, args).fetchall()
 
     def search_templates(self, query: str = ""):
-        return self.db.execute("""SELECT t.id,t.title,t.category FROM templates t
+        rows = self.db.execute("""SELECT t.id,t.title,t.category FROM templates t
             LEFT JOIN template_layouts l ON l.template_id=t.id AND l.original_digest=raw_digest(t.content)
             WHERE casefold(t.title) LIKE ? OR casefold(COALESCE(l.content,t.content)) LIKE ?
             ORDER BY t.category,t.title""", ('%'+query.casefold()+'%', '%'+query.casefold()+'%')).fetchall()
+        if query and not rows:
+            rows=self.ai.search(query,self.db.execute('SELECT id,title,category,content FROM templates').fetchall())
+            return [r[:3] for r in rows]
+        return rows
 
     def get_template(self, template_id: int):
         return self.db.execute("""SELECT t.title,COALESCE(l.content,t.content) FROM templates t
@@ -414,7 +433,8 @@ class PhraseLibrary:
             return "Суставы"
         if any(k in t for k in ("позвоночник","позвон","шоп","гоп","поп","спинн","диск l","диск th")):
             return "Позвоночник"
-        return "Другие исследования"
+        from radiology_ai import classify
+        return classify(text)
 
     @staticmethod
     def folder_tree_path(folder, category):
@@ -464,8 +484,11 @@ class MainWindow(QMainWindow):
         self.editor.setAcceptRichText(True)
         self.editor.setFont(QFont("Times New Roman", 12))
         self.editor.setPlaceholderText("Начните составлять протокол МРТ…")
-        self.editor.textChanged.connect(self.update_status)
-        self.editor.textChanged.connect(self.update_suggestions)
+        self.status_timer=QTimer(self);self.status_timer.setSingleShot(True);self.status_timer.setInterval(150)
+        self.status_timer.timeout.connect(self.update_status);self.editor.textChanged.connect(self.status_timer.start)
+        self.completion_timer=QTimer(self); self.completion_timer.setSingleShot(True)
+        self.completion_timer.setInterval(140); self.completion_timer.timeout.connect(self.update_suggestions)
+        self.editor.textChanged.connect(self.completion_timer.start)
         self.editor.installEventFilter(self)
         self.editor.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.editor.customContextMenuRequested.connect(self.show_editor_menu)
@@ -480,6 +503,7 @@ class MainWindow(QMainWindow):
         self.completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
         self.completer.setMaxVisibleItems(5)
         self.completer.activated.connect(self.accept_completion)
+        self.editor.cursorPositionChanged.connect(self.completer.popup().hide)
         self.editor.installEventFilter(self)
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self.editor)
@@ -495,7 +519,7 @@ class MainWindow(QMainWindow):
         self.phrase_count = QLabel("Быстрых строк: 0"); phrase_l.addWidget(self.phrase_count)
         template_tab = QWidget(); template_l = QVBoxLayout(template_tab)
         self.template_search = QLineEdit(); self.template_search.setPlaceholderText("Поиск по готовым протоколам…")
-        self.template_search.textChanged.connect(self.refresh_templates); template_l.addWidget(self.template_search)
+        self.template_search.textChanged.connect(self.schedule_template_search); template_l.addWidget(self.template_search)
         self.template_list = QTreeWidget(); self.template_list.setHeaderHidden(True); self.template_list.itemDoubleClicked.connect(self.insert_template)
         template_l.addWidget(self.template_list, 1)
         insert_template_btn = QPushButton("Вставить протокол целиком")
@@ -511,6 +535,9 @@ class MainWindow(QMainWindow):
         self.reference = GoogleReference(self)
         tabs.addTab(self.reference, "Google")
         tabs.currentChanged.connect(lambda index: self.reference.activate() if tabs.widget(index) is self.reference else None)
+        self.area_filter=QComboBox(); self.area_filter.addItems(['Все области','ГМ','Позвоночник','ОМТ','Суставы','Брюшная полость','Мягкие ткани','Сосуды','Другие исследования'])
+        self.area_filter.currentTextChanged.connect(lambda _: (self.refresh_templates(),self.refresh_phrases(),self.favorites.refresh()))
+        side_l.addWidget(self.area_filter)
         side_l.addWidget(tabs, 1)
         splitter.addWidget(side); splitter.setStretchFactor(0, 4); splitter.setStretchFactor(1, 2)
         self.setCentralWidget(splitter)
@@ -557,6 +584,9 @@ class MainWindow(QMainWindow):
         bar.addAction(self.action("Проверить опечатки", "F7", self.show_spelling))
         bar.addAction(self.action("Проверить протокол", "F8", self.show_protocol_check))
         bar.addAction(self.action("Оформить текст","Ctrl+Shift+F",self.format_all_text))
+        ai_menu = self.menuBar().addMenu("Настройки")
+        ai_menu.addAction(self.action("Локальный ИИ", "", self.show_ai_settings))
+        lib.addAction(self.action("Запомнить проверенный текст", "", self.learn_confirmed_description))
         edit = self.menuBar().addMenu("Правка")
         edit.addAction(self.action("Оформить предложения","Ctrl+Shift+F",self.format_all_text))
         edit.addAction(self.action("Проверить опечатки", "", self.show_spelling))
@@ -569,6 +599,10 @@ class MainWindow(QMainWindow):
         edit.addAction(self.action("Заменить…","Ctrl+H",self.replace_text))
         edit.addAction(self.action("Отменить","Ctrl+Z",self.editor.undo))
         edit.addAction(self.action("Повторить","Ctrl+Y",self.editor.redo))
+
+    def show_ai_settings(self):
+        from ai_settings import AISettings
+        AISettings(self).exec()
 
     def autosave_draft(self):
         if self.editor.document().isModified():
@@ -611,6 +645,8 @@ class MainWindow(QMainWindow):
             self.completer.popup().hide()
             self.autosave_timer.stop()
             if hasattr(self, 'yandex_dialog'): self.yandex_dialog.close()
+            self.completion_timer.stop()
+            self.status_timer.stop()
             self.live_spelling.stop()
             if hasattr(self, 'shorthand_dialog'): self.shorthand_dialog.close()
             if hasattr(self, 'protocol_check_dialog'): self.protocol_check_dialog.close()
@@ -657,8 +693,14 @@ class MainWindow(QMainWindow):
         self.learn_saved_description()
 
     def learn_saved_description(self):
-        if self.library.get_setting('adaptive_enabled') == '0': return
-        try: self.library.adaptive.learn(self.editor.toPlainText())
+        # Saving/exporting is not verification; never learn raw drafts implicitly.
+        return
+
+    def learn_confirmed_description(self):
+        if self.library.get_setting('adaptive_enabled') == '0' or not self.library.ai.enabled('self_learning'): return
+        try:
+            self.library.adaptive.learn(self.editor.toPlainText(), verified=True)
+            self.library.ai.learn_text(self.editor.toPlainText(), confirmed=True)
         except sqlite3.Error:
             self.library.db.rollback()
             self.statusBar().showMessage('Документ сохранён, но память продолжений не обновилась.', 5000)
@@ -666,7 +708,7 @@ class MainWindow(QMainWindow):
     def adaptive_info(self):
         QMessageBox.information(self, 'Адаптивное продолжение',
             f'Сохранено продолжений: {self.library.adaptive.count()}.\n'
-            'Память пополняется после сохранения DOCX/TXT и верификации личного стандарта. '
+            'Память пополняется только после подтверждения проверенного текста или верификации стандарта. '
             'Продолжения с цифрами, уровнями и явно указанной стороной не предлагаются. '
             'После пробела выбирайте продолжение по Tab или щелчком; Enter оставляет новый абзац. '
             'Это варианты из вашей базы, а не вывод о текущем исследовании.')
@@ -790,10 +832,39 @@ class MainWindow(QMainWindow):
             button = QPushButton('Вставить выбранную строку')
             button.clicked.connect(insert_line)
             layout.addWidget(button)
+            for label,action in [('Категория выбранной строки',lambda:self.edit_quick_line(category_only=True)),('Редактировать пользовательскую строку',self.edit_quick_line),('Удалить пользовательскую строку',self.remove_quick_line)]:
+                tool=QPushButton(label);tool.clicked.connect(action);layout.addWidget(tool)
         self.populate_quick_dialog()
         self.quick_dialog.show()
         self.quick_dialog.raise_()
         self.quick_dialog.activateWindow()
+
+    def edit_quick_line(self, checked=False, category_only=False):
+        item=self.quick_listing.currentItem()
+        if not item:return
+        old=item.text();row=self.library.db.execute('SELECT category,builtin FROM quick_line_details WHERE text=?',(old,)).fetchone()
+        category,builtin=row or (self.library.guess_category(old),0)
+        if category_only:
+            value,ok=QInputDialog.getItem(self.quick_dialog,'Быстрая строка','Категория:',[self.area_filter.itemText(i) for i in range(1,self.area_filter.count())],editable=True)
+            if ok and value.strip():
+                self.library.db.execute('INSERT INTO quick_line_details VALUES(?,?,?) ON CONFLICT(text) DO UPDATE SET category=excluded.category',(old,value.strip(),builtin));self.library.db.commit()
+        else:
+            value,ok=QInputDialog.getMultiLineText(self.quick_dialog,'Быстрая строка','Проверенный текст (встроенная строка сохранится как отдельный вариант):',old)
+            if not ok or not value.strip() or value==old:return
+            if self.library.add_quick_line(value,category) and not builtin:
+                self.library.db.execute('DELETE FROM quick_lines WHERE text=?',(old,));self.library.db.execute('DELETE FROM quick_line_details WHERE text=?',(old,));self.library.db.commit()
+        self.populate_quick_dialog();self.refresh_phrases()
+
+    def remove_quick_line(self):
+        item=self.quick_listing.currentItem()
+        if not item:return
+        text=item.text();row=self.library.db.execute('SELECT builtin FROM quick_line_details WHERE text=?',(text,)).fetchone()
+        if row and row[0]:
+            QMessageBox.information(self,'Быстрые строки','Исходная строка библиотеки сохранена. Можно создать и редактировать её вариант.');return
+        if QMessageBox.question(self,'Быстрые строки','Удалить пользовательскую строку?')!=QMessageBox.StandardButton.Yes:return
+        with self.library.db:
+            self.library.db.execute('DELETE FROM quick_lines WHERE text=?',(text,));self.library.db.execute('DELETE FROM quick_line_details WHERE text=?',(text,))
+        self.populate_quick_dialog();self.refresh_phrases()
 
     def import_folder(self):
         folder=QFileDialog.getExistingDirectory(self,"Выберите корневую папку протоколов")
@@ -814,11 +885,21 @@ class MainWindow(QMainWindow):
         if not hasattr(self, 'phrases'): return
         self.phrases.clear()
         rows = self.library.quick_lines(self.search.text().strip())
+        area=self.area_filter.currentText() if hasattr(self,'area_filter') else 'Все области'
         for text in rows:
+            if area!='Все области':
+                detail=self.library.db.execute('SELECT category FROM quick_line_details WHERE text=?',(text,)).fetchone()
+                if not detail or detail[0]!=area:continue
             item = QListWidgetItem(text)
             item.setToolTip(text)
             self.phrases.addItem(item)
         self.phrase_count.setText(f'Быстрых строк: {len(rows)}')
+
+    def schedule_template_search(self):
+        if not hasattr(self,'search_timer'):
+            self.search_timer=QTimer(self);self.search_timer.setSingleShot(True)
+            self.search_timer.timeout.connect(self.refresh_templates)
+        self.search_timer.start(180)
 
     def refresh_templates(self):
         if not hasattr(self,"template_list"): return
@@ -829,6 +910,8 @@ class MainWindow(QMainWindow):
             LEFT JOIN template_layouts l ON l.template_id=t.id AND l.original_digest=raw_digest(t.content)
             WHERE casefold(t.title) LIKE ? OR casefold(COALESCE(l.content,t.content)) LIKE ?
             ORDER BY 4,t.title""", ("%"+query.casefold()+"%","%"+query.casefold()+"%")).fetchall()
+        area=self.area_filter.currentText() if hasattr(self,'area_filter') else 'Все области'
+        if area!='Все области':rows=[r for r in rows if r[2]==area]
         self.template_list.clear()
         nodes={}
         for template_id,title,category,path,kind in rows:
@@ -853,7 +936,7 @@ class MainWindow(QMainWindow):
         if obj is getattr(self, "editor", None) and event.type() == QEvent.Type.KeyPress:
             popup = self.completer.popup()
             selected = popup.currentIndex().data()
-            if popup.isVisible() and selected in getattr(self, '_adaptive_options', {}):
+            if popup.isVisible():
                 if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter): popup.hide()
                 elif event.key() == Qt.Key.Key_Tab and not event.modifiers():
                     self.accept_completion(selected); return True
@@ -940,7 +1023,13 @@ class MainWindow(QMainWindow):
         if snapshot is not None and snapshot != (self.editor.toPlainText(), cursor.position(), cursor.anchor()):
             self.completer.popup().hide(); return
         continuation = getattr(self, '_adaptive_options', {}).get(phrase)
-        if continuation:
+        if phrase in getattr(self,'_word_options',{}):
+            expected=self._word_options[phrase]
+            cursor.movePosition(QTextCursor.MoveOperation.PreviousCharacter,QTextCursor.MoveMode.KeepAnchor,len(expected))
+            if cursor.selectedText()!=expected:return
+            cursor.beginEditBlock();cursor.insertText(phrase+' ');cursor.endEditBlock()
+            self.library.ai.confirm_correction(expected,phrase)
+        elif continuation:
             before = cursor.block().text().encode('utf-16-le')[:cursor.positionInBlock()*2].decode('utf-16-le')
             stripped = before.rstrip(' \t')
             cursor.beginEditBlock()
@@ -953,11 +1042,15 @@ class MainWindow(QMainWindow):
         else:
             prefix = getattr(self, '_completion_word', self.completer.completionPrefix())
             if prefix and phrase.casefold().startswith(prefix.casefold()): cursor.insertText(phrase[len(prefix):] + ' ')
+        if continuation and self.library.ai.enabled('self_learning'):
+            self.library.ai.learn_text(' '.join(before.split()[-2:])+' '+continuation['text'],confirmed=True)
         self.editor.setTextCursor(cursor)
         self.completer.popup().hide()
 
     def update_suggestions(self):
         if self._closing or not hasattr(self,'completer'): return
+        if not self.library.ai.enabled('smart_completion'):
+            self.completer.popup().hide(); return
         cursor = self.editor.textCursor()
         before = cursor.block().text().encode('utf-16-le')[:cursor.positionInBlock()*2].decode('utf-16-le')
         match = re.search(r'(\S{2,})$', before)
@@ -966,10 +1059,19 @@ class MainWindow(QMainWindow):
         self._adaptive_options = {}
         if self.library.get_setting('adaptive_enabled') != '0':
             for candidate in self.library.adaptive.suggest(before):
+                if not candidate['verified'] or candidate['text'] in self.library.ai.excluded: continue
                 label = ('Продолжить — личный стандарт (Tab): ' if candidate['verified'] else 'Продолжить — моя база (Tab): ') + candidate['text']
                 self._adaptive_options[label] = candidate
         personal = [phrase for phrase in normal if self.library.db.execute("SELECT 1 FROM phrases WHERE text=? AND source='Личный стандарт'", (phrase,)).fetchone()]
-        matches = personal + list(self._adaptive_options) + [phrase for phrase in normal if phrase not in personal]
+        self._word_options={}
+        if prefix and self.library.ai.enabled('context_corrections'):
+            from radiology_ai import classify
+            for value in self.library.ai.corrections(prefix,before[:-len(prefix)],'',(classify(self.editor.document().firstBlock().text()+' '+self.editor.textCursor().block().text()) if self.library.ai.enabled('auto_area') else '')):
+                self._word_options[value]=prefix
+        if before.endswith(' ') and self.library.ai.enabled('self_learning'):
+            for value in self.library.ai.continuations(before):
+                self._adaptive_options.setdefault('Продолжить (Tab): '+value,{'text':value,'separator':' '})
+        matches = personal + list(self._adaptive_options) + list(self._word_options) + [phrase for phrase in normal if phrase not in personal]
         self._completion_word = prefix
         self._completion_snapshot = (self.editor.toPlainText(), cursor.position(), cursor.anchor())
         if not matches:
@@ -982,6 +1084,13 @@ class MainWindow(QMainWindow):
         popup = self.completer.popup()
         rect = self.editor.cursorRect()
         rect.setWidth(min(420, max(160, self.editor.viewport().width() - 24)))
+        caret_global=self.editor.viewport().mapToGlobal(rect.topLeft())
+        top=self.editor.viewport().mapToGlobal(self.editor.viewport().rect().topLeft()).y()
+        available=caret_global.y()-top-12
+        if available<30:
+            popup.hide();return
+        height=min(len(matches),5)*max(22,popup.sizeHintForRow(0))+8
+        rect.moveBottom(rect.top()-min(height,available)-12)
         self.completer.complete(rect)
         self.position_completion_popup()
         # Qt can adjust a freshly shown popup during the next event cycle.
@@ -1009,8 +1118,6 @@ class MainWindow(QMainWindow):
         bottom_edge = min(viewport_global.y() + viewport.height(),
                           screen_area.bottom() if screen_area else viewport_global.y() + viewport.height())
         space_above = max(0, caret_global.y() - gap - top_edge)
-        space_below = max(0, bottom_edge - (caret_global.y() + caret.height() + gap))
-        use_above = True
         available = space_above
         if available < row_height + 8:
             popup.hide()
@@ -1018,10 +1125,7 @@ class MainWindow(QMainWindow):
         height = min(rows * row_height + 8, available, 165)
         width = min(420, viewport.width() - 12)
         popup.resize(max(160, width), height)
-        if use_above:
-            y = caret_global.y() - gap - popup.height()
-        else:
-            y = caret_global.y() + caret.height() + gap
+        y = caret_global.y() - gap - popup.height()
         x = max(viewport_global.x(),
                 min(caret_global.x(), viewport_global.x() + viewport.width() - popup.width()))
         popup.move(x, y)

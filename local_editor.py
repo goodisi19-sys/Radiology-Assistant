@@ -48,6 +48,7 @@ class LocalEditorDialog(QDialog):
                 patterns=data.setdefault('__patterns__',[])
                 if pattern not in patterns:patterns.append(pattern)
         self.window.library.set_setting('shorthand_personal',json.dumps(data,ensure_ascii=False))
+        self.window.library.ai.learn_text(result,confirmed=True)
         self.status.setText('Сохранено проверенное соответствие и образец с переменными.' if pattern else 'Сохранено точное соответствие. Обобщение чисел/уровней не выполнялось.')
 
     def result_changed(self,update_status=True):

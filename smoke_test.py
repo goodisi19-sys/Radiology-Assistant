@@ -104,6 +104,7 @@ def run(result_path):
         assert window.editor.toPlainText().startswith('зад цент прот')
         window.editor.setPlainText('Задняя центральная грыжа диска L5-S1 до 4 мм, с локальной деформацией дурального мешка.')
         window.export_to_path(fixed_path)
+        window.learn_confirmed_description()
         window.editor.setPlainText('Грыжа диска L4-L5 до 5 мм ')
         cursor=window.editor.textCursor();cursor.movePosition(cursor.MoveOperation.End);window.editor.setTextCursor(cursor)
         window.update_suggestions()
@@ -124,8 +125,19 @@ def run(result_path):
         from shorthand_patterns import make_pattern,apply_patterns
         pattern=make_pattern('прот L5-S1 до 4 мм','Протрузия L5-S1 до 4 мм.')
         assert apply_patterns('прот L4-L5 до 5 мм',[pattern]) == 'Протрузия L4-L5 до 5 мм.'
+        assert window.library.ai.corrections('струткуры','Срединные ',' не смещены','ГМ')[0]=='структуры'
+        assert window.library.ai.corrections('смещны','Срединные структуры не ','','ГМ')[0]=='смещены'
+        assert not window.library.ai.corrections('L4-L5')
+        before=window.library.ai.stats()
+        assert window.library.ai.learn_text('Непроверенная формулировка.')==0
+        assert before==window.library.ai.stats()
+        window.live_spelling.ignore('контруы')
+        assert not window.live_spelling.issues('Контруы ровные.')
+        window.library.ai.exclude('ошибочно изученная фраза')
+        assert 'ошибочно изученная фраза' in window.library.ai.excluded
+        assert window.library.backup().exists()
         window.editor.document().setModified(False); window.close()
         Path(result_path).write_text(json.dumps({'protocols': visible, 'docx': 'ok',
             'quick_lines': 'ok', 'spelling': 'ok', 'punctuation': 'ok', 'google_input': 'ok', 'yandex_exchange': 'ok',
-            'mra_paragraphs': 'ok', 'layouts_audited': 497, 'methodology': 'ok', 'protocol_check': 'ok', 'live_spelling': 'ok', 'favorites': 'ok', 'shorthand': 'ok', 'adaptive_completion': 'ok', 'fragment_flow': 'ok',
+            'mra_paragraphs': 'ok', 'layouts_audited': 497, 'methodology': 'ok', 'protocol_check': 'ok', 'live_spelling': 'ok', 'favorites': 'ok', 'shorthand': 'ok', 'adaptive_completion': 'ok', 'fragment_flow': 'ok', 'local_ai': 'ok', 'critical_tokens': 'ok', 'explicit_learning': 'ok', 'memory_backup': 'ok',
             'base_sources_restored': 127, 'source_review_required': 18}), encoding='utf-8')

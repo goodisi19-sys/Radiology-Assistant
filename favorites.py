@@ -13,7 +13,7 @@ class FavoritesPanel(QWidget):
         layout.addWidget(self.search)
         self.items = QListWidget()
         layout.addWidget(self.items, 1)
-        for label, action in [('★ Сохранить текущий протокол', self.save_current), ('Открыть', self.open_current), ('Переименовать', self.rename), ('Удалить из избранного', self.remove)]:
+        for label, action in [('★ Сохранить текущий протокол', self.save_current), ('Открыть', self.open_current), ('Обновить выбранный из редактора', self.update_current), ('Изменить категорию', self.recategorize), ('Переименовать', self.rename), ('Удалить из избранного', self.remove)]:
             button = QPushButton(label)
             button.clicked.connect(action)
             layout.addWidget(button)
@@ -24,11 +24,14 @@ class FavoritesPanel(QWidget):
     def refresh(self, *_):
         self.items.clear()
         q = self.search.text().casefold().strip()
-        for key, title, category in self.db.execute('SELECT id,title,category FROM favorites ORDER BY category,title'):
-            if q not in (title + ' ' + category).casefold(): continue
+        import re
+        rows=self.db.execute('SELECT id,title,category,html FROM favorites ORDER BY category,title').fetchall()
+        rows=self.window.library.ai.search(q,[(k,t,c,re.sub('<[^>]+>',' ',h)) for k,t,c,h in rows])
+        area=self.window.area_filter.currentText() if hasattr(self.window,'area_filter') else 'Все области'
+        for key,title,category,*_ in rows:
+            if area!='Все области' and area!=category:continue
             item = QListWidgetItem(category + ' / ' + title)
-            item.setData(Qt.ItemDataRole.UserRole, key)
-            self.items.addItem(item)
+            item.setData(Qt.ItemDataRole.UserRole,key);self.items.addItem(item)
 
     def store(self, title, category, html):
         self.db.execute('INSERT INTO favorites(title,category,html) VALUES(?,?,?) ON CONFLICT(title,category) DO UPDATE SET html=excluded.html', (title,category,html))
@@ -64,6 +67,22 @@ class FavoritesPanel(QWidget):
             self.window.current_file = None
             self.window.editor.document().setModified(False)
             self.window.editor.setFocus()
+
+    def update_current(self):
+        key=self.selected_id()
+        if key is None:return
+        if QMessageBox.question(self,'Обновить шаблон','Заменить выбранный шаблон текстом и форматированием редактора?')!=QMessageBox.StandardButton.Yes:return
+        self.db.execute('UPDATE favorites SET html=? WHERE id=?',(self.window.editor.toHtml(),key));self.db.commit();self.refresh()
+
+    def recategorize(self):
+        key=self.selected_id()
+        if key is None:return
+        category,ok=QInputDialog.getText(self,'Избранное','Новая категория:')
+        if not ok or not category.strip():return
+        title=self.db.execute('SELECT title FROM favorites WHERE id=?',(key,)).fetchone()[0]
+        if self.db.execute('SELECT 1 FROM favorites WHERE title=? AND category=? AND id!=?',(title,category.strip(),key)).fetchone():
+            QMessageBox.warning(self,'Избранное','В этой категории уже есть шаблон с таким названием.');return
+        self.db.execute('UPDATE favorites SET category=? WHERE id=?',(category.strip(),key));self.db.commit();self.refresh()
 
     def rename(self, *_):
         key = self.selected_id()

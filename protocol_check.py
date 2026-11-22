@@ -9,6 +9,7 @@ class Finding:
     message: str
     possible: bool = False
     related: tuple = ()
+    category: str = "medical"
 
 SIDE = r'(?:прав(?:ый|ая|ое|ые|ого|ой|ому|ую|ым|ом|ых|ыми)|лев(?:ый|ая|ое|ые|ого|ой|ому|ую|ым|ом|ых|ыми))'
 OPTIONS = re.compile(r'\b'+SIDE+r'(?:\s*/\s*|\s*\(\s*|[ \t]+(?:или[ \t]+)?)'+SIDE+r'\b\)?', re.I)
@@ -73,7 +74,7 @@ def create_dialog(window):
             super().__init__(window)
             self.setWindowTitle('Проверка протокола'); self.resize(760,430)
             layout = QVBoxLayout(self)
-            intro = QLabel('Жёлтый — оставленные варианты и пустые поля. Оранжевый — возможное несоответствие.\n'
+            intro = QLabel('Синий — язык и согласование; жёлтый — пустые поля; оранжевый — возможное медицинское несоответствие.\n'
                 'Проверка по правилам может пропустить ошибку или выделить допустимую запись. Текст не меняется.')
             intro.setWordWrap(True); layout.addWidget(intro)
             self.issues = QListWidget(); layout.addWidget(self.issues)
@@ -89,18 +90,21 @@ def create_dialog(window):
             self.issues.setEnabled(False)
             self.status.setText('Текст изменился. Нажмите «Проверить заново».')
         def scan(self):
-            self.snapshot = window.editor.toPlainText(); self.matches = check_protocol(self.snapshot)
+            self.snapshot = window.editor.toPlainText()
+            self.matches = check_protocol(self.snapshot) if window.library.ai.enabled('medical_check') else []
+            if window.library.ai.enabled('medical_check'):self.matches+=consistency_findings(self.snapshot)
+            if window.library.ai.enabled('grammar_warnings'):self.matches+=language_findings(self.snapshot)
             self.issues.clear(); self.issues.setEnabled(True)
             selections = []
             for issue in self.matches:
                 line = self.snapshot.count('\n',0,issue.start)+1
-                self.issues.addItem(f'Строка {line}: {issue.message}')
+                self.issues.addItem(f'[{issue.category}] Строка {line}: {issue.message}')
                 for left,right in issue.related or ((issue.start,issue.end),):
                     item = QTextEdit.ExtraSelection()
                     item.cursor = QTextCursor(window.editor.document())
                     item.cursor.setPosition(qt_offset(self.snapshot,left))
                     item.cursor.setPosition(qt_offset(self.snapshot,right), QTextCursor.MoveMode.KeepAnchor)
-                    item.format.setBackground(QColor('#ffd19a' if issue.possible else '#fff29a'))
+                    item.format.setBackground(QColor('#d6e7ff' if issue.category=='grammar' else '#ffd19a' if issue.possible else '#fff29a'))
                     item.format.setForeground(QColor('#18202b')); selections.append(item)
             window.editor.setExtraSelections(selections)
             self.status.setText(f'Замечаний: {len(self.matches)}.' if self.matches else 'Правила не нашли замечаний. Это не подтверждает полноту или медицинскую корректность протокола.')
@@ -116,3 +120,52 @@ def create_dialog(window):
         def closeEvent(self,event):
             window.editor.setExtraSelections([]); super().closeEvent(event)
     return CheckDialog()
+
+# Separate, conservative language/review rules. Never rewrite clinical facts.
+def language_findings(text):
+    result=[]
+    for m in re.finditer(r'\b([А-Яа-яЁё]{2,})[ \t]+\1\b',text,re.I):
+        result.append(Finding(m.start(),m.end(),'Повтор слова: '+m.group(1)))
+    previous=None
+    for m in re.finditer(r'[^.!?\n]+[.!?]?',text):
+        value=m.group().strip().casefold()
+        if len(value)>12 and value==previous:result.append(Finding(m.start(),m.end(),'Возможный повтор предложения'))
+        previous=value
+    for m in re.finditer(r'\b(?:срединные структура|контуры ровный|размеры сохранен|структура однородные)\b',text,re.I):
+        result.append(Finding(m.start(),m.end(),'Возможная ошибка согласования — проверьте окончания',True))
+    for m in re.finditer(r'(?m)\S[^\n]{15,}(?<![.;:!?])$',text):
+        if not re.match(r'\s*(?:Методика|На серии|Исследование выполнено)',m.group(),re.I):
+            result.append(Finding(m.end()-1,m.end(),'Возможно, пропущен знак в конце строки',True))
+    return [Finding(x.start,x.end,x.message,x.possible,x.related,'grammar') for x in result]
+
+
+def consistency_findings(text):
+    heading=re.search(r'(?im)^\s*заключение\s*[:：]',text)
+    if not heading:return []
+    desc,conclusion=text[:heading.start()],text[heading.end():];out=[]
+    # Compare only a unique measurement for the same named organ in each section.
+    measure=r'(\d+(?:[.,]\d+)?(?:\s*[xх×]\s*\d+(?:[.,]\d+)?){0,2})\s*(мм|см)\b'
+    for entity,noun in ENTITIES.items():
+        values=[]
+        for section in (desc,conclusion):
+            found=[]
+            for clause in re.split(r'[;\n]|(?<!\d)\.(?!\d)',section):
+                if re.search(noun,clause,re.I):
+                    matches=list(re.finditer(measure,clause,re.I))
+                    for m in matches:
+                        scale=10 if m[2].casefold()=='см' else 1
+                        found.append(tuple(float(n.replace(',','.'))*scale for n in re.split(r'\s*[xх×]\s*',m[1])))
+            values.append(found)
+        if len(values[0])==len(values[1])==1 and values[0]!=values[1]:
+            out.append(Finding(heading.end(),len(text),'Возможное несоответствие размеров: '+entity,True))
+    level=r'\b(?:C|Th|T|L|S)\d{1,2}\s*[-–]\s*(?:C|Th|T|L|S)\d{1,2}\b'
+    a=set(re.findall(level,desc,re.I));b=set(re.findall(level,conclusion,re.I))
+    if len(a)==len(b)==1 and {v.upper().replace(' ','') for v in a}!={v.upper().replace(' ','') for v in b}:
+        out.append(Finding(heading.end(),len(text),'Возможное несоответствие анатомического уровня — сверьте описание и заключение',True))
+    for subject in ('выпот','отек','перелом','грыжа'):
+        states=[]
+        for section in (desc,conclusion):
+            states.append(set(bool(m[1]) for m in re.finditer(r'\b'+subject+r'\s+(не\s+)?(?:определяется|выявлен\w*)',section,re.I)))
+        if all(len(x)==1 for x in states) and states[0]!=states[1]:
+            out.append(Finding(heading.end(),len(text),'Возможное противоречие отрицания: '+subject+' — требуется проверка врача',True))
+    return out

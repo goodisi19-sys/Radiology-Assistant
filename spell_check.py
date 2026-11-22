@@ -5,6 +5,9 @@ from itertools import islice
 from pathlib import Path
 import re
 import sys
+import threading
+_LOCK=threading.RLock()
+_DICTIONARY=None
 from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QListWidget,
                               QListWidgetItem, QComboBox, QPushButton)
@@ -31,11 +34,15 @@ MEDICAL_WORDS.update(stem + ending for stem in STEMS for ending in ENDINGS)
 def dictionary():
     from spylls.hunspell import Dictionary
     root = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
-    return Dictionary.from_files(str(root / 'spelling_data' / 'ru_RU'))
+    global _DICTIONARY
+    with _LOCK:
+        if _DICTIONARY is None:_DICTIONARY=Dictionary.from_files(str(root / 'spelling_data' / 'ru_RU'))
+        return _DICTIONARY
 
 
 @lru_cache(maxsize=20000)
-def known_word(word): return dictionary().lookup(word)
+def known_word(word):
+    with _LOCK:return dictionary().lookup(word)
 
 
 @dataclass(frozen=True)
@@ -57,12 +64,17 @@ def find_typos(text, personal=()):
         if len(parts) > 1 and all(len(part) < 3 or part.isupper() or part.casefold() in accepted
                                  or known_word(part.casefold()) for part in parts): continue
         issues.append(Typo(word, match.start(), match.end(), text.count('\n', 0, match.start()) + 1))
-    return issues
+    from radiology_ai import wrong_layout, CRITICAL
+    for match in re.finditer(r'(?<![\w])[a-z]{5,}(?![\w])',text):
+        mapped=wrong_layout(match.group())
+        if not CRITICAL.fullmatch(mapped) and (mapped in accepted or known_word(mapped)):
+            issues.append(Typo(match.group(),match.start(),match.end(),text.count('\n',0,match.start())+1))
+    return sorted(issues,key=lambda x:x.start)
 
 
 @lru_cache(maxsize=4096)
 def suggest(word):
-    values = list(islice(dictionary().suggest(word.casefold()), 6))
+    with _LOCK:values = list(islice(dictionary().suggest(word.casefold()), 6))
     if word.isupper(): values = [value.upper() for value in values]
     elif word[:1].isupper(): values = [value[:1].upper() + value[1:] for value in values]
     return tuple(values)
@@ -115,7 +127,9 @@ class SpellingDialog(QDialog):
         self.suggestions.clear()
         if index < 0 or index >= len(self.matches): return
         issue = self.matches[index]
-        self.suggestions.addItems(suggest(issue.word))
+        from radiology_ai import classify
+        options=self.window.library.ai.corrections(issue.word,self.snapshot[:issue.start],self.snapshot[issue.end:],classify(self.snapshot))
+        self.suggestions.addItems(options or suggest(issue.word))
         if self.window.editor.toPlainText() != self.snapshot: return
         cursor = self.window.editor.textCursor()
         cursor.setPosition(qt_offset(self.snapshot, issue.start))
@@ -135,6 +149,7 @@ class SpellingDialog(QDialog):
         cursor.setPosition(qt_offset(self.snapshot, issue.start))
         cursor.setPosition(qt_offset(self.snapshot, issue.end), QTextCursor.MoveMode.KeepAnchor)
         cursor.beginEditBlock(); cursor.insertText(replacement); cursor.endEditBlock()
+        self.window.library.ai.confirm_correction(issue.word,replacement)
         self.scan()
 
     def add_word(self):
