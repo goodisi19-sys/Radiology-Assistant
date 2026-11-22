@@ -46,7 +46,7 @@ class NeuralBackend:
         p=self.encoder
         task={'kind':kind,'root':str(models_root()/('sage' if kind=='sage' else 'rubert-tiny2')),'context':context[:1500],'options':[s[:1500] for s in options[:600]],'threads':threads,'cache':str(cache) if cache else None}
         try:
-            p.stdin.write(json.dumps(task,ensure_ascii=False)+'\n');p.stdin.flush()
+            p.stdin.write(json.dumps(task,ensure_ascii=True)+'\n');p.stdin.flush()
             raw=answers.get(timeout=12 if cold else timeout)
             result=json.loads(raw)
             if 'error' in result:raise RuntimeError(result['error']+':'+result.get('error_type','')+'@'+result.get('stage',''))

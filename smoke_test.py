@@ -13,7 +13,7 @@ def run(result_path):
     if hasattr(__main__, 'MainWindow'): module = __main__
     from document_io import read_docx
     application = QApplication.instance() or QApplication([])
-    with tempfile.TemporaryDirectory() as tmp:
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         module.app_data_dir = lambda: Path(tmp)
         window = module.MainWindow()
         window.show(); application.processEvents()

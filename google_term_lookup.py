@@ -90,6 +90,7 @@ class TermLookup(QObject):
                 from google_browser import GoogleBrowser
                 self.browser=GoogleBrowser(self.window,self.window.glossary.path.parent/'google_profile')
         self.busy=True
+        self.window.statusBar().showMessage('Google: уточнение медицинского термина; протокол не отправляется.',5000)
         self.window.reference.term_status.setText('Уточнение термина в Google: '+term+'. Передаётся только термин и область.')
         def complete(text,source,error):
             self.busy=False
@@ -99,6 +100,7 @@ class TermLookup(QObject):
             try:self.window.glossary.save(term,text,source,verified=False)
             except (OSError,ValueError):
                 self.window.reference.term_status.setText('Справка получена, но словарь не удалось сохранить.')
+            self.window.statusBar().showMessage('Справка по термину доступна во вкладке Google; требуется проверка.',8000)
             if version==self.version:self.window.reference.show_term(term,text,source,False)
             else:self.window.reference.term_status.setText('Непроверенная справка сохранена в кэш: '+term)
         try:self.browser.search(url,complete)

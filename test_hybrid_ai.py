@@ -102,6 +102,17 @@ class AssetTests(unittest.TestCase):
             with self.assertRaises(ValueError):verify_files(root)
             (root/'models'/'bad').unlink()
             with self.assertRaises(FileNotFoundError):verify_files(root)
+    def test_frozen_ipc_is_ascii_with_lossless_russian(self):
+        import io
+        from types import SimpleNamespace
+        from hybrid_backend import NeuralBackend
+        backend=NeuralBackend();pipe=io.StringIO()
+        backend.encoder=SimpleNamespace(poll=lambda:None,stdin=pipe)
+        backend.answers.put('{"scores":[1.0],"ms":1}')
+        backend.semantic('Срединные структуры не смещены.',['МРТ головного мозга.'])
+        payload=pipe.getvalue();self.assertTrue(payload.isascii())
+        self.assertEqual(json.loads(payload)['context'],'Срединные структуры не смещены.')
+        backend.encoder=None;backend.close()
     def test_deep_budget_and_process_cancel(self):
         from hybrid_backend import NeuralBackend
         backend=NeuralBackend()
