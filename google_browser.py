@@ -1,5 +1,5 @@
 """Technical Chromium view. Only www.google.com is allowed; no captcha bypass."""
-import json
+import json,time
 from PySide6.QtCore import QUrl,QTimer
 from PySide6.QtWidgets import QDialog,QVBoxLayout,QPushButton
 from PySide6.QtWebEngineCore import QWebEngineProfile,QWebEnginePage,QWebEngineUrlRequestInterceptor,QWebEngineSettings
@@ -20,11 +20,17 @@ EXTRACT=r'''(() => {
  const text=(document.body && document.body.innerText)||'';
  if (/unusual traffic|not a robot|не робот|подозрительный трафик/i.test(text))
    return {blocked:true,url:location.href,text:''};
- const main=document.querySelector('main')||document.querySelector('[role="main"]')||document.querySelector('#search');
- const output=(main ? main.innerText : '').trim();
- const match=output.match(/(?:^|\n)[ \t]*RAD_AI_ANSWER[ \t]*\r?\n([\s\S]{10,4000}?)\r?\n[ \t]*RAD_AI_END[ \t]*(?:\n|$)/);
- return {blocked:false,url:location.href,text:match?match[1].trim():'',
-   ai:!!match && !document.querySelector('[aria-busy="true"],[role="progressbar"]')};
+ // Fail closed when Google changes its DOM. Never interpret #search/main as an AI answer.
+ const boxes=[...document.querySelectorAll('[data-ai-response], [data-container-id="aim-response"], [data-testid="ai-response"], [data-attrid="AIOverview"], [aria-label="AI response"], [aria-label="Ответ ИИ"]')];
+ for (const box of boxes) {
+   if (box.closest('article') || box.querySelector('textarea,input,[contenteditable="true"]')) continue;
+   const output=(box.innerText||'').trim();
+   const match=output.match(/(?:^|\n)[ \t]*RAD_AI_ANSWER[ \t]*\r?\n([\s\S]{10,4000}?)\r?\n[ \t]*RAD_AI_END[ \t]*(?:\n|$)/);
+   const busy=box.matches('[aria-busy="true"]')||box.querySelector('[aria-busy="true"],[role="progressbar"]');
+   const complete=box.matches('[data-complete="true"],[aria-busy="false"]')||box.querySelector('button[aria-label*="Copy"],button[aria-label*="Копировать"]');
+   if (match && !busy && complete) return {blocked:false,url:location.href,text:match[1].trim(),ai:true,complete:true};
+ }
+ return {blocked:false,url:location.href,text:'',ai:false,complete:false};
 })()'''
 
 EXTRACT='JSON.stringify('+EXTRACT+')'
@@ -42,18 +48,19 @@ class GoogleBrowser(QDialog):
         settings=self.page.settings();settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls,False);settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard,False)
         layout=QVBoxLayout(self);layout.addWidget(self.view)
         button=QPushButton('Скрыть страницу');button.clicked.connect(self.hide);layout.addWidget(button)
+        self.timeout_ms=max(1000,min(60000,int(parent.library.get_setting('google_timeout_ms') or 30000))) if hasattr(parent,'library') else 30000
         self.timeout=QTimer(self);self.timeout.setSingleShot(True);self.timeout.timeout.connect(self.expired)
-        self.poll=QTimer(self);self.poll.setInterval(700);self.poll.timeout.connect(self.extract)
-        self.callback=None;self.best_url='';self.token=0
+        self.poll=QTimer(self);self.poll.setInterval(400);self.poll.timeout.connect(self.extract)
+        self.callback=None;self.best_url='';self.token=0;self.stable_text='';self.stable_since=0
         self.page.loadFinished.connect(self.loaded)
         self.page.renderProcessTerminated.connect(lambda *_:self.finish('', 'браузерный процесс остановлен'))
     def search(self,url,callback):
         if not allowed_url(url) or not url.startswith('https://www.google.com/search?'):raise ValueError('Invalid Google URL')
         from urllib.parse import urlsplit,parse_qs
         if parse_qs(urlsplit(url).query).get('udm')!=['50']:raise ValueError('Требуется Google AI Mode')
-        self.cancel();self.callback=callback;self.token+=1;self.best_url=url
+        self.cancel();self.callback=callback;self.token+=1;self.best_url=url;self.stable_text='';self.stable_since=0
         self.page.setLifecycleState(QWebEnginePage.LifecycleState.Active)
-        self.timeout.start(30000);self.page.load(QUrl(url))
+        self.timeout.start(self.timeout_ms);self.page.load(QUrl(url))
     def loaded(self,ok):
         if not self.callback:return
         if ok:self.poll.start();self.extract()
@@ -72,10 +79,14 @@ class GoogleBrowser(QDialog):
             text=result.get('text','');source=result.get('url','')
             from urllib.parse import urlsplit,parse_qs
             if not allowed_url(source) or parse_qs(urlsplit(source).query).get('udm')!=['50']:return
-            if result.get('ai') and isinstance(text,str) and len(text.strip())>=10:
-                self.best_url=source;self.finish(text,'')
+            if result.get('ai') and result.get('complete') and isinstance(text,str) and len(text.strip())>=10:
+                if text!=self.stable_text:
+                    self.stable_text=text;self.stable_since=time.monotonic();return
+                if time.monotonic()-self.stable_since>=.8:
+                    self.best_url=source;self.finish(text,'')
+            else:self.stable_text='';self.stable_since=0
         self.page.runJavaScript(EXTRACT,received)
-    def expired(self):self.finish('','Google AI Mode не вернул распознаваемый ответ за 30 секунд; обычная выдача не используется')
+    def expired(self):self.finish('','Google AI Mode не вернул распознаваемый ответ за отведённое время; обычная выдача не используется')
     def finish(self,text,error):
         if self.callback is None:return
         callback=self.callback;source=self.best_url;self.callback=None;self.poll.stop();self.timeout.stop();self.view.stop()

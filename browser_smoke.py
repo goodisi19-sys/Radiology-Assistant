@@ -27,7 +27,11 @@ def run(target):
         start=time.perf_counter()
         ordinary=probe('<main id="search">'+('Обзор от ИИ. Статья о медицинском термине. '*30)+'</main>')
         assert not ordinary['ai'] and not ordinary['text'],ordinary
-        genuine=probe('<main><div>RAD_AI_ANSWER</div><div>Синтетическая справка по медицинскому термину.</div><div>RAD_AI_END</div></main>')
+        genuine=probe('<main><section data-ai-response data-complete="true"><div>RAD_AI_ANSWER</div><div>Синтетическая справка по медицинскому термину.</div><div>RAD_AI_END</div></section></main>')
         assert genuine['ai'] and 'Синтетическая справка' in genuine['text'],genuine
+        echo=probe('<main>RAD_AI_ANSWER\nСкопированный вопрос не является ответом ИИ.\nRAD_AI_END</main>')
+        assert not echo['ai'] and not echo['text'],echo
+        streaming=probe('<main><section data-ai-response aria-busy="true">RAD_AI_ANSWER\nНезавершенный ответ по термину.\nRAD_AI_END</section></main>')
+        assert not streaming['ai'],streaming
         elapsed=time.perf_counter()-start;browser.close();QTest.qWait(300)
         Path(target).write_text(json.dumps({'chromium_renderer':'ok','offline_fixture':'ok','extraction':'ok','ordinary_results_rejected':True,'elapsed_s':elapsed,'real_google_ai_mode':'not tested against corporate firewall'},ensure_ascii=False),encoding='utf8')

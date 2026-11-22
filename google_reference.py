@@ -26,10 +26,37 @@ class GoogleReference(QWidget):
         automatic.setChecked(parent.library.get_setting('google_terms_auto')!='0')
         automatic.toggled.connect(self.set_automatic);layout.addWidget(automatic)
         lookup=QPushButton('Уточнить термин в Google AI Mode');lookup.clicked.connect(self.lookup_term);layout.addWidget(lookup)
+        review=QPushButton('Проверить обезличенный фрагмент / протокол в AI Mode…');review.clicked.connect(self.review_protocol);layout.addWidget(review)
         self.definition=QPlainTextEdit();self.definition.setPlaceholderText('Справка / определение; непроверенный ответ не обучает локальные модели.');self.definition.setMaximumHeight(150);layout.addWidget(self.definition)
         self.term_source=''
         verify=QPushButton('Подтвердить определение после проверки врачом');verify.clicked.connect(self.verify_term);layout.addWidget(verify)
         inspect=QPushButton('Показать техническую страницу Google');inspect.clicked.connect(self.inspect_browser);layout.addWidget(inspect)
+
+    def review_protocol(self):
+        from privacy_review import redact,make_prompt,approve_preview
+        from urllib.parse import urlencode
+        cursor=self.window.editor.textCursor()
+        text=cursor.selectedText().replace('\u2029','\n') if cursor.hasSelection() else self.window.editor.toPlainText()
+        preview=redact(text)
+        if not preview.text.strip():self.term_status.setText('Нет текста для проверки.');return
+        query=approve_preview(self,make_prompt(preview.text))
+        if query is None:return
+        url='https://www.google.com/search?'+urlencode({'q':query,'udm':'50'})
+        if len(url.encode())>16000:
+            self.term_status.setText('Запрос слишком длинный. Выделите меньший фрагмент и подтвердите отправку заново.');return
+        lookup=self.window.term_lookup
+        if lookup.busy:self.term_status.setText('Дождитесь текущего запроса.');return
+        if lookup.browser is None:
+            from google_browser import GoogleBrowser
+            lookup.browser=GoogleBrowser(self.window,self.window.glossary.path.parent/'google_profile')
+        lookup.busy=True
+        self.term_status.setText('Проверка явно подтверждённого текста в Google AI Mode…')
+        def complete(text,source,error):
+            lookup.busy=False
+            if lookup.closed:return
+            self.definition.setPlainText(text)
+            self.term_status.setText('Справка для ручной проверки; текст протокола не изменён.' if not error else error)
+        lookup.browser.search(url,complete)
 
     def set_automatic(self,value):
         self.window.library.set_setting('google_terms_auto','1' if value else '0')
