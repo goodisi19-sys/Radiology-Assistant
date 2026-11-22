@@ -45,41 +45,6 @@ class ApplicationTests(unittest.TestCase):
         dialog.close()
         self.assertEqual(len(self.window.editor.extraSelections()), 0)
 
-    def test_gigachat_preview_apply_undo_and_stale_guard(self):
-        self.window.editor.setPlainText('Исходный протокол.')
-        self.window.show_gigachat()
-        dialog=self.window.gigachat_dialog
-        self.assertEqual(dialog.source_text,'Исходный протокол.')
-        self.assertEqual(dialog.key.echoMode(), dialog.key.EchoMode.Password)
-        dialog.result.setPlainText('Отредактированный протокол.')
-        self.assertEqual(self.window.editor.toPlainText(),'Исходный протокол.')
-        dialog.apply_result()
-        self.assertEqual(self.window.editor.toPlainText(),'Отредактированный протокол.')
-        self.window.editor.undo()
-        self.assertEqual(self.window.editor.toPlainText(),'Исходный протокол.')
-        dialog.result.setPlainText('Другой вариант.')
-        dialog.apply_result()
-        self.assertEqual(self.window.editor.toPlainText(),'Исходный протокол.')
-        dialog.close()
-        self.assertFalse(dialog.timer.isActive())
-
-    def test_gigachat_async_response_with_mock_service(self):
-        from PySide6.QtCore import QElapsedTimer
-        self.window.editor.setPlainText('Контуры обычные.')
-        self.window.show_gigachat(); dialog=self.window.gigachat_dialog
-        dialog.key.setText('synthetic-key')
-        with patch('gigachat_editor.GigaChatClient') as client:
-            client.return_value.credentials='synthetic-key'
-            client.return_value.rewrite.return_value='Контуры ровные.'
-            dialog.start('rewrite')
-            timer=QElapsedTimer();timer.start()
-            while dialog.busy and timer.elapsed()<3000: QTest.qWait(25)
-            self.assertFalse(dialog.busy)
-            self.assertEqual(dialog.result.toPlainText(),'Контуры ровные.')
-            self.assertEqual(self.window.editor.toPlainText(),'Контуры обычные.')
-            self.assertTrue(dialog.apply.isEnabled())
-        dialog.close()
-
     def test_shorthand_current_line_apply_undo_and_personal_mapping(self):
         self.window.editor.setPlainText('зад цент прот l5-s1 до 4 мм с лок деформ дура мешка\nСледующий абзац.')
         cursor=self.window.editor.textCursor();cursor.setPosition(0);self.window.editor.setTextCursor(cursor)
@@ -96,30 +61,33 @@ class ApplicationTests(unittest.TestCase):
 
     def test_shorthand_unknown_no_send_and_stale_guard(self):
         self.window.editor.setPlainText('зад цент прот ь5-с1 дл 4 мм')
-        with patch('gigachat_editor.GigaChatClient') as network:
-            self.window.show_shorthand();dialog=self.window.shorthand_dialog
-            self.assertFalse(dialog.apply.isEnabled());network.assert_not_called()
-            dialog.result.setPlainText('Мой проверенный текст.')
-            self.window.editor.setPlainText('Новая редакция.')
-            dialog.apply_result();self.assertEqual(self.window.editor.toPlainText(),'Новая редакция.')
-            dialog.close()
+        self.window.show_shorthand(); dialog=self.window.shorthand_dialog
+        self.assertFalse(dialog.apply.isEnabled())
+        dialog.result.setPlainText('Мой проверенный текст.')
+        self.window.editor.setPlainText('Новая редакция.')
+        dialog.apply_result(); self.assertEqual(self.window.editor.toPlainText(),'Новая редакция.')
+        dialog.close()
 
-    def test_shorthand_fallback_and_improve_only_selected_fragment(self):
-        self.window.editor.setPlainText('Первый абзац.\nМоя заметка\nТретий абзац.')
-        cursor=self.window.editor.textCursor();cursor.setPosition(len('Первый абзац.\n'));self.window.editor.setTextCursor(cursor)
-        with patch('gigachat_editor.GigaChatClient') as network:
-            self.window.show_shorthand();self.window.shorthand_dialog.open_giga()
-            self.assertEqual(self.window.gigachat_dialog.source.toPlainText(),'Моя заметка')
-            network.assert_not_called()
-        self.window.gigachat_dialog.close()
-        self.window.improve_fragment()
-        self.assertEqual(self.window.gigachat_dialog.source.toPlainText(),'Моя заметка')
-        self.window.gigachat_dialog.close()
-        self.window.editor.setPlainText('Начало.\n\nКонец.')
-        cursor=self.window.editor.textCursor();cursor.setPosition(len('Начало.\n'));self.window.editor.setTextCursor(cursor)
-        self.window.improve_fragment()
-        self.assertEqual(self.window.gigachat_dialog.source.toPlainText(),'')
-        self.window.gigachat_dialog.close()
+    def test_live_spelling_favorites_and_quick_line(self):
+        from PySide6.QtWidgets import QMenu
+        self.window.editor.setPlainText('Контруы ровные.')
+        self.window.live_spelling.reload_words()
+        self.assertEqual([x.word for x in self.window.live_spelling.issues('Контруы ровные.')], ['Контруы'])
+        cursor=self.window.editor.textCursor(); cursor.setPosition(0); self.window.editor.setTextCursor(cursor)
+        menu=QMenu(); self.window.live_spelling.add_menu(menu,cursor)
+        self.assertTrue(menu.actions())
+        cursor.setPosition(7,QTextCursor.MoveMode.KeepAnchor)
+        self.assertTrue(self.window.live_spelling.replace(cursor,'Контруы','Контуры'))
+        self.assertEqual(self.window.editor.toPlainText(),'Контуры ровные.')
+        self.window.add_selection_to_quick_lines()
+        self.assertIn('Контуры ровные.',self.window.library.quick_lines())
+        self.window.favorites.store('Тест','ГМ',self.window.editor.toHtml())
+        self.assertEqual(self.window.favorites.items.count(),1)
+        self.window.favorites.store('Тест','ГМ',self.window.editor.toHtml())
+        self.assertEqual(self.window.favorites.items.count(),1)
+        self.window.editor.document().setModified(False)
+        self.window.favorites.items.setCurrentRow(0); self.window.favorites.open_current()
+        self.assertEqual(self.window.editor.toPlainText(),'Контуры ровные.')
 
     def test_adaptive_saved_docx_tab_apply_and_undo(self):
         from test_adaptive_completion import SAMPLE,QUERY
@@ -176,7 +144,7 @@ class ApplicationTests(unittest.TestCase):
         self.window.editor.setPlainText('Моя заметка.\nСледующий абзац.')
         cursor=self.window.editor.textCursor();cursor.setPosition(0);self.window.editor.setTextCursor(cursor)
         cursor=self.window.fragment_target();self.window.editor.setTextCursor(cursor)
-        self.window.show_gigachat();dialog=self.window.gigachat_dialog
+        self.window.improve_fragment();dialog=self.window.shorthand_dialog
         cursor=self.window.editor.textCursor();cursor.movePosition(QTextCursor.MoveOperation.End);cursor.insertText(' Продолжаю описание.');self.window.editor.setTextCursor(cursor)
         dialog.result.setPlainText('Отредактированная фраза.')
         dialog.apply_result()

@@ -23,7 +23,7 @@ def expand_note(text, personal=None):
     match=re.fullmatch(r'зад(?:няя)?\s+цент(?:ральная)?\s+(прот(?:рузия)?|грыжа)\s+(?:диска\s+)?'
         r'([ctl][1-9]\d?|th[1-9]\d?)\s*[-–—]\s*([ctls][1-9]\d?|th[1-9]\d?)\s+'
         r'до\s*(\d+(?:[.,]\d+)?)\s*мм(?:\s*[,;]?\s*(?:с\s*)?лок(?:альной)?\s+деформ(?:ацией)?\s+дура(?:льного)?\s+мешка)?[.;]?',key)
-    if not match: return None, 'Не удалось однозначно распознать всю заметку. Уточните запись или откройте GigaChat.'
+    if not match: return None, 'Не удалось однозначно распознать всю заметку. Уточните запись вручную.'
     finding,first,last,size=match.groups()
     # Only conventional adjacent disc levels. Cyrillic lookalikes are deliberately not inferred.
     def level(value):

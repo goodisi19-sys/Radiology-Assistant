@@ -64,6 +64,7 @@ class PhraseLibrary:
         self.db.execute("CREATE INDEX IF NOT EXISTS idx_template_layout_fingerprint ON template_layouts(fingerprint)")
         self.db.execute("CREATE TABLE IF NOT EXISTS complete_builtin_phrases(text TEXT PRIMARY KEY)")
         self.db.execute("CREATE TABLE IF NOT EXISTS spelling_words(word TEXT PRIMARY KEY)")
+        self.db.execute("CREATE TABLE IF NOT EXISTS favorites(id INTEGER PRIMARY KEY, title TEXT NOT NULL, category TEXT NOT NULL, html TEXT NOT NULL, UNIQUE(title,category))")
         self.db.commit()
         self.load_bundled_templates()
         self.index_existing_templates()
@@ -468,6 +469,8 @@ class MainWindow(QMainWindow):
         self.editor.installEventFilter(self)
         self.editor.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.editor.customContextMenuRequested.connect(self.show_editor_menu)
+        from live_spelling import LiveSpelling
+        self.live_spelling = LiveSpelling(self)
         self.completer=QCompleter(self.editor)
         self.completion_model = QStringListModel(self.completer)
         self.completer.setModel(self.completion_model)
@@ -500,6 +503,9 @@ class MainWindow(QMainWindow):
         self.template_count = QLabel("Протоколов: 0"); template_l.addWidget(self.template_count)
         tabs.addTab(phrase_tab, "Быстрые строки")
         tabs.insertTab(0, template_tab, "Протоколы")
+        from favorites import FavoritesPanel
+        self.favorites = FavoritesPanel(self)
+        tabs.addTab(self.favorites, "★ Избранное")
         tabs.setCurrentWidget(template_tab)
         from google_reference import GoogleReference
         self.reference = GoogleReference(self)
@@ -546,9 +552,7 @@ class MainWindow(QMainWindow):
         adaptive_menu.addAction(learning)
         adaptive_menu.addAction(self.action('О памяти продолжений', '', self.adaptive_info))
         adaptive_menu.addAction(self.action('Очистить накопленные продолжения', '', self.clear_adaptive))
-        giga_action = self.action("GigaChat Редактор", "Ctrl+Alt+G", self.show_gigachat)
-        bar.addAction(giga_action)
-        bar.widgetForAction(giga_action).setObjectName("gigaButton")
+        bar.addAction(self.action("★ В избранное", "Ctrl+Alt+F", self.favorites.save_current))
         bar.addAction(self.action("Яндекс Редактор", "Ctrl+Alt+Y", self.show_yandex_editor))
         bar.addAction(self.action("Проверить опечатки", "F7", self.show_spelling))
         bar.addAction(self.action("Проверить протокол", "F8", self.show_protocol_check))
@@ -556,6 +560,9 @@ class MainWindow(QMainWindow):
         edit = self.menuBar().addMenu("Правка")
         edit.addAction(self.action("Оформить предложения","Ctrl+Shift+F",self.format_all_text))
         edit.addAction(self.action("Проверить опечатки", "", self.show_spelling))
+        live = QAction("Подчёркивать опечатки", self); live.setCheckable(True)
+        live.setChecked(self.live_spelling.enabled)
+        live.toggled.connect(self.live_spelling.set_enabled); edit.addAction(live)
         edit.addAction(self.action("Развернуть заметку", "Ctrl+Alt+R", self.show_shorthand))
         edit.addAction(self.action("Улучшить формулировку", "Ctrl+Alt+E", self.improve_fragment))
         edit.addAction(self.action("Найти…","Ctrl+F",self.find_text))
@@ -580,6 +587,7 @@ class MainWindow(QMainWindow):
         category=self.library.guess_category(title+" "+self.editor.toPlainText()[:300])
         try:
             self.library.verify(title,category,self.editor.toPlainText())
+            self.live_spelling.reload_words()
             self.refresh_phrases()
             QMessageBox.information(self,"Верифицировано","Протокол сохранён как личный стандарт.")
         except Exception as exc: QMessageBox.critical(self,"Ошибка",str(exc))
@@ -603,7 +611,8 @@ class MainWindow(QMainWindow):
             self.completer.popup().hide()
             self.autosave_timer.stop()
             if hasattr(self, 'yandex_dialog'): self.yandex_dialog.close()
-            if hasattr(self, 'gigachat_dialog'): self.gigachat_dialog.close()
+            self.live_spelling.stop()
+            if hasattr(self, 'shorthand_dialog'): self.shorthand_dialog.close()
             if hasattr(self, 'protocol_check_dialog'): self.protocol_check_dialog.close()
             self.library.db.close()
             event.accept()
@@ -679,22 +688,28 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Экспортировано: "+path,5000)
         except Exception as e: QMessageBox.critical(self,"Ошибка экспорта",str(e))
     def show_editor_menu(self, position):
+        self.completer.popup().hide()
         menu = self.editor.createStandardContextMenu()
+        self.live_spelling.add_menu(menu, self.editor.cursorForPosition(position))
         menu.addSeparator()
         action = menu.addAction('Добавить в быстрые строки протоколов')
-        action.setEnabled(self.editor.textCursor().hasSelection())
-        action.triggered.connect(self.add_selection_to_quick_lines)
+        cursor = QTextCursor(self.editor.textCursor())
+        if not cursor.hasSelection(): cursor = self.editor.cursorForPosition(position)
+        action.triggered.connect(lambda: self.add_selection_to_quick_lines(cursor))
         menu.addAction('Развернуть заметку', self.show_shorthand)
-        menu.addAction('Улучшить формулировку — GigaChat', self.improve_fragment)
+        menu.addAction('Улучшить формулировку локально', self.improve_fragment)
+        menu.addAction('★ В избранное', self.favorites.save_current)
         yandex = menu.addAction('Яндекс Редактор — через браузер')
         yandex.triggered.connect(self.show_yandex_editor)
         spelling = menu.addAction('Проверить опечатки')
         spelling.triggered.connect(self.show_spelling)
-        menu.exec(self.editor.mapToGlobal(position))
+        menu.exec(self.editor.viewport().mapToGlobal(position))
         menu.deleteLater()
 
-    def add_selection_to_quick_lines(self):
-        text = self.editor.textCursor().selectedText().replace('\u2029', '\n')
+    def add_selection_to_quick_lines(self, cursor=None):
+        cursor = QTextCursor(cursor) if isinstance(cursor, QTextCursor) else QTextCursor(self.editor.textCursor())
+        if not cursor.hasSelection(): cursor.select(QTextCursor.SelectionType.BlockUnderCursor)
+        text = cursor.selectedText().replace('\u2029', '\n')
         if not text.strip(): return
         try:
             added = self.library.add_quick_line(text)
@@ -712,31 +727,18 @@ class MainWindow(QMainWindow):
         return cursor
 
     def show_shorthand(self):
-        from shorthand import NOTE_PROMPT
-        cursor=self.fragment_target()
-        self.open_fragment_gigachat(cursor,cursor.selectedText().replace('\u2029','\n'),NOTE_PROMPT)
-        self.shorthand_dialog=self.gigachat_dialog
-        self.gigachat_dialog.setWindowTitle('Заметка — локально или через GigaChat')
-        self.gigachat_dialog.expand_local()
+        self.open_local_fragment(True)
 
     def improve_fragment(self):
-        from shorthand import IMPROVE_PROMPT
-        cursor = self.fragment_target()
-        self.open_fragment_gigachat(cursor, cursor.selectedText().replace('\u2029','\n'), IMPROVE_PROMPT)
+        self.open_local_fragment(False)
 
-    def open_fragment_gigachat(self, target, source, instruction):
-        from gigachat_editor import GigaChatEditorDialog
-        if hasattr(self, 'gigachat_dialog'):
-            self.gigachat_dialog.close(); self.gigachat_dialog.deleteLater()
-        self.gigachat_dialog = GigaChatEditorDialog(self, target=target, source=source, instruction=instruction)
-        self.gigachat_dialog.show()
-
-    def show_gigachat(self):
-        from gigachat_editor import GigaChatEditorDialog
-        if hasattr(self, "gigachat_dialog"):
-            self.gigachat_dialog.close(); self.gigachat_dialog.deleteLater()
-        self.gigachat_dialog = GigaChatEditorDialog(self)
-        self.gigachat_dialog.show()
+    def open_local_fragment(self, expand):
+        from local_editor import LocalEditorDialog
+        if hasattr(self, 'shorthand_dialog'):
+            self.shorthand_dialog.close(); self.shorthand_dialog.deleteLater()
+        self.shorthand_dialog = LocalEditorDialog(self, self.fragment_target())
+        self.shorthand_dialog.show()
+        if expand: self.shorthand_dialog.expand_local()
 
     def show_yandex_editor(self):
         from yandex_editor import YandexEditorDialog
@@ -1008,8 +1010,8 @@ class MainWindow(QMainWindow):
                           screen_area.bottom() if screen_area else viewport_global.y() + viewport.height())
         space_above = max(0, caret_global.y() - gap - top_edge)
         space_below = max(0, bottom_edge - (caret_global.y() + caret.height() + gap))
-        use_above = space_above >= row_height + 8 or space_above >= space_below
-        available = space_above if use_above else space_below
+        use_above = True
+        available = space_above
         if available < row_height + 8:
             popup.hide()
             return

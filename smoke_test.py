@@ -88,14 +88,11 @@ def run(result_path):
         assert len(window.protocol_check_dialog.matches) == 2
         assert len(window.editor.extraSelections()) >= 3
         window.protocol_check_dialog.close()
-        window.editor.setPlainText('Исходный протокол.')
-        window.show_gigachat()
-        window.gigachat_dialog.result.setPlainText('Отредактированный протокол.')
-        window.gigachat_dialog.apply_result()
-        assert window.editor.toPlainText() == 'Отредактированный протокол.'
-        window.editor.undo()
-        assert window.editor.toPlainText() == 'Исходный протокол.'
-        window.gigachat_dialog.close()
+        window.editor.setPlainText('Контруы ровные.')
+        window.live_spelling.reload_words()
+        assert window.live_spelling.issues('Контруы ровные.')[0].word == 'Контруы'
+        window.favorites.store('Тест','ГМ',window.editor.toHtml())
+        assert window.favorites.items.count() == 1
         window.editor.setPlainText('зад цент прот l5-s1 до 4 мм с лок деформ дура мешка')
         window.show_shorthand()
         assert window.shorthand_dialog.apply.isEnabled()
@@ -118,17 +115,17 @@ def run(result_path):
         cursor=window.editor.textCursor();cursor.setPosition(0);window.editor.setTextCursor(cursor)
         window.improve_fragment()
         cursor=window.editor.textCursor();cursor.movePosition(cursor.MoveOperation.End);cursor.insertText(' Продолжаю.');window.editor.setTextCursor(cursor)
-        window.gigachat_dialog.result.setPlainText('Улучшенная запись.')
-        window.gigachat_dialog.apply_result()
+        window.shorthand_dialog.result.setPlainText('Улучшенная запись.')
+        window.shorthand_dialog.apply_result()
         assert window.editor.toPlainText() == 'Улучшенная запись.\nСледующий абзац. Продолжаю.'
         window.export_to_path(fixed_path)
         assert read_docx(fixed_path) == window.editor.toPlainText()
-        window.gigachat_dialog.close()
+        window.shorthand_dialog.close()
         from shorthand_patterns import make_pattern,apply_patterns
         pattern=make_pattern('прот L5-S1 до 4 мм','Протрузия L5-S1 до 4 мм.')
         assert apply_patterns('прот L4-L5 до 5 мм',[pattern]) == 'Протрузия L4-L5 до 5 мм.'
         window.editor.document().setModified(False); window.close()
         Path(result_path).write_text(json.dumps({'protocols': visible, 'docx': 'ok',
             'quick_lines': 'ok', 'spelling': 'ok', 'punctuation': 'ok', 'google_input': 'ok', 'yandex_exchange': 'ok',
-            'mra_paragraphs': 'ok', 'layouts_audited': 497, 'methodology': 'ok', 'protocol_check': 'ok', 'gigachat_preview': 'ok', 'shorthand': 'ok', 'adaptive_completion': 'ok', 'fragment_flow': 'ok',
+            'mra_paragraphs': 'ok', 'layouts_audited': 497, 'methodology': 'ok', 'protocol_check': 'ok', 'live_spelling': 'ok', 'favorites': 'ok', 'shorthand': 'ok', 'adaptive_completion': 'ok', 'fragment_flow': 'ok',
             'base_sources_restored': 127, 'source_review_required': 18}), encoding='utf-8')

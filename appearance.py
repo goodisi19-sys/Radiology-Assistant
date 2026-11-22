@@ -19,8 +19,6 @@ QToolBar QToolButton:disabled { color:#9cabb0; }
 QToolBar#formatBar QToolButton { color:#213842; }
 QToolBar#formatBar QToolButton:hover, QToolBar#formatBar QToolButton:checked { background:#ccebe7; color:#123e3b; }
 QToolBar::separator { background:#658089; width:1px; margin:5px 6px; }
-QToolButton#gigaButton { background:#087f79; color:white; border:1px solid #32b4a9; font-weight:600; }
-QToolButton#gigaButton:hover { background:#066b65; }
 QStatusBar { padding:3px 10px; }
 QStatusBar QLabel { background:transparent; color:#edf6f7; }
 QStatusBar::item { border:0; }

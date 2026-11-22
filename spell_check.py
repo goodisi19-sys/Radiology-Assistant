@@ -60,11 +60,12 @@ def find_typos(text, personal=()):
     return issues
 
 
+@lru_cache(maxsize=4096)
 def suggest(word):
     values = list(islice(dictionary().suggest(word.casefold()), 6))
     if word.isupper(): values = [value.upper() for value in values]
     elif word[:1].isupper(): values = [value[:1].upper() + value[1:] for value in values]
-    return values
+    return tuple(values)
 
 
 def qt_offset(text, offset): return len(text[:offset].encode('utf-16-le')) // 2
@@ -141,4 +142,5 @@ class SpellingDialog(QDialog):
         if index < 0 or index >= len(self.matches): return
         self.window.library.db.execute('INSERT OR IGNORE INTO spelling_words(word) VALUES(?)', (self.matches[index].word.casefold(),))
         self.window.library.db.commit()
+        self.window.live_spelling.reload_words()
         self.scan()
