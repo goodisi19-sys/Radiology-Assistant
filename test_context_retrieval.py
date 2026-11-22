@@ -36,6 +36,9 @@ class RetrievalTests(unittest.TestCase):
   self.assertGreater(memory.boost('Срединные структуры ','Срединные структуры не смещены.','ГМ','МРТ'),0)
   memory.undo(event);self.assertEqual(memory.boost('Срединные структуры ','Срединные структуры не смещены.','ГМ','МРТ'),0)
   self.assertTrue(self.lib.path.with_suffix('.bak').exists())
+ def test_bm25_prefers_tighter_window_with_equal_context_coverage(self):
+  self.lib.db.execute('INSERT INTO templates VALUES(2,?,?,?)',('МРТ','Мозга срединные структуры обычно расположены.','ГМ'));self.lib.db.commit();self.idx.sync()
+  self.assertEqual(self.idx.retrieve('Срединные структуры')[0]['context'],'срединные структуры')
  def test_key_invalidation(self):
   a=context_key('word','текст','справа','ГМ',candidates=['а']);self.assertNotEqual(a,context_key('word','текст','слева','ГМ',candidates=['а']))
 class ContextTests(unittest.TestCase):

@@ -1,5 +1,5 @@
 """Versioned, source-backed FTS5 contexts and RAM prefetch. Drafts are never indexed."""
-import hashlib,math,re,sqlite3,time
+import hashlib,re,sqlite3,time
 from rapidfuzz.distance import DamerauLevenshtein
 from adaptive_completion import RISK,META,ANCHORS,tokens
 from radiology_ai import safe_lines,classify,modality
@@ -91,7 +91,7 @@ class ContextIndex:
             if not matched or not safe_suffix(suffix,context):continue
             if region and area and region!=area:continue
             if mode and kind and mode!=kind:continue
-            score=length*4+verified*8+(region==area)*3+(mode==kind)*2-math.log1p(abs(bm))*.01
+            score=length*4+verified*8+(region==area)*3+(mode==kind)*2-float(bm)*.01
             ranked.append((score,{'suffix':suffix,'phrase':phrase,'source_id':source,'personal':bool(verified),'source':label,'context':stored,'id':key,'last':st[-1],'area':region,'modality':mode,'frequency':freq,'source_version':self.source_versions.get(source,'')}))
         unique={}
         for score,value in sorted(ranked,key=lambda x:-x[0]):unique.setdefault((value['context'],value['suffix']),value)

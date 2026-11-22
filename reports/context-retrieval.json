@@ -5,35 +5,35 @@
     "sources": 479,
     "windows": 134307,
     "unique_phrases": 2856,
-    "sync_ms": 4565.652386001602,
+    "sync_ms": 4513.779786997475,
     "index_bytes": 72548352
   },
   "protocols_preserved": 497,
   "overall": {
     "n": 400,
     "recall_at_5": 0.895,
-    "mrr": 0.7773333333333333
+    "mrr": 0.7806666666666666
   },
   "areas": {
     "ОМТ": {
       "n": 27,
       "recall_at_5": 0.9259259259259259,
-      "mrr": 0.8518518518518519
+      "mrr": 0.8703703703703703
     },
     "ГМ": {
       "n": 113,
       "recall_at_5": 0.9203539823008849,
-      "mrr": 0.8104719764011798
+      "mrr": 0.8030973451327433
     },
     "Позвоночник": {
       "n": 81,
       "recall_at_5": 0.9382716049382716,
-      "mrr": 0.7203703703703704
+      "mrr": 0.7327160493827161
     },
     "Суставы": {
       "n": 136,
       "recall_at_5": 0.8088235294117647,
-      "mrr": 0.7132352941176471
+      "mrr": 0.7181372549019608
     },
     "Другие исследования": {
       "n": 32,
@@ -52,9 +52,9 @@
     }
   },
   "lookup_ms": {
-    "p50": 1.4935519993741764,
-    "p95": 9.829652000917122,
-    "max": 20.784308999282075
+    "p50": 1.6677354997227667,
+    "p95": 10.433441999339266,
+    "max": 23.43849200042314
   },
   "queries": 400,
   "previous_exact_prefix_baseline": {
@@ -63,5 +63,5 @@
     "mrr": 0.030375
   },
   "precision_note": "Multiple clinically plausible suffixes share short contexts; only retrieval of the original source suffix is scored. No adjudicated clinical precision estimate.",
-  "warm_index_open_ms": 29.602897997392574
+  "warm_index_open_ms": 24.59511699998984
 }

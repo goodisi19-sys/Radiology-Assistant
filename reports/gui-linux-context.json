@@ -1,0 +1,29 @@
+{
+  "workload": "synthetic typing 20ms per character then 5s idle",
+  "wall_s": 8.051281603999087,
+  "typing_p95_ms": 5.023573998187203,
+  "typing_max_ms": 65.46809999781544,
+  "cpu_core_equivalent_percent": 29.933122682020567,
+  "cpu_machine_normalized_percent": 9.977707560673522,
+  "peak_parent_children_rss_mib": 347.328125,
+  "cancel_dispatch_ms": 0.43111000195494853,
+  "resource_policy": {
+    "mode": "Экономичный",
+    "requested": "Автоматический",
+    "reason": "",
+    "bert": true,
+    "deep": false,
+    "threads": 1,
+    "resources": {
+      "cores": 3,
+      "total_gb": 9.734611511230469,
+      "available_gb": 8.837188720703125,
+      "cpu": 10.3,
+      "avx2": true
+    }
+  },
+  "status": "LocalAI активен · контекст проверен",
+  "children_after_close": 0,
+  "measured_head": "70b2b9a55e7f53c74cb5206462f55b14169d4463",
+  "scope": "Linux economy RuBERT profile; SAGE not loaded in this workload"
+}
