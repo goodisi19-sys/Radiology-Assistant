@@ -467,9 +467,14 @@ class PhraseLibrary:
         self.db.commit()
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, allow_external_lookup=False):
         super().__init__()
         self.library = PhraseLibrary()
+        from medical_glossary import MedicalGlossary
+        from model_assets import installation_root
+        glossary_path=(installation_root() if getattr(sys,'frozen',False) else app_data_dir())/'med_glossary.json'
+        self.glossary=MedicalGlossary(glossary_path)
+        self.library.ai.glossary_words=self.glossary.verified_words();self.library.ai.refresh_memory()
         self.current_file = None
         self._closing = False
         self.setWindowTitle(APP_NAME)
@@ -487,6 +492,8 @@ class MainWindow(QMainWindow):
         self.hybrid_indicator = QLabel('LocalAI активен')
         self.statusBar().addPermanentWidget(self.hybrid_indicator)
         self.hybrid = HybridCoordinator(self)
+        from google_term_lookup import TermLookup
+        self.term_lookup=TermLookup(self,allow_network=allow_external_lookup)
 
     def build_ui(self):
         self.setStatusBar(QStatusBar())
@@ -642,7 +649,12 @@ class MainWindow(QMainWindow):
             temp.replace(target)
 
     def backup_database(self):
-        try: QMessageBox.information(self,"Копия базы",str(self.library.backup()))
+        try:
+            target=self.library.backup()
+            if self.glossary.path.exists():
+                import shutil
+                shutil.copy2(self.glossary.path,target.with_suffix('.med_glossary.json'))
+            QMessageBox.information(self,"Копия базы",str(target))
         except Exception as exc: QMessageBox.critical(self,"Ошибка",str(exc))
 
     def verify_current(self):
@@ -669,6 +681,9 @@ class MainWindow(QMainWindow):
         if answer == QMessageBox.StandardButton.Save: return bool(self.save_file())
         return answer == QMessageBox.StandardButton.Discard
 
+    def apply_glossary(self):
+        self.library.ai.glossary_words=self.glossary.verified_words();self.library.ai.refresh_memory();self.live_spelling.reload_words()
+
     def changeEvent(self,event):
         if event.type()==QEvent.Type.WindowStateChange and hasattr(self,'hybrid'):
             self.hybrid.resources()
@@ -680,6 +695,7 @@ class MainWindow(QMainWindow):
             self.completer.popup().hide()
             self.autosave_timer.stop()
             if hasattr(self, 'yandex_dialog'): self.yandex_dialog.close()
+            if hasattr(self,'term_lookup'):self.term_lookup.close()
             self.completion_timer.stop()
             self.status_timer.stop()
             if hasattr(self,'search_timer'):self.search_timer.stop()
@@ -694,6 +710,7 @@ class MainWindow(QMainWindow):
     def new_file(self):
         if not self.confirm_discard(): return
         if hasattr(self,'hybrid'):self.hybrid.reset()
+        if hasattr(self,'term_lookup'):self.term_lookup.reset()
         self.editor.clear(); self.current_file=None; self.editor.document().setModified(False); self.update_status()
 
     def open_file(self):
@@ -705,6 +722,7 @@ class MainWindow(QMainWindow):
                 from document_io import read_docx
                 text = read_docx(path)
             else: text = Path(path).read_text(encoding="utf-8")
+            if hasattr(self,'term_lookup'):self.term_lookup.reset()
             self.editor.setPlainText(text)
             self.current_file=path; self.editor.document().setModified(False); self.update_status()
         except Exception as e: QMessageBox.critical(self,"Ошибка открытия",str(e))
@@ -776,7 +794,9 @@ class MainWindow(QMainWindow):
         cursor = QTextCursor(self.editor.textCursor())
         if not cursor.hasSelection(): cursor = self.editor.cursorForPosition(position)
         action.triggered.connect(lambda: self.add_selection_to_quick_lines(cursor))
-        menu.addAction('Развернуть заметку', self.show_shorthand)
+        term_action=menu.addAction('Уточнить медицинский термин в Google AI Mode')
+        term_action.triggered.connect(lambda:self.lookup_editor_term(cursor))
+        menu.addAction('Развернуть заметку' , self.show_shorthand)
         menu.addAction('Улучшить формулировку локально', self.improve_fragment)
         menu.addAction('★ В избранное', self.favorites.save_current)
         yandex = menu.addAction('Яндекс Редактор — через браузер')
@@ -785,6 +805,11 @@ class MainWindow(QMainWindow):
         spelling.triggered.connect(self.show_spelling)
         menu.exec(self.editor.viewport().mapToGlobal(position))
         menu.deleteLater()
+
+    def lookup_editor_term(self,cursor):
+        target=QTextCursor(cursor)
+        if not target.hasSelection():target.select(QTextCursor.SelectionType.WordUnderCursor)
+        self.reference.term.setText(target.selectedText());self.side_tabs.setCurrentWidget(self.reference);self.reference.lookup_term()
 
     def add_selection_to_quick_lines(self, cursor=None):
         cursor = QTextCursor(cursor) if isinstance(cursor, QTextCursor) else QTextCursor(self.editor.textCursor())
@@ -1229,6 +1254,14 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Слов: {words}   |   Символов: {len(self.editor.toPlainText())}")
 
 if __name__ == "__main__":
+    if len(sys.argv)==3 and sys.argv[1]=='--browser-smoke-test':
+        try:
+            from browser_smoke import run
+            run(sys.argv[2])
+        except Exception:
+            import traceback
+            Path(sys.argv[2]+'.error.txt').write_text(traceback.format_exc(),encoding='utf8');os._exit(1)
+        sys.exit(0)
     if len(sys.argv) == 3 and sys.argv[1] == "--smoke-test":
         from smoke_test import run
         try:run(sys.argv[2])
@@ -1238,7 +1271,8 @@ if __name__ == "__main__":
             # A windowed PyInstaller exception dialog would otherwise hang CI.
             os._exit(1)
         sys.exit(0)
+    QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
     app=QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
-    w=MainWindow(); w.show()
+    w=MainWindow(allow_external_lookup=True); w.show()
     sys.exit(app.exec())

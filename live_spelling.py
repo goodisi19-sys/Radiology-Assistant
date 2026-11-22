@@ -38,6 +38,7 @@ class LiveSpelling(QSyntaxHighlighter):
         words = {row[0].casefold() for row in db.execute('SELECT word FROM spelling_words')}
         for (content,) in db.execute('SELECT content FROM verified_standards'):
             words.update(m.group().casefold() for m in WORD.finditer(content))
+        words.update(getattr(self.window.library.ai,'glossary_words',set()))
         self.personal = frozenset(words)
         self.window.library.ai.refresh_memory()
         self.issues.cache_clear()

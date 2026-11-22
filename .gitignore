@@ -16,3 +16,5 @@ models/
 runtime/
 hybrid-benchmark.json
 hybrid-gui-benchmark.json
+med_glossary.json
+google_profile/

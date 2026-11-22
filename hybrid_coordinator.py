@@ -73,6 +73,8 @@ class HybridCoordinator:
         # Context classification from the same encoder; no diagnostic head is claimed.
         prototypes=[('ГМ','МРТ головного мозга. Срединные структуры.'),('Позвоночник','МРТ позвоночника. Межпозвонковые диски.'),('ОМТ','МРТ органов малого таза.'),('Суставы','МРТ сустава. Связки и мениски.'),('Брюшная полость','КТ органов брюшной полости. Печень и почки.'),('Мягкие ткани','МРТ мягких тканей.'),('Сосуды','МР ангиография артерий и вен.')]
         version=self.version
+        definitions=self.window.glossary.verified_context(block) if hasattr(self.window,'glossary') else []
+        glossary_context=' '.join(term+': '+definition for term,definition in definitions)[:350]
         settings=dict(self.resource_state)
         self.busy=True;self.last_status=('Глубокий анализ' if settings.get('deep') and tasks else 'Контекстный анализ');cache_path=self.window.library.path.parent/'hybrid-embeddings.sqlite3'
         def work():
@@ -84,7 +86,7 @@ class HybridCoordinator:
                     if self.closed or version!=self.version:return self.results.put((version,digest,block,area,[],None,'cancelled'))
                     context=before[-180:]+word+after[:180]
                     rendered=[before[-180:]+c+after[:180] for c in options]
-                    scores=self.backend.semantic(context,rendered,settings['threads'],cache_path)['scores']
+                    scores=self.backend.semantic(context+(' Справочник: '+glossary_context if glossary_context else ''),rendered,settings['threads'],cache_path)['scores']
                     deep_scores=None
                     if settings.get('deep') and len(options)>1:
                         try:

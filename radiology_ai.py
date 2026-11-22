@@ -103,6 +103,7 @@ class LocalAI:
         self.area_words=defaultdict(Counter,{k:v.copy() for k,v in self.base_areas.items()})
         self.words.update(dict(self.db.execute('SELECT word,uses FROM ai_words ORDER BY uses DESC LIMIT 20000')))
         self.words.update(w for w, in self.db.execute('SELECT word FROM spelling_words'))
+        self.words.update(getattr(self,'glossary_words',set()))
         for ctx,phrase,n in self.db.execute('SELECT context,phrase,uses FROM ai_ngrams'):
             if ctx.split() and phrase.split():self.bigrams[ctx.split()[-1],phrase.split()[0]]+=n
         self.confirmed={(a,b,c):n for a,b,c,n in self.db.execute('SELECT original,replacement,area,uses FROM ai_corrections ORDER BY uses DESC LIMIT 10000')}
