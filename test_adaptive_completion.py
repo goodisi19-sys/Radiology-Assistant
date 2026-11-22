@@ -66,3 +66,28 @@ class AdaptiveTests(unittest.TestCase):
             results.append(json.loads(result.stdout))
         self.assertEqual(results[0],results[1]);self.assertEqual(results[0],results[2])
         self.assertIn('деформацией дурального мешка',results[0][0]['text'])
+
+
+class LibraryCompletionTests(unittest.TestCase):
+    def setUp(self):
+        self.db=sqlite3.connect(':memory:');self.db.create_function('casefold',1,str.casefold)
+        self.db.executescript('CREATE TABLE phrases(text TEXT,source TEXT,category TEXT,count INTEGER); CREATE TABLE complete_builtin_phrases(text TEXT);')
+        rows=[('Срединные структуры не смещены.','Встроенный протокол','ГМ',10),
+              ('Срединные структуры расположены обычно.','Личный стандарт','ГМ',1),
+              ('Срединные структуры смещены на 5 мм.','Встроенный протокол','ГМ',100),
+              ('Срединные структуры повреждены.','Встроенный протокол','ГМ',100)]
+        self.db.executemany('INSERT INTO phrases VALUES(?,?,?,?)',rows)
+        self.db.executemany('INSERT INTO complete_builtin_phrases VALUES(?)',[(rows[0][0],),(rows[2][0],)])
+    def tearDown(self):self.db.close()
+    def test_full_context_partial_word_and_personal_priority(self):
+        from adaptive_completion import library_completions
+        options=library_completions(self.db,'Срединные структуры ','ГМ')
+        self.assertEqual(options[0]['suffix'],'расположены обычно.')
+        self.assertIn('не смещены.',[x['suffix'] for x in options])
+        self.assertNotIn('смещены на 5 мм.',[x['suffix'] for x in options])
+        self.assertNotIn('повреждены.',[x['suffix'] for x in options])
+        self.assertEqual(library_completions(self.db,'Срединные структуры не см','ГМ')[0]['suffix'],'ещены.')
+    def test_unrelated_context_and_exclusion(self):
+        from adaptive_completion import library_completions
+        self.assertFalse(library_completions(self.db,'Суставные структуры ','ГМ'))
+        self.assertFalse(library_completions(self.db,'Срединные структуры не см','ГМ',excluded={'Срединные структуры не смещены.'}))

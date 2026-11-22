@@ -1122,7 +1122,13 @@ class MainWindow(QMainWindow):
         if snapshot is not None and snapshot != (self.editor.toPlainText(), cursor.position(), cursor.anchor()):
             self.completer.popup().hide(); return
         continuation = getattr(self, '_adaptive_options', {}).get(phrase)
-        if phrase in getattr(self,'_word_options',{}):
+        library_option=getattr(self,'_library_options',{}).get(phrase)
+        if library_option:
+            cursor.beginEditBlock();cursor.insertText(library_option['suffix']+' ');cursor.endEditBlock()
+            if self.library.ai.enabled('self_learning'):
+                self.library.ai.learn_text(library_option['phrase'],confirmed=True)
+                self.library.used(library_option['phrase'])
+        elif phrase in getattr(self,'_word_options',{}):
             expected=self._word_options[phrase]
             cursor.movePosition(QTextCursor.MoveOperation.PreviousCharacter,QTextCursor.MoveMode.KeepAnchor,len(expected))
             if cursor.selectedText()!=expected:return
@@ -1167,8 +1173,14 @@ class MainWindow(QMainWindow):
                 self._adaptive_options[label] = candidate
         personal = [phrase for phrase in normal if self.library.db.execute("SELECT 1 FROM phrases WHERE text=? AND source='Личный стандарт'", (phrase,)).fetchone()]
         self._word_options={}
+        self._library_options={}
         from radiology_ai import classify
+        from adaptive_completion import library_completions
         completion_area=classify(self.editor.document().firstBlock().text()+' '+cursor.block().text()) if self.library.ai.enabled('auto_area') else ''
+        if cursor.positionInBlock()==len(cursor.block().text().encode('utf-16-le'))//2 and not cursor.hasSelection():
+            for candidate in library_completions(self.library.db,before,completion_area,excluded=self.library.ai.excluded):
+                label=('Личный стандарт: ' if candidate['personal'] else 'Из библиотеки: ')+candidate['phrase']
+                self._library_options[label]=candidate
         if prefix:
             for value in self.library.ai.ranked_completion(prefix,before[:-len(prefix)],completion_area):self._word_options[value]=prefix
         if prefix and self.library.ai.enabled('context_corrections'):
@@ -1178,7 +1190,7 @@ class MainWindow(QMainWindow):
         if before.endswith(' ') and self.library.ai.enabled('self_learning'):
             for value in self.library.ai.continuations(before):
                 self._adaptive_options.setdefault('Продолжить (Tab): '+value,{'text':value,'separator':' '})
-        matches = personal + list(self._adaptive_options) + list(self._word_options) + [phrase for phrase in normal if phrase not in personal]
+        matches = list(dict.fromkeys(list(self._library_options) + personal + list(self._adaptive_options) + list(self._word_options) + [phrase for phrase in normal if phrase not in personal]))
         self._completion_word = prefix
         self._completion_snapshot = (self.editor.toPlainText(), cursor.position(), cursor.anchor())
         if not matches:

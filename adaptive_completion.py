@@ -104,3 +104,29 @@ class AdaptiveMemory:
             self.db.execute("DELETE FROM adaptive_documents WHERE source='saved'")
 
     def count(self):return self.db.execute('SELECT count(*) FROM adaptive_continuations').fetchone()[0]
+
+
+def library_completions(db,before,area='',limit=5,excluded=()):
+    """Exact contextual suffixes from eligible library phrases; never replace typed text."""
+    if not before.strip() or META.search(before):return []
+    sentence=re.split(r'[.!?]\s+',before)[-1].lstrip(' \t•-—')
+    clause=re.split(r';\s*',sentence)[-1].lstrip()
+    out={}
+    for prefix in dict.fromkeys((sentence,clause)):
+        if len(prefix.strip())<8 or len(re.findall(r'[а-яё]+',prefix,re.I))<2 or len(prefix)>300:continue
+        # Prefix matching treats wildcard characters as literals.
+        escaped=prefix.casefold().replace('\\','\\\\').replace('%','\\%').replace('_','\\_')
+        rows=db.execute("""SELECT text,source,category,count FROM phrases
+            WHERE casefold(text) LIKE ? ESCAPE '\\'
+              AND ((source!='Встроенный протокол' AND source NOT LIKE 'Google Drive: %')
+                OR text IN (SELECT text FROM complete_builtin_phrases))
+            ORDER BY (source='Личный стандарт') DESC,(category=?) DESC,count DESC,text LIMIT 80""",
+            (escaped+'%',area)).fetchall()
+        for phrase,source,category,count in rows:
+            if phrase[:len(prefix)].casefold()!=prefix.casefold():continue
+            suffix=phrase[len(prefix):]
+            if not suffix.strip() or len(suffix)>240 or RISK.search(suffix) or META.search(suffix):continue
+            if phrase in excluded or suffix.strip() in excluded:continue
+            score=(source=='Личный стандарт',len(prefix),category==area,count,phrase)
+            if suffix not in out or score>out[suffix][0]:out[suffix]=(score,{'suffix':suffix,'phrase':phrase,'personal':source=='Личный стандарт'})
+    return [v[1] for v in sorted(out.values(),key=lambda x:x[0],reverse=True)[:limit]]
