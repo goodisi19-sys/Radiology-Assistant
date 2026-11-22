@@ -57,6 +57,7 @@ jobs:
         run: |
           python benchmark_hybrid.py
           python benchmark_hybrid_gui.py
+          python benchmark_context.py
       - name: Audit actual imported MRI library
         run: python audit_library.py
       - name: Audit paragraph layout of all 497 protocols
@@ -100,6 +101,9 @@ jobs:
           Copy-Item dist/RadiologyNeuralWorker package/RadiologyNeuralWorker -Recurse
           Copy-Item model-lock.json package/
           Copy-Item HYBRID_AI_AUDIT.md package/
+          Copy-Item RAD_CONTEXT_UPDATE.md package/
+          Copy-Item reports/context-retrieval.json package/
+          Copy-Item reports/sage-decoder-experiment.json package/
           Copy-Item GOOGLE_TERM_AUDIT.md package/
           Copy-Item browser-smoke.json package/
           Expand-Archive build_assets/chromium-6.8-licenses.zip package/THIRD_PARTY/Chromium
