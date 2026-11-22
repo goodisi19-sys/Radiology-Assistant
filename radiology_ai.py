@@ -60,6 +60,7 @@ class LocalAI:
         self.words=Counter(); self.bigrams=Counter(); self.area_words=defaultdict(Counter)
         for text,area in corpus: normalized(text); self.index(text,area)
         self.base_words=self.words.copy(); self.base_bigrams=self.bigrams.copy()
+        self.base_areas={k:v.copy() for k,v in self.area_words.items()}
         for word,count in db.execute('SELECT word,uses FROM ai_words ORDER BY uses DESC LIMIT 20000'): self.words[word]+=count
         for (word,) in db.execute('SELECT word FROM spelling_words'): self.words[word.casefold()]+=1
         self.refresh_memory()
@@ -77,11 +78,13 @@ class LocalAI:
 
     def refresh_memory(self):
         self.words=self.base_words.copy();self.bigrams=self.base_bigrams.copy()
+        self.area_words=defaultdict(Counter,{k:v.copy() for k,v in self.base_areas.items()})
         self.words.update(dict(self.db.execute('SELECT word,uses FROM ai_words ORDER BY uses DESC LIMIT 20000')))
         self.words.update(w for w, in self.db.execute('SELECT word FROM spelling_words'))
         for ctx,phrase,n in self.db.execute('SELECT context,phrase,uses FROM ai_ngrams'):
             if ctx.split() and phrase.split():self.bigrams[ctx.split()[-1],phrase.split()[0]]+=n
         self.confirmed={(a,b,c):n for a,b,c,n in self.db.execute('SELECT original,replacement,area,uses FROM ai_corrections ORDER BY uses DESC LIMIT 10000')}
+        for (_,replacement,_),count in self.confirmed.items():self.words[replacement]+=count
         self.excluded={x[0] for x in self.db.execute('SELECT phrase FROM ai_exclusions')}
         self.corrections.cache_clear()
         self.complete.cache_clear()

@@ -31,6 +31,11 @@ class LocalAITests(unittest.TestCase):
         before=self.ai.stats();self.ai.learn_text('Контуры ровные и четкие.',confirmed=True);self.assertEqual(before,self.ai.stats())
         self.db.execute("INSERT INTO app_settings VALUES('self_learning','0')")
         self.ai.confirm_correction('контруы','контуры');self.assertEqual(self.ai.stats()['Исправления'],0)
+    def test_new_confirmed_medical_word_is_available_after_restart(self):
+        self.ai.confirm_correction('нейротермн','нейротермин')
+        restarted=LocalAI(self.db,CORPUS)
+        self.assertIn('нейротермин',restarted.corrections('нейротермн'))
+        restarted.clear();self.assertNotIn('нейротермин',restarted.words)
     def test_personal_corrections_persist(self):
         self.ai.confirm_correction('контруы','контуры','ГМ')
         self.assertEqual(LocalAI(self.db,CORPUS).confirmed[('контруы','контуры','ГМ')],1)
@@ -140,3 +145,18 @@ class LocalAIApplicationTests(unittest.TestCase):
         self.window.editor.document().setModified(False);self.window.close()
         self.assertFalse(self.window.search_timer.isActive())
         self.window.refresh_templates();self.window.refresh_phrases()
+
+    def test_settings_stop_learning_and_clear_with_backup(self):
+        from ai_settings import AISettings
+        from PySide6.QtWidgets import QMessageBox
+        dialog=AISettings(self.window);dialog.change('self_learning',False)
+        self.window.learn_confirmed_description()
+        self.window.library.ai.confirm_correction('контруы','контуры')
+        self.assertFalse(any(self.window.library.ai.stats().values()))
+        dialog.change('self_learning',True)
+        self.window.library.verify('Проверено','ГМ','Контуры ровные; структура однородная.')
+        with patch.object(QMessageBox,'question',return_value=QMessageBox.StandardButton.Yes):dialog.clear()
+        self.assertFalse(any(self.window.library.ai.stats().values()))
+        self.assertEqual(self.window.library.adaptive.count(),0)
+        self.assertTrue(list((Path(self.tmp.name)/'backups').glob('*.sqlite3')))
+        dialog.close()
