@@ -28,12 +28,17 @@ def search_url(term,area='',ai=True):
 
 def uncertain_terms(text,known=()):
     if PRIVATE.search(text) or SENSITIVE.search(text):return []
+    # A surname may coincidentally start with a medical prefix (e.g. Суб-).
+    if re.search(r'\b[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+\b|\b[А-ЯЁ][а-яё]+\s+[А-ЯЁ]\.\s*[А-ЯЁ]\.',text):return []
+    name_pair=re.search(r'\b[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+\b',text)
+    if name_pair and not re.search(r'классификац|шкал|синдром|симптом',text[:name_pair.start()],re.I):return []
+    clinical_context=bool(re.search(r'мрт|\bкт\b|доступ|сигнал|структур|контур|сустав|кист|классификац|шкал|синдром|симптом|очаг|ткан|изменени|отдел|диск|артери|желудоч',text,re.I))
     known={w.casefold() for w in known};out=[]
     for match in WORDS.finditer(text):
         word=match.group();prefix=text[max(0,match.start()-50):match.start()].casefold()
         eponym=bool(re.search(r'(?:классификац\w*|шкал\w*|синдром\w*|симптом\w*)\s+(?:по\s+)?$',prefix))
         if word.casefold() in known or CRITICAL.fullmatch(word):continue
-        if MEDICAL.fullmatch(word) or eponym:
+        if (clinical_context and MEDICAL.fullmatch(word)) or eponym:
             try:sanitized_query(word)
             except ValueError:continue
             out.append(word)
@@ -60,7 +65,9 @@ class TermLookup(QObject):
         resources=getattr(w,'hybrid',None)
         if resources and resources.busy:
             self.timer.start(1800);return
-        if resources and resources.resource_state.get('resources',{}).get('available_gb',0)<2:return
+        if resources:
+            state=resources.resource_state.get('resources',{})
+            if state.get('available_gb',0)<2 or state.get('cpu',100)>70:return
         text=w.editor.textCursor().block().text();area=classify(w.editor.document().firstBlock().text()+' '+text)
         known=set(w.library.ai.words)|set(w.live_spelling.personal)
         for term in uncertain_terms(text,known):

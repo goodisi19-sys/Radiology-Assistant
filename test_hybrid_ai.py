@@ -31,6 +31,12 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(p.choose(Resources(8,16,5,40,True),now=31)['mode'],'Расширенный')
         state=p.choose(Resources(8,16,.5,90,True),now=32);self.assertFalse(state['deep']);self.assertFalse(state['bert'])
         self.assertFalse(p.choose(Resources(8,16,10,10,False),now=60)['bert'])
+    def test_model_memory_hysteresis(self):
+        p=ResourcePolicy();self.assertTrue(p.choose(Resources(4,8,4,10,True),now=30)['deep'])
+        self.assertTrue(p.choose(Resources(4,8,2.8,10,True),now=35)['deep'])
+        self.assertFalse(p.choose(Resources(4,8,2.4,10,True),now=40)['deep'])
+        self.assertFalse(p.choose(Resources(4,8,3.0,10,True),now=45)['deep'])
+        self.assertTrue(p.choose(Resources(4,8,4,10,True),now=60)['deep'])
     def test_economy_does_not_load_deep_model(self):
         self.assertFalse(ResourcePolicy().choose(Resources(8,16,10,10,True),'Экономичный',now=30)['deep'])
 

@@ -36,6 +36,10 @@ class QueryTests(unittest.TestCase):
         self.assertFalse(uncertain_terms('Пациент Иванов. Субламинарный доступ.',set()))
         self.assertFalse(uncertain_terms('Субламинарный доступ.',{'субламинарный'}))
         self.assertEqual(uncertain_terms('Изменения по классификации Пфиррмана.'),['Пфиррмана'])
+    def test_names_matching_medical_prefix_are_not_sent(self):
+        for text in ['Субботин Иван Иванович','Субботин И. И.','Субботин','Субботин контуры Иван Иванович']:
+            self.assertFalse(uncertain_terms(text),text)
+        self.assertEqual(uncertain_terms('Субламинарный доступ.'),['Субламинарный'])
     def test_browser_domain_allowlist(self):
         from google_term_lookup import allowed_url
         self.assertTrue(allowed_url('https://www.google.com/search?q=test&udm=50'))
