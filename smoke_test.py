@@ -35,6 +35,10 @@ def run(result_path):
         assert [issue.word for issue in spelling.matches] == ['контруы']
         spelling.suggestions.setEditText('контуры'); spelling.replace.click(); spelling.close()
         assert 'контруы' not in window.editor.toPlainText()
+        unscaled_html = window.editor.toHtml()
+        window.zoom_control.setValue(175)
+        assert window.editor.scale_percent == 175
+        assert window.editor.toHtml() == unscaled_html
         target = Path(tmp) / 'smoke.docx'; window.current_file = str(target)
         assert window.save_file()
         expected = 'Контуры ровные; размер L4-L5 до 3.5 мм.\n\nЗаключение:'
@@ -137,7 +141,7 @@ def run(result_path):
         assert 'ошибочно изученная фраза' in window.library.ai.excluded
         assert window.library.backup().exists()
         window.editor.document().setModified(False); window.close()
-        Path(result_path).write_text(json.dumps({'protocols': visible, 'docx': 'ok',
+        Path(result_path).write_text(json.dumps({'protocols': visible, 'docx': 'ok', 'view_scale': 'ok',
             'quick_lines': 'ok', 'spelling': 'ok', 'punctuation': 'ok', 'google_input': 'ok', 'yandex_exchange': 'ok',
             'mra_paragraphs': 'ok', 'layouts_audited': 497, 'methodology': 'ok', 'protocol_check': 'ok', 'live_spelling': 'ok', 'favorites': 'ok', 'shorthand': 'ok', 'adaptive_completion': 'ok', 'fragment_flow': 'ok', 'local_ai': 'ok', 'critical_tokens': 'ok', 'explicit_learning': 'ok', 'memory_backup': 'ok',
             'base_sources_restored': 127, 'source_review_required': 18}), encoding='utf-8')

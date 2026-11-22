@@ -479,11 +479,16 @@ class MainWindow(QMainWindow):
 
     def build_ui(self):
         self.setStatusBar(QStatusBar())
-        self.editor = QTextEdit()
+        from editor_zoom import ReportEditor
+        self.editor = ReportEditor()
         self.editor.setObjectName("reportEditor")
         self.editor.setAcceptRichText(True)
         self.editor.setFont(QFont("Times New Roman", 12))
         self.editor.setPlaceholderText("Начните составлять протокол МРТ…")
+        try: scale = int(self.library.get_setting('editor_scale') or '100')
+        except (TypeError, ValueError): scale = 100
+        self.editor.set_scale(scale)
+        self.editor.scaleChanged.connect(lambda value: self.library.set_setting('editor_scale', str(value)))
         self.status_timer=QTimer(self);self.status_timer.setSingleShot(True);self.status_timer.setInterval(150)
         self.status_timer.timeout.connect(self.update_status);self.editor.textChanged.connect(self.status_timer.start)
         self.completion_timer=QTimer(self); self.completion_timer.setSingleShot(True)
@@ -561,6 +566,20 @@ class MainWindow(QMainWindow):
         size = QSpinBox(); size.setRange(8,36); size.setValue(12); size.valueChanged.connect(lambda n: self.editor.setFontPointSize(n)); bar.addWidget(size)
         for label, key, fn in [("Ж","Ctrl+B",self.toggle_bold),("К","Ctrl+I",self.toggle_italic),("Ч","Ctrl+U",self.toggle_underline)]:
             a=self.action(label,key,fn); bar.addAction(a)
+        bar.addSeparator()
+        bar.addWidget(QLabel("Масштаб: "))
+        self.zoom_control = QSpinBox()
+        self.zoom_control.setRange(75, 250); self.zoom_control.setSingleStep(25)
+        self.zoom_control.setSuffix(" %"); self.zoom_control.setValue(self.editor.scale_percent)
+        self.zoom_control.setToolTip("Масштаб просмотра; размер шрифта в документе не меняется. Ctrl+колесо мыши.")
+        self.zoom_control.valueChanged.connect(self.editor.set_scale)
+        self.editor.scaleChanged.connect(self.zoom_control.setValue)
+        bar.addWidget(self.zoom_control)
+        view = self.menuBar().addMenu("Вид")
+        for label, key, delta in [("Увеличить текст", "Ctrl++", 25), ("Уменьшить текст", "Ctrl+-", -25)]:
+            view.addAction(self.action(label, key, lambda checked=False, step=delta: self.editor.set_scale(self.editor.scale_percent + step)))
+        view.addAction(self.action("Масштаб 100 %", "Ctrl+0", lambda: self.editor.set_scale(100)))
+        self.addAction(self.action("Увеличить масштаб", "Ctrl+=", lambda: self.editor.set_scale(self.editor.scale_percent + 25)))
         bar = command_bar
         menu = self.menuBar().addMenu("Файл")
         for n,k,f in [("Новый","Ctrl+N",self.new_file),("Открыть…","Ctrl+O",self.open_file),("Сохранить","Ctrl+S",self.save_file),("Экспорт в DOCX…","Ctrl+Shift+S",self.export_docx)]:
