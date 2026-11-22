@@ -8,10 +8,10 @@ WORDS=re.compile(r'[А-Яа-яЁёA-Za-z]+(?:-\w+)*|\d+(?:[.,]\d+)?')
 def norm(text):return ' '.join(m.group().casefold().replace('ё','е') for m in WORDS.finditer(text))
 from context_identity import context_key
 def safe_suffix(suffix,before):
-    return bool(suffix.strip()) and len(suffix)<=180 and not RISK.search(suffix) and not re.search(r'\b(?:мм|см|мл|влево|вправо|mm|cm)\b',suffix,re.I) and not META.search(suffix) and not re.search(r'\b[IVX]+(?:-го|-й)?\b',suffix) and not ((set(tokens(suffix))&ANCHORS)-set(tokens(before)))
+    return bool(suffix.strip()) and len(suffix)<=180 and not RISK.search(suffix) and not re.search(r'\b(?:мм|см|мл|влево|вправо|mm|cm)\b',suffix,re.I) and not META.search(suffix) and not re.search(r'\b[IVX]+(?:-го|-й)?\b',suffix) and not ((set(tokens(suffix))&ANCHORS)-set(tokens(before))) and not any(re.search(r'\b'+root+r'\w*',suffix,re.I) and not re.search(r'\b'+root+r'\w*',before,re.I) for root in ('метастаз','опухол','инфаркт','ишеми','демиелинизац','кровоизлияни'))
 
 class ContextIndex:
-    VERSION=1
+    VERSION=2
     def __init__(self,library,fts=True):
         self.library=library;self.path=library.path.with_name('completion-index.sqlite3');self.db=sqlite3.connect(self.path)
         self.db.execute('PRAGMA busy_timeout=1500');self.db.executescript('''CREATE TABLE IF NOT EXISTS sources(id TEXT PRIMARY KEY,digest TEXT);

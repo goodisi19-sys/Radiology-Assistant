@@ -3,10 +3,10 @@
   "index": {
     "fts5": true,
     "sources": 479,
-    "windows": 134397,
-    "unique_phrases": 2857,
-    "sync_ms": 4171.758575997956,
-    "index_bytes": 72634368
+    "windows": 134307,
+    "unique_phrases": 2856,
+    "sync_ms": 4565.652386001602,
+    "index_bytes": 72548352
   },
   "protocols_preserved": 497,
   "overall": {
@@ -52,10 +52,16 @@
     }
   },
   "lookup_ms": {
-    "p50": 1.4813630004937295,
-    "p95": 10.037929001555312,
-    "max": 19.1630150002311
+    "p50": 1.4935519993741764,
+    "p95": 9.829652000917122,
+    "max": 20.784308999282075
   },
   "queries": 400,
-  "warm_index_open_ms": 24.2843960004393
+  "previous_exact_prefix_baseline": {
+    "n": 400,
+    "recall_at_5": 0.0375,
+    "mrr": 0.030375
+  },
+  "precision_note": "Multiple clinically plausible suffixes share short contexts; only retrieval of the original source suffix is scored. No adjudicated clinical precision estimate.",
+  "warm_index_open_ms": 29.602897997392574
 }

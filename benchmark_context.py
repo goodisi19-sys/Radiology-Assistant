@@ -21,6 +21,13 @@ def run():
    found=next((i+1 for i,r in enumerate(rows) if norm(r['suffix'])==norm(suffix)),0);groups[area].append(found)
   def metrics(ranks):return {'n':len(ranks),'recall_at_5':sum(bool(x) for x in ranks)/max(1,len(ranks)),'mrr':sum(1/x if x else 0 for x in ranks)/max(1,len(ranks))}
   ranks=[v for rows in groups.values() for v in rows];result={'method':'Source-backed lookup; queries withheld from feedback; sources remain indexed. Not unseen-source or clinical validation.','index':stats,'protocols_preserved':lib.db.execute('SELECT count(*) FROM templates').fetchone()[0],'overall':metrics(ranks),'areas':{k:metrics(v) for k,v in groups.items()},'lookup_ms':{'p50':statistics.median(times),'p95':sorted(times)[int(.95*(len(times)-1))],'max':max(times)},'queries':idx.query_count-queries}
+  from adaptive_completion import library_completions
+  baseline=[]
+  for context,suffix,area,mode,source in samples:
+   rows=library_completions(lib.db,context+' ',area,limit=5)
+   baseline.append(next((i+1 for i,r in enumerate(rows) if norm(r['suffix'])==norm(suffix)),0))
+  result['previous_exact_prefix_baseline']=metrics(baseline)
+  result['precision_note']='Multiple clinically plausible suffixes share short contexts; only retrieval of the original source suffix is scored. No adjudicated clinical precision estimate.'
   idx.close();start=time.perf_counter();idx=ContextIndex(lib);result['warm_index_open_ms']=(time.perf_counter()-start)*1000;idx.close();lib.db.close()
  return result
 if __name__=='__main__':

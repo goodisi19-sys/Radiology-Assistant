@@ -1261,7 +1261,7 @@ class MainWindow(QMainWindow):
         if not cursor.hasSelection() and document_state['section']!='method':
             candidates=self.completion_index.suggest(before,after,completion_area,document_state['modality'],30)
             neural_key=context_key('completion',before,after,completion_area,document_state['modality'],[c['source_id']+c['suffix'] for c in candidates],model='rubert-tiny2-v1')
-            semantic=getattr(getattr(self,'hybrid',None),'completion_scores',{}).get(neural_key,{})
+            semantic=getattr(getattr(self,'hybrid',None),'completion_scores',{}).get(neural_key,{}) if self.library.ai.enabled('neural_enabled') else {}
             candidates.sort(key=lambda c:-(int(c['personal'])*10+self.phrase_memory.boost(before,c['phrase'],completion_area,document_state['modality'])+.12*semantic.get(c['source_id']+c['suffix'],0)))
             for candidate in candidates[:8]:
                 label=('Личный стандарт: ' if candidate['personal'] else 'Из библиотеки: ')+candidate['phrase']

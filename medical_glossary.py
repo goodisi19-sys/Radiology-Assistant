@@ -11,13 +11,13 @@ class MedicalGlossary:
                 if not isinstance(data,dict):raise ValueError('Invalid glossary')
                 self.records={k:v for k,v in data.items() if isinstance(k,str) and isinstance(v,dict) and isinstance(v.get('definition'),str) and type(v.get('verified')) is bool}
             except (OSError,ValueError):self.error='Словарь повреждён: исходный файл сохранён, запись отключена.'
-    def save(self,term,definition,source,verified=False):
+    def save(self,term,definition,source,verified=False,evidence='manual'):
         if self.error:raise ValueError(self.error)
         term=term.strip().casefold()
         if not term or len(term)>90 or not definition.strip():raise ValueError('Нужен термин и определение')
         existing=self.records.get(term)
         if existing and existing['verified'] and not verified:return # Never replace reviewed knowledge with search output.
-        updated=dict(self.records);updated[term]={'definition':definition.strip()[:4000],'verified':bool(verified),'updated_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source':source[:1000]}
+        updated=dict(self.records);updated[term]={'definition':definition.strip()[:4000],'verified':bool(verified),'updated_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source':source[:1000],'evidence':'physician-reviewed' if verified else evidence}
         self.path.parent.mkdir(parents=True,exist_ok=True)
         fd,name=tempfile.mkstemp(prefix='.med-glossary-',dir=self.path.parent)
         try:

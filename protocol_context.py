@@ -31,7 +31,7 @@ def extract_block(text,section):
             factor=10 if size[2].lower()=='см' else 1
             sizes.append(tuple(sorted(round(float(v.replace(',','.'))*factor,4) for v in re.split(r'\s*[xх×]\s*',size[1]))))
         location='upper' if re.search(r'верхн\w*\s+полюс',clause,re.I) else 'lower' if re.search(r'нижн\w*\s+полюс',clause,re.I) else ''
-        levels=tuple(sorted(v.group().upper().replace(' ','').replace('–','-') for v in LEVEL.finditer(clause)))
+        levels=tuple(sorted(v.group().upper().replace('TH','T').replace(' ','').replace('–','-') for v in LEVEL.finditer(clause)))
         ambiguous=len(lesions)>1 or len(sizes)>1 or len(sides)>1 or len(structures)>1
         # A disc and its named level are sufficient; a generic lesion without an organ is unknown.
         structure=structures[0] if len(structures)==1 else 'диск' if levels and not structures else ''

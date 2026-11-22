@@ -79,6 +79,7 @@ class GoogleBrowser(QDialog):
             text=result.get('text','');source=result.get('url','')
             from urllib.parse import urlsplit,parse_qs
             if not allowed_url(source) or parse_qs(urlsplit(source).query).get('udm')!=['50']:return
+            if parse_qs(urlsplit(source).query).get('q')!=parse_qs(urlsplit(self.best_url).query).get('q'):return
             if result.get('ai') and result.get('complete') and isinstance(text,str) and len(text.strip())>=10:
                 if text!=self.stable_text:
                     self.stable_text=text;self.stable_since=time.monotonic();return

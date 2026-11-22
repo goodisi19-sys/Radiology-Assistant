@@ -16,8 +16,10 @@ class PhraseMemory:
         with self.db:
             self.db.execute('INSERT OR IGNORE INTO user_phrase_memory VALUES(?,?,?,?,?,0,0,?)',(key,phrase,area,kind,source,time.time()))
             column='accepted_count' if accepted else 'rejected_count'
+            old=self.db.execute('SELECT '+column+' FROM user_phrase_memory WHERE context_key=? AND phrase=? AND region=? AND modality=? AND source_id=?',(key,phrase,area,kind,source)).fetchone()[0]
             self.db.execute('UPDATE user_phrase_memory SET '+column+'=min('+column+'+1,100),last_used=? WHERE context_key=? AND phrase=? AND region=? AND modality=? AND source_id=?',(time.time(),key,phrase,area,kind,source))
-            cur=self.db.execute('INSERT INTO phrase_events(context_key,phrase,region,modality,source_id,accepted) VALUES(?,?,?,?,?,?)',(key,phrase,area,kind,source,int(accepted)))
+            cur=self.db.execute('INSERT INTO phrase_events(context_key,phrase,region,modality,source_id,accepted,active) VALUES(?,?,?,?,?,?,?)',(key,phrase,area,kind,source,int(accepted),int(old<100)))
+            self.db.execute('DELETE FROM phrase_events WHERE id NOT IN (SELECT id FROM phrase_events ORDER BY id DESC LIMIT 5000)')
         return cur.lastrowid
     def undo(self,event):
         row=self.db.execute('SELECT context_key,phrase,region,modality,source_id,accepted FROM phrase_events WHERE id=? AND active=1',(event,)).fetchone()

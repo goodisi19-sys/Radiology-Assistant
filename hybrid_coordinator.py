@@ -28,7 +28,7 @@ class HybridCoordinator:
             self.timer.setInterval(4000)
             if previous_deep and not self.resource_state.get('deep'):self.backend.cancel()
             if self.window.isMinimized() or not self.resource_state['bert'] or not self.window.library.ai.enabled('neural_enabled'):
-                self.backend.cancel();self.last_status='LocalAI активен — нейроанализ приостановлен'
+                self.backend.cancel();self.completion_scores.clear();self.last_status='LocalAI активен — нейроанализ приостановлен'
             elif not self.busy:
                 self.last_status='LocalAI активен — '+self.resource_state['mode'].lower()+' профиль'
         except Exception:self.resource_state={'bert':False,'deep':False,'mode':'Экономичный','threads':1};self.last_status='LocalAI активен — ресурсы недоступны'
@@ -39,7 +39,7 @@ class HybridCoordinator:
         # Keep a warm worker; stale results are discarded by revision.
         self.timer.start()
     def reset(self):
-        self.version+=1;self.cache.clear();self.backend.cancel();self.timer.stop()
+        self.version+=1;self.cache.clear();self.completion_scores.clear();self.backend.cancel();self.timer.stop()
     def close(self):
         self.closed=True;self.timer.stop();self.poll.stop();self.monitor.stop();
         if hasattr(self,'search_poll'):self.search_poll.stop()
@@ -164,7 +164,12 @@ class HybridCoordinator:
             return
         # A lexical shortlist bounds neural work; do not encode the entire library on every search.
         lexical=self.window.library.ai.search(query,rows,limit=60)
-        snapshot=tuple(lexical[:60] or rows[:60]);version=self.version;self.busy=True
+        from rapidfuzz import fuzz
+        area=classify(query)
+        fallback=sorted(rows,key=lambda r:(str(r[2])==area if len(r)>2 else False,fuzz.WRatio(query,' '.join(str(v) for v in r[1:])[:1500])),reverse=True)[:60]
+        selected={r[0]:r for r in lexical}
+        for row in fallback:selected.setdefault(row[0],row)
+        snapshot=tuple(list(selected.values())[:60]);version=self.version;self.busy=True
         cache=self.window.library.path.parent/'hybrid-embeddings.sqlite3'
         def work():
             try:

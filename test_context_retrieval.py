@@ -78,3 +78,26 @@ class FallbackTests(unittest.TestCase):
    self.assertLess(memory.boost('Контуры ровные ','Контуры ровные четкие.','ГМ','МРТ'),0)
    memory.undo(event);self.assertEqual(memory.boost('Контуры ровные ','Контуры ровные четкие.','ГМ','МРТ'),0)
    self.assertEqual(lib.db.execute('SELECT count(*) FROM phrase_events WHERE active=0').fetchone()[0],1);lib.db.close()
+class SafetyRegressionTests(unittest.TestCase):
+ def test_no_new_diagnosis_from_source_suffix(self):
+  from context_retrieval import safe_suffix
+  self.assertFalse(safe_suffix(' метастазы не выявлены.','Контуры ровные'))
+  self.assertFalse(safe_suffix(' смещены влево до мм.','Срединные структуры'))
+ def test_equivalent_th_and_t_levels(self):
+  self.assertFalse(conflicts(ProtocolContextState().update('Грыжа Th11-Th12.\nЗаключение: Грыжа T11-T12.')))
+ def test_saturated_count_undo_does_not_remove_previous_experience(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   lib=Library(Path(tmp)/'user.db');memory=PhraseMemory(lib)
+   for _ in range(101):event=memory.record('Контуры ровные','Контуры ровные четкие.','ГМ','МРТ','phrase:1')
+   memory.undo(event);self.assertEqual(lib.db.execute('SELECT accepted_count FROM user_phrase_memory').fetchone()[0],100);lib.db.close()
+class GlossaryProvenanceTests(unittest.TestCase):
+ def test_legacy_evidence_never_becomes_verified_on_restart(self):
+  from medical_glossary import MedicalGlossary
+  with tempfile.TemporaryDirectory() as tmp:
+   path=Path(tmp)/'glossary.json';g=MedicalGlossary(path);g.save('термин','Старая статья.','google')
+   restored=MedicalGlossary(path);self.assertFalse(restored.records['термин']['verified']);self.assertNotEqual(restored.records['термин'].get('evidence'),'google-ai-container-v2')
+   restored.save('термин','Справка AI Mode.','google',evidence='google-ai-container-v2')
+   self.assertEqual(MedicalGlossary(path).records['термин']['evidence'],'google-ai-container-v2')
+   restored.save('термин','Проверено врачом.','google',verified=True)
+   restored.save('термин','Новая статья.','google',evidence='google-ai-container-v2')
+   self.assertEqual(restored.records['термин']['definition'],'Проверено врачом.')

@@ -77,7 +77,7 @@ class TermLookup(QObject):
         text=w.editor.textCursor().block().text();area=classify(w.editor.document().firstBlock().text()+' '+text)
         known=set(w.library.ai.words)|set(w.live_spelling.personal)
         for term in uncertain_terms(text,known):
-            if term.casefold() in self.attempted or term.casefold() in w.glossary.records:continue
+            if term.casefold() in self.attempted or (term.casefold() in w.glossary.records and (w.glossary.records[term.casefold()]['verified'] or w.glossary.records[term.casefold()].get('evidence')=='google-ai-container-v2')):continue
             # Ordinary near-certain typos stay local. Search only genuinely uncertain terminology.
             candidates=w.library.ai.corrections(term)
             if candidates:
@@ -92,7 +92,9 @@ class TermLookup(QObject):
         if self.closed:return False
         cached=self.window.glossary.records.get(term.casefold())
         if cached:
-            self.window.reference.show_term(term,cached['definition'],cached.get('source',''),cached['verified']);return True
+            self.window.reference.show_term(term,cached['definition'],cached.get('source',''),cached['verified'])
+            if cached['verified'] or cached.get('evidence')=='google-ai-container-v2':return True
+            self.window.reference.term_status.setText('Старая непроверенная справка: источник AI Mode не подтверждён; выполняется новый запрос.')
         if self.count>=3:return False
         if not self.allow_network and not manual:return False
         if self.busy:return False
@@ -110,7 +112,7 @@ class TermLookup(QObject):
             if self.closed:return
             if error:
                 self.window.reference.term_status.setText('Справка недоступна: '+error+'. Локальный анализ продолжается.');return
-            try:self.window.glossary.save(term,text,source,verified=False)
+            try:self.window.glossary.save(term,text,source,verified=False,evidence='google-ai-container-v2')
             except (OSError,ValueError):
                 self.window.reference.term_status.setText('Справка получена, но словарь не удалось сохранить.')
             self.window.statusBar().showMessage('Справка по термину доступна во вкладке Google; требуется проверка.',8000)
