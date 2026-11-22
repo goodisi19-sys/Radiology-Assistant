@@ -1,0 +1,61 @@
+{
+  "method": "Source-backed lookup; queries withheld from feedback; sources remain indexed. Not unseen-source or clinical validation.",
+  "index": {
+    "fts5": true,
+    "sources": 479,
+    "windows": 134397,
+    "unique_phrases": 2857,
+    "sync_ms": 4171.758575997956,
+    "index_bytes": 72634368
+  },
+  "protocols_preserved": 497,
+  "overall": {
+    "n": 400,
+    "recall_at_5": 0.895,
+    "mrr": 0.7773333333333333
+  },
+  "areas": {
+    "ОМТ": {
+      "n": 27,
+      "recall_at_5": 0.9259259259259259,
+      "mrr": 0.8518518518518519
+    },
+    "ГМ": {
+      "n": 113,
+      "recall_at_5": 0.9203539823008849,
+      "mrr": 0.8104719764011798
+    },
+    "Позвоночник": {
+      "n": 81,
+      "recall_at_5": 0.9382716049382716,
+      "mrr": 0.7203703703703704
+    },
+    "Суставы": {
+      "n": 136,
+      "recall_at_5": 0.8088235294117647,
+      "mrr": 0.7132352941176471
+    },
+    "Другие исследования": {
+      "n": 32,
+      "recall_at_5": 1.0,
+      "mrr": 0.96875
+    },
+    "Мягкие ткани": {
+      "n": 5,
+      "recall_at_5": 1.0,
+      "mrr": 0.9
+    },
+    "Брюшная полость": {
+      "n": 6,
+      "recall_at_5": 1.0,
+      "mrr": 0.9166666666666666
+    }
+  },
+  "lookup_ms": {
+    "p50": 1.4813630004937295,
+    "p95": 10.037929001555312,
+    "max": 19.1630150002311
+  },
+  "queries": 400,
+  "warm_index_open_ms": 24.2843960004393
+}

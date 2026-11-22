@@ -1,0 +1,42 @@
+{
+  "experimental": true,
+  "int8": true,
+  "max_new_tokens": 16,
+  "cases": [
+    {
+      "input": "Срединные струткуры не смещены.",
+      "result": "Срединные структуры не смещены.",
+      "gold": "Срединные структуры не смещены.",
+      "exact": true,
+      "safe_aligned_single_word": true,
+      "ms": 71.06917499913834
+    },
+    {
+      "input": "Срединные структуры не смещны.",
+      "result": "Срединные структуры не смещены.",
+      "gold": "Срединные структуры не смещены.",
+      "exact": true,
+      "safe_aligned_single_word": true,
+      "ms": 83.50626299943542
+    },
+    {
+      "input": "Контруы ровные.",
+      "result": "Контруты ровные.",
+      "gold": "Контуры ровные.",
+      "exact": false,
+      "safe_aligned_single_word": true,
+      "ms": 90.73444699970423
+    },
+    {
+      "input": "Правой почки киста 10 мм.",
+      "result": "Правой почки киста 10 мм.",
+      "gold": "Правой почки киста 10 мм.",
+      "exact": true,
+      "safe_aligned_single_word": false,
+      "ms": 102.29808799704188
+    }
+  ],
+  "model_bytes": 96519080,
+  "ship_decoder": false,
+  "reason": "Tiny synthetic probe does not establish independent clinical benefit. Keep bounded candidate scorer; do not ship extra decoder."
+}
