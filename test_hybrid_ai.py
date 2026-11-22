@@ -84,6 +84,12 @@ class CoordinatorTests(unittest.TestCase):
         self.w.library.set_setting('self_learning','0');self.w.library.ai.confirm_correction('контруы','контуры');self.w.library.ai.learn_text('Контуры ровные.',confirmed=True)
         self.assertEqual(self.w.library.db.execute('SELECT count(*) FROM hybrid_feedback').fetchone()[0],0)
         self.assertEqual(self.w.library.db.execute('SELECT count(*) FROM hybrid_examples').fetchone()[0],0)
+    def test_search_queue_keeps_only_latest_request(self):
+        h=self.w.hybrid;h.busy=True
+        h.semantic_search('первый',[(1,'МРТ')],lambda q,r:None)
+        h.semantic_search('последний',[(2,'КТ')],lambda q,r:None)
+        self.assertEqual(h.pending_search[0],'последний')
+        self.assertEqual(h.pending_search[1],[(2,'КТ')])
     def test_bounded_caches(self):
         self.assertEqual(self.w.hybrid.executor._max_workers,1)
         self.w.editor.setPlainText('Новая запись.');self.assertTrue(self.w.hybrid.timer.isActive())

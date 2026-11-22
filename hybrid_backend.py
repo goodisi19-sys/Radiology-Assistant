@@ -37,6 +37,7 @@ class NeuralBackend:
             def read():
                 try:
                     for line in p.stdout:answers.put(line)
+                except (OSError,ValueError):pass
                 finally:answers.put('')
             threading.Thread(target=read,daemon=True).start()
         p=self.encoder

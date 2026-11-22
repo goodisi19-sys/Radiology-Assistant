@@ -82,12 +82,13 @@ class HybridCoordinator:
                 ranked=[]
                 for word,before,after,options in tasks:
                     if self.closed or version!=self.version:return self.results.put((version,digest,block,area,[],None,'cancelled'))
-                    rendered=[before+c+after for c in options]
-                    scores=self.backend.semantic(block,rendered,settings['threads'],cache_path)['scores']
+                    context=before[-180:]+word+after[:180]
+                    rendered=[before[-180:]+c+after[:180] for c in options]
+                    scores=self.backend.semantic(context,rendered,settings['threads'],cache_path)['scores']
                     deep_scores=None
                     if settings.get('deep') and len(options)>1:
                         try:
-                            deep_scores=self.backend.deep(block,rendered,settings['threads'],cache_path)['scores']
+                            deep_scores=self.backend.deep(context,rendered,settings['threads'],cache_path)['scores']
                         except Exception:pass # Retain already computed lexical/encoder results on deadline.
                     ranked.append((word,before,after,options,scores,deep_scores))
                 self.results.put((version,digest,block,area,ranked,classification,None))
@@ -121,9 +122,17 @@ class HybridCoordinator:
                 self.inferred_area=labels[order[0]] if scores[order[0]]-scores[order[1]]>.1 else area
         if hasattr(self.window,'hybrid_indicator'):
             self.window.hybrid_indicator.setText(self.last_status)
+        self.start_pending_search()
+    def start_pending_search(self):
+        if self.pending_search and not self.busy and self.allowed():
+            task=self.pending_search;self.pending_search=None
+            self.semantic_search(*task)
     def semantic_search(self,query,rows,callback):
         """Cached template/content/favorite/quick-line retrieval on the same bounded worker."""
-        if not self.allowed() or self.busy or not rows:return
+        if not rows or not self.allowed():return
+        if self.busy:
+            self.pending_search=(query,rows,callback)
+            return
         snapshot=tuple(rows);version=self.version;self.busy=True
         cache=self.window.library.path.parent/'hybrid-embeddings.sqlite3'
         def work():
@@ -139,3 +148,4 @@ class HybridCoordinator:
         while not self.search_results.empty():
             query,version,callback,rows=self.search_results.get();self.busy=False
             if not self.closed and version==self.version:callback(query,rows)
+        self.start_pending_search()
