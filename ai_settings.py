@@ -26,7 +26,7 @@ class AISettings(QDialog):
         hybrid=getattr(self.window,'hybrid',None)
         if not hybrid:return
         state=hybrid.resource_state;resource=state.get('resources',{})
-        loaded=hybrid.backend.loaded
+        loaded=getattr(hybrid.backend,'loaded',{})
         self.activity.setText(f"В памяти RuBERT: {'да' if loaded.get('rubert') else 'нет'}, SAGE: {'да' if loaded.get('sage') else 'нет'}. {hybrid.last_status}; выбран: {state.get('requested','—')}; активный профиль: {state.get('mode','—')}; "
             f"RuBERT: {'доступен' if state.get('bert') else 'приостановлен'}; SAGE: {'доступна' if state.get('deep') else 'приостановлена'}; "
             f"{state.get('reason','')} CPU системы: {resource.get('cpu',0):.0f} %; свободно ОЗУ: {resource.get('available_gb',0):.1f} ГиБ. "

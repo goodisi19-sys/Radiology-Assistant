@@ -154,12 +154,13 @@ def consistency_findings(text):
     out.extend(Finding(a,b,message,True,related) for a,b,message,related in conflicts(ProtocolContextState().update(text)))
     level=r'\b(?:C|Th|T|L|S)\d{1,2}\s*[-–]\s*(?:C|Th|T|L|S)\d{1,2}\b'
     a=set(re.findall(level,desc,re.I));b=set(re.findall(level,conclusion,re.I))
-    if len(a)==len(b)==1 and {v.upper().replace(' ','') for v in a}!={v.upper().replace(' ','') for v in b}:
+    uncertain=re.search(r'не\s+исключ|вероятн|возможн|подозр|\?',text,re.I)
+    if not uncertain and len(a)==len(b)==1 and {v.upper().replace(' ','') for v in a}!={v.upper().replace(' ','') for v in b}:
         out.append(Finding(heading.end(),len(text),'Возможное несоответствие анатомического уровня — сверьте описание и заключение',True))
     for subject in ('выпот','отек','перелом','грыжа'):
         states=[]
         for section in (desc,conclusion):
             states.append(set(bool(m[1]) for m in re.finditer(r'\b'+subject+r'\s+(не\s+)?(?:определяется|выявлен\w*)',section,re.I)))
-        if all(len(x)==1 for x in states) and states[0]!=states[1]:
+        if not uncertain and all(len(x)==1 for x in states) and states[0]!=states[1]:
             out.append(Finding(heading.end(),len(text),'Возможное противоречие отрицания: '+subject+' — требуется проверка врача',True))
     return out

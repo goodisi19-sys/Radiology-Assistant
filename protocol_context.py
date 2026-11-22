@@ -17,6 +17,7 @@ def extract_block(text,section):
     for m in re.finditer(r'[^;\n]+?(?:;|(?<!\d)\.(?!\d)|$)',text):
         clause=m.group();structures=[k for k,p in STRUCTURES.items() if re.search(p,clause,re.I)]
         lesions=[k for k,p in LESIONS.items() if re.search(p,clause,re.I)]
+        if not lesions and len(structures)==1 and MEASURE.search(clause):lesions=['размер органа']
         if not lesions:continue
         sides=set('right' if x.group().lower().startswith(('прав','справа')) else 'left' for x in re.finditer(r'\b(?:прав\w*|лев\w*|справа|слева)\b',clause,re.I))
         bilateral=bool(re.search(r'двусторонн|обе\s+почк|оба\s+сустав|обеих',clause,re.I))
