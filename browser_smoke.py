@@ -1,4 +1,4 @@
-"""Real packaged Chromium rendering using a synthetic offline fixture; no Google request."""
+"""Real packaged Chromium rendering; synthetic offline positive and negative fixtures."""
 import json,tempfile,time
 from pathlib import Path
 from PySide6.QtCore import Qt,QUrl
@@ -8,15 +8,26 @@ from PySide6.QtTest import QTest
 def run(target):
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
     application=QApplication.instance() or QApplication([])
-    from google_browser import GoogleBrowser
+    from google_browser import GoogleBrowser,EXTRACT
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
-        owner=QWidget();browser=GoogleBrowser(owner,Path(tmp));result=[]
-        browser.callback=lambda text,source,error:result.append((text,error))
-        browser.timeout.start(10000)
-        text='Обзор от ИИ. '+('Синтетическая справка по медицинскому термину. '*12)
-        browser.page.setHtml('<main id="search">'+text+'</main>',QUrl('about:blank'))
+        owner=QWidget();browser=GoogleBrowser(owner,Path(tmp))
+        def probe(html):
+            result=[];loaded=[]
+            slot=lambda ok:loaded.append(ok)
+            browser.page.loadFinished.connect(slot)
+            browser.page.setHtml(html,QUrl('about:blank'))
+            deadline=time.perf_counter()+10
+            while not loaded and time.perf_counter()<deadline:QTest.qWait(50)
+            browser.page.loadFinished.disconnect(slot)
+            assert loaded and loaded[-1],loaded
+            browser.page.runJavaScript(EXTRACT,lambda data:result.append(json.loads(data)))
+            while not result and time.perf_counter()<deadline:QTest.qWait(50)
+            assert result,result
+            return result[0]
         start=time.perf_counter()
-        while not result and time.perf_counter()-start<12:QTest.qWait(50)
-        assert result and not result[0][1] and 'Синтетическая справка' in result[0][0],result
+        ordinary=probe('<main id="search">'+('Обзор от ИИ. Статья о медицинском термине. '*30)+'</main>')
+        assert not ordinary['ai'] and not ordinary['text'],ordinary
+        genuine=probe('<main><div>RAD_AI_ANSWER</div><div>Синтетическая справка по медицинскому термину.</div><div>RAD_AI_END</div></main>')
+        assert genuine['ai'] and 'Синтетическая справка' in genuine['text'],genuine
         elapsed=time.perf_counter()-start;browser.close();QTest.qWait(300)
-        Path(target).write_text(json.dumps({'chromium_renderer':'ok','offline_fixture':'ok','extraction':'ok','elapsed_s':elapsed,'real_google_ai_mode':'not tested against corporate firewall'},ensure_ascii=False),encoding='utf8')
+        Path(target).write_text(json.dumps({'chromium_renderer':'ok','offline_fixture':'ok','extraction':'ok','ordinary_results_rejected':True,'elapsed_s':elapsed,'real_google_ai_mode':'not tested against corporate firewall'},ensure_ascii=False),encoding='utf8')

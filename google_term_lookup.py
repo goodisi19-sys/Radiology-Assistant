@@ -20,7 +20,13 @@ def sanitized_query(term,area=''):
     if not re.fullmatch(r'[А-Яа-яЁёA-Za-z][А-Яа-яЁёA-Za-z -]{1,79}',term):raise ValueError('Выделите отдельный термин, без чисел и данных исследования.')
     words=term.split()
     if len(words)>4 or sum(w[:1].isupper() for w in words)>=3:raise ValueError('Запрос похож на персональные данные или фрагмент протокола.')
-    return term+' медицинский термин МРТ'+(' '+area if area in AREAS and area!='Другие исследования' else '')
+    context=('; область: '+area if area in AREAS and area!='Другие исследования' else '')
+    return ('Ты помощник врача-рентгенолога. Проверь русскую радиологическую терминологию МРТ/КТ, '
+            'возможную опечатку и грамматическую форму указанного термина. Не придумывай находки, диагнозы, '
+            'числа, стороны или уровни. Если термин неоднозначен, прямо сообщи об этом. '
+            'Дай краткое пояснение и возможное исправление на русском. '
+            'Ответ начни отдельной строкой RAD_AI_ANSWER и закончи отдельной строкой RAD_AI_END. '
+            'Термин: '+term+context)
 
 def search_url(term,area='',ai=True):
     query=sanitized_query(term,area)

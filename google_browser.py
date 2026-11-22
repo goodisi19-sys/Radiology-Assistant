@@ -20,10 +20,11 @@ EXTRACT=r'''(() => {
  const text=(document.body && document.body.innerText)||'';
  if (/unusual traffic|not a robot|не робот|подозрительный трафик/i.test(text))
    return {blocked:true,url:location.href,text:''};
- const main=document.querySelector('#search')||document.querySelector('main')||document.body;
+ const main=document.querySelector('main')||document.querySelector('[role="main"]')||document.querySelector('#search');
  const output=(main ? main.innerText : '').trim();
- return {blocked:false,url:location.href,text:output.slice(0,4000),
-   ai:/AI Overview|Обзор от ИИ/i.test(output) || (new URL(location.href).searchParams.get('udm')==='50' && output.length>350 && !document.querySelector('[aria-busy="true"],[role="progressbar"]'))};
+ const match=output.match(/(?:^|\n)[ \t]*RAD_AI_ANSWER[ \t]*\r?\n([\s\S]{10,4000}?)\r?\n[ \t]*RAD_AI_END[ \t]*(?:\n|$)/);
+ return {blocked:false,url:location.href,text:match?match[1].trim():'',
+   ai:!!match && !document.querySelector('[aria-busy="true"],[role="progressbar"]')};
 })()'''
 
 EXTRACT='JSON.stringify('+EXTRACT+')'
@@ -43,25 +44,20 @@ class GoogleBrowser(QDialog):
         button=QPushButton('Скрыть страницу');button.clicked.connect(self.hide);layout.addWidget(button)
         self.timeout=QTimer(self);self.timeout.setSingleShot(True);self.timeout.timeout.connect(self.expired)
         self.poll=QTimer(self);self.poll.setInterval(700);self.poll.timeout.connect(self.extract)
-        self.fallback_timer=QTimer(self);self.fallback_timer.setSingleShot(True);self.fallback_timer.timeout.connect(self.fallback_search)
-        self.callback=None;self.best='';self.best_url='';self.token=0;self.fallback=False
+        self.callback=None;self.best_url='';self.token=0
         self.page.loadFinished.connect(self.loaded)
         self.page.renderProcessTerminated.connect(lambda *_:self.finish('', 'браузерный процесс остановлен'))
     def search(self,url,callback):
         if not allowed_url(url) or not url.startswith('https://www.google.com/search?'):raise ValueError('Invalid Google URL')
-        self.cancel();self.callback=callback;self.token+=1;self.best='';self.best_url=url;self.fallback=False
+        from urllib.parse import urlsplit,parse_qs
+        if parse_qs(urlsplit(url).query).get('udm')!=['50']:raise ValueError('Требуется Google AI Mode')
+        self.cancel();self.callback=callback;self.token+=1;self.best_url=url
         self.page.setLifecycleState(QWebEnginePage.LifecycleState.Active)
-        self.timeout.start(10000);self.fallback_timer.start(6500);self.page.load(QUrl(url))
+        self.timeout.start(30000);self.page.load(QUrl(url))
     def loaded(self,ok):
         if not self.callback:return
         if ok:self.poll.start();self.extract()
-        elif not self.fallback:self.fallback_search()
-    def fallback_search(self):
-        if not self.callback or self.fallback:return
-        self.fallback=True;url=QUrl(self.best_url)
-        from PySide6.QtCore import QUrlQuery
-        query=QUrlQuery(url);query.removeAllQueryItems('udm');url.setQuery(query)
-        self.page.load(url)
+        else:self.finish('','страница Google AI Mode не загрузилась')
     def extract(self):
         if not self.callback:return
         token=self.token
@@ -74,19 +70,19 @@ class GoogleBrowser(QDialog):
             if result.get('blocked'):
                 self.finish('','Google требует проверку пользователя; откройте техническую страницу');return
             text=result.get('text','');source=result.get('url','')
-            if not allowed_url(source):return
-            if isinstance(text,str) and len(text.strip())>120:
-                self.best=text;self.best_url=source
-                if result.get('ai') or self.fallback:self.finish(text,'')
+            from urllib.parse import urlsplit,parse_qs
+            if not allowed_url(source) or parse_qs(urlsplit(source).query).get('udm')!=['50']:return
+            if result.get('ai') and isinstance(text,str) and len(text.strip())>=10:
+                self.best_url=source;self.finish(text,'')
         self.page.runJavaScript(EXTRACT,received)
-    def expired(self):self.finish(self.best,'' if self.best else 'нет ответа за 10 секунд / доступ ограничен')
+    def expired(self):self.finish('','Google AI Mode не вернул распознаваемый ответ за 30 секунд; обычная выдача не используется')
     def finish(self,text,error):
         if self.callback is None:return
-        callback=self.callback;source=self.best_url;self.callback=None;self.poll.stop();self.timeout.stop();self.fallback_timer.stop();self.view.stop()
+        callback=self.callback;source=self.best_url;self.callback=None;self.poll.stop();self.timeout.stop();self.view.stop()
         if not self.isVisible():self.page.setLifecycleState(QWebEnginePage.LifecycleState.Frozen)
         if callback:callback(text,source,error)
     def cancel(self):
-        self.token+=1;self.callback=None;self.poll.stop();self.timeout.stop();self.fallback_timer.stop();self.view.stop()
+        self.token+=1;self.callback=None;self.poll.stop();self.timeout.stop();self.view.stop()
     def closeEvent(self,event):
         self.cancel();self.hide();event.ignore() # Closing the inspector never closes the editor.
     def close(self):
