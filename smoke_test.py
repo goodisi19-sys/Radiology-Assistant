@@ -140,6 +140,33 @@ def run(result_path):
         window.library.ai.exclude('ошибочно изученная фраза')
         assert 'ошибочно изученная фраза' in window.library.ai.excluded
         assert window.library.backup().exists()
+        # Exercise Qt shortcut routing in the compiled main EXE, not a direct call.
+        from PySide6.QtTest import QTest
+        from PySide6.QtCore import QModelIndex
+        from PySide6.QtGui import QTextCursor
+        prefix='Срединные структуры '
+        phrase=prefix+'расположены обычно.'
+        window.library.add(phrase,'Личный стандарт','ГМ');window.library.db.commit()
+        for destination in ('editor','popup'):
+            original='\n'*7+prefix
+            window.editor.setPlainText(original)
+            cursor=window.editor.textCursor();cursor.movePosition(QTextCursor.MoveOperation.End)
+            window.editor.setTextCursor(cursor);window.editor.setFocus()
+            window.update_suggestions();popup=window.completer.popup()
+            assert popup.isVisible()
+            assert popup.currentIndex().data()=='Личный стандарт: '+phrase
+            if destination=='popup':popup.setCurrentIndex(QModelIndex())
+            accepted_before=window.library.db.execute('SELECT coalesce(sum(accepted_count),0) FROM user_phrase_memory').fetchone()[0]
+            QTest.keyClick(popup if destination=='popup' else window.editor,Qt.Key.Key_Tab)
+            assert window.editor.toPlainText()=='\n'*7+phrase+' '
+            assert not popup.isVisible()
+            assert window.library.db.execute('SELECT coalesce(sum(accepted_count),0) FROM user_phrase_memory').fetchone()[0]==accepted_before+1
+            window.editor.undo();application.processEvents()
+            assert window.editor.toPlainText()==original
+            assert window.library.db.execute('SELECT coalesce(sum(accepted_count),0) FROM user_phrase_memory').fetchone()[0]==accepted_before
+        window.update_suggestions();QTest.keyClick(window.editor,Qt.Key.Key_Return)
+        assert window.editor.toPlainText()==original+'\n'
+        assert window.completion_index.fts
         from model_assets import verify_files
         verify_files()
         from hybrid_backend import NeuralBackend
@@ -151,7 +178,7 @@ def run(result_path):
             assert deep['scores'][0]>deep['scores'][1]
         finally:neural.close()
         window.editor.document().setModified(False); window.close()
-        Path(result_path).write_text(json.dumps({'protocols': visible, 'docx': 'ok', 'view_scale': 'ok',
+        Path(result_path).write_text(json.dumps({'protocols': visible, 'packaged_tab_editor_popup_undo_enter':'ok', 'fts5':'ok', 'docx': 'ok', 'view_scale': 'ok',
             'quick_lines': 'ok', 'spelling': 'ok', 'punctuation': 'ok', 'google_input': 'ok', 'yandex_exchange': 'ok',
             'mra_paragraphs': 'ok', 'layouts_audited': 497, 'methodology': 'ok', 'protocol_check': 'ok', 'live_spelling': 'ok', 'favorites': 'ok', 'shorthand': 'ok', 'adaptive_completion': 'ok', 'fragment_flow': 'ok', 'local_ai': 'ok', 'bundled_rubert': 'ok', 'bundled_sage': 'ok', 'critical_tokens': 'ok', 'explicit_learning': 'ok', 'memory_backup': 'ok',
             'base_sources_restored': 127, 'source_review_required': 18}), encoding='utf-8')

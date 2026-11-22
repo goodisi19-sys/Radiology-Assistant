@@ -41,9 +41,13 @@ class PersonalRanker:
         contrast=self.features(original,other,1,area,modality)
         sign=1 if accepted else -1
         with self.db:
-            for key in chosen:
-                w=max(-1,min(1,self.weights.get(key,0)+.08*sign*(chosen[key]-contrast[key])))
-                self.db.execute('INSERT INTO hybrid_weights VALUES(?,?) ON CONFLICT(feature) DO UPDATE SET weight=excluded.weight',(key,w))
+            proposed={key:max(-1,min(1,self.weights.get(key,0)*.998+.08*sign*(chosen[key]-contrast[key]))) for key in chosen}
+            from rank_guard import validate,snapshot
+            valid,metrics=validate(self.weights,proposed)
+            if valid:
+                snapshot(self.db,proposed,metrics,self.weights)
+                for key,w in proposed.items():
+                    self.db.execute('INSERT INTO hybrid_weights VALUES(?,?) ON CONFLICT(feature) DO UPDATE SET weight=excluded.weight',(key,w))
             self.db.execute('INSERT INTO hybrid_feedback VALUES(?,?,?,?,?,1) ON CONFLICT(original,candidate,area,modality,accepted) DO UPDATE SET uses=min(uses+1,100)',(original.casefold(),candidate.casefold(),area,modality,int(accepted)))
         self.reload()
     def add_example(self,text,area='',modality=''):

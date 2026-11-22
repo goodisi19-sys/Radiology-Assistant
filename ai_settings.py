@@ -19,14 +19,15 @@ class AISettings(QDialog):
         self.activity_timer=QTimer(self);self.activity_timer.setInterval(1500);self.activity_timer.timeout.connect(self.refresh_activity);self.activity_timer.start()
         self.refresh_activity()
         self.status=QLabel();self.status.setWordWrap(True);layout.addWidget(self.status);self.items=QListWidget();layout.addWidget(self.items)
-        for name,fn in [('Исключить выбранную формулировку',self.exclude),('Резервная копия всей памяти',window.backup_database),('Очистить память обучения',self.clear)]:
+        for name,fn in [('Исключить выбранную формулировку',self.exclude),('Резервная копия всей памяти',window.backup_database),('Откатить последнее изменение ранжирования',self.rollback),('Очистить память обучения',self.clear)]:
             button=QPushButton(name);button.clicked.connect(fn);layout.addWidget(button)
         self.refresh()
     def refresh_activity(self):
         hybrid=getattr(self.window,'hybrid',None)
         if not hybrid:return
         state=hybrid.resource_state;resource=state.get('resources',{})
-        self.activity.setText(f"{hybrid.last_status}; выбран: {state.get('requested','—')}; активный профиль: {state.get('mode','—')}; "
+        loaded=hybrid.backend.loaded
+        self.activity.setText(f"В памяти RuBERT: {'да' if loaded.get('rubert') else 'нет'}, SAGE: {'да' if loaded.get('sage') else 'нет'}. {hybrid.last_status}; выбран: {state.get('requested','—')}; активный профиль: {state.get('mode','—')}; "
             f"RuBERT: {'доступен' if state.get('bert') else 'приостановлен'}; SAGE: {'доступна' if state.get('deep') else 'приостановлена'}; "
             f"{state.get('reason','')} CPU системы: {resource.get('cpu',0):.0f} %; свободно ОЗУ: {resource.get('available_gb',0):.1f} ГиБ. "
             'SAGE оценивает готовые варианты исправлений; её ответы не обучают память.')
@@ -51,6 +52,8 @@ class AISettings(QDialog):
         ai=self.window.library.ai;self.status.setText('Готов. '+', '.join(f'{k}: {v}' for k,v in ai.stats().items()))
         feedback=ai.db.execute('SELECT coalesce(sum(uses),0),sum(CASE WHEN accepted=0 THEN uses ELSE 0 END) FROM hybrid_feedback').fetchone()
         self.status.setText(self.status.text()+f'; обратная связь: {feedback[0]}, отклонения: {feedback[1] or 0}')
+        phrase_count=ai.db.execute('SELECT count(*),coalesce(sum(accepted_count),0),coalesce(sum(rejected_count),0) FROM user_phrase_memory').fetchone()
+        self.status.setText(self.status.text()+f'; формулировки: {phrase_count[0]}, приняты: {phrase_count[1]}, отклонены явно: {phrase_count[2]}')
         self.items.clear()
         for original,replacement,area,n in ai.db.execute('SELECT original,replacement,area,uses FROM ai_corrections ORDER BY uses DESC LIMIT 200'):
             item=QListWidgetItem(f'{original} → {replacement} ({n})');item.setData(Qt.ItemDataRole.UserRole,('correction',original,replacement,area));self.items.addItem(item)
@@ -60,6 +63,8 @@ class AISettings(QDialog):
             self.items.addItem(phrase)
         for phrase, in ai.db.execute("SELECT DISTINCT suffix FROM adaptive_continuations WHERE source='verified' LIMIT 200"):
             if phrase not in ai.excluded:self.items.addItem(phrase)
+        for phrase,count in ai.db.execute('SELECT phrase,sum(accepted_count) FROM user_phrase_memory GROUP BY phrase ORDER BY sum(accepted_count) DESC LIMIT 100'):
+            item=QListWidgetItem(f'Продолжение ({count}): '+phrase);item.setData(Qt.ItemDataRole.UserRole,('phrase',phrase));self.items.addItem(item)
     def exclude(self):
         item=self.items.currentItem()
         if not item:return
@@ -69,13 +74,22 @@ class AISettings(QDialog):
                 if data[0]=='correction':
                     ai.db.execute('DELETE FROM ai_corrections WHERE original=? AND replacement=? AND area=?',data[1:])
                     ai.db.execute('DELETE FROM hybrid_feedback WHERE original=? AND candidate=?',(data[1],data[2]))
+                elif data[0]=='phrase':
+                    ai.db.execute('DELETE FROM user_phrase_memory WHERE phrase=?',(data[1],))
+                    ai.db.execute('UPDATE phrase_events SET active=0 WHERE phrase=?',(data[1],))
+                    ai.exclude(data[1])
                 elif data[0]=='word':ai.db.execute('DELETE FROM ai_words WHERE word=?',(data[1],))
             ai.refresh_memory()
         else:ai.exclude(item.text())
         self.refresh()
+    def rollback(self):
+        row=self.window.library.db.execute('SELECT id FROM rank_versions WHERE active=0 ORDER BY id DESC LIMIT 1').fetchone()
+        if row:self.window.phrase_memory.rollback(row[0])
+        self.refresh()
+
     def clear(self):
         if QMessageBox.question(self,'Очистить память','Создать резервную копию и очистить статистику? Стандарты, словарь, избранное и документы сохранятся.',QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,QMessageBox.StandardButton.No)!=QMessageBox.StandardButton.Yes:return
-        self.window.library.backup();self.window.library.ai.clear()
+        self.window.library.backup();self.window.library.ai.clear();self.window.phrase_memory.clear()
         with self.window.library.db:
             self.window.library.db.execute('DELETE FROM adaptive_continuations')
             self.window.library.db.execute('DELETE FROM adaptive_documents')

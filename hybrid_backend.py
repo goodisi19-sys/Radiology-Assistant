@@ -1,11 +1,11 @@
 """Bounded external CPU backends, hard cancellation, no external service calls."""
-import json,os,queue,subprocess,sys,threading
+import json,os,queue,subprocess,sys,threading,time
 from model_assets import installation_root,models_root
 
 class Cancelled(Exception):pass
 
 class NeuralBackend:
-    def __init__(self):self.encoder=None;self.running=None;self.answers=queue.Queue();self.lock=threading.Lock();self.dead=False;self.epoch=0
+    def __init__(self):self.encoder=None;self.running=None;self.answers=queue.Queue();self.lock=threading.Lock();self.dead=False;self.epoch=0;self.loaded={};self.last_used=0
     def cancel(self):
         with self.lock:
             self.epoch+=1;self.answers.put('')
@@ -21,7 +21,7 @@ class NeuralBackend:
                                 try:stream.close()
                                 except OSError:pass
                     threading.Thread(target=reap,daemon=True).start()
-            self.encoder=None;self.running=None;self.answers=queue.Queue()
+            self.encoder=None;self.running=None;self.answers=queue.Queue();self.loaded={}
     def close(self):self.dead=True;self.cancel()
     def semantic(self,context,options,threads=2,cache=None,timeout=1.0,kind='encoder'):
         if self.dead:raise Cancelled()
@@ -45,11 +45,14 @@ class NeuralBackend:
             threading.Thread(target=read,daemon=True).start()
         p=self.encoder
         task={'kind':kind,'root':str(models_root()/('sage' if kind=='sage' else 'rubert-tiny2')),'context':context[:1500],'options':[s[:1500] for s in options[:600]],'threads':threads,'cache':str(cache) if cache else None}
+        from context_identity import context_key
+        task['context_key']=context_key(kind,context,candidates=options,model=task['root'])
         try:
             p.stdin.write(json.dumps(task,ensure_ascii=True)+'\n');p.stdin.flush()
             raw=answers.get(timeout=12 if cold else timeout)
             result=json.loads(raw)
             if 'error' in result:raise RuntimeError(result['error']+':'+result.get('error_type','')+'@'+result.get('stage',''))
+            self.loaded=result.get('loaded',{});self.last_used=time.monotonic()
             return result
         except Exception:
             self.cancel();raise

@@ -12,7 +12,7 @@ class HybridCoordinator:
     def __init__(self,window):
         self.window=window;self.version=0;self.closed=False;self.backend=NeuralBackend();self.policy=ResourcePolicy()
         self.executor=ThreadPoolExecutor(max_workers=1,thread_name_prefix='hybrid-dispatch')
-        self.results=SimpleQueue();self.busy=False;self.cache=OrderedDict();self.last_status='LocalAI активен';self.failure=''
+        self.results=SimpleQueue();self.busy=False;self.cache=OrderedDict();self.last_status='LocalAI активен';self.failure='';self.completion_scores={}
         self.resource_state={};self.cooldown=0;self.text_snapshot='';self.pending_search=None
         self.timer=QTimer(window);self.timer.setSingleShot(True);self.timer.setInterval(650);self.timer.timeout.connect(self.analyze)
         self.poll=QTimer(window);self.poll.setInterval(80);self.poll.timeout.connect(self.drain);self.poll.start()
@@ -22,9 +22,10 @@ class HybridCoordinator:
     def resources(self):
         if self.closed:return
         try:
+            if not self.busy and self.backend.last_used and time.monotonic()-self.backend.last_used>120:self.backend.cancel()
             previous_deep=self.resource_state.get('deep',False)
             self.resource_state=self.policy.choose(sample(),self.window.library.get_setting('hybrid_mode') or 'Автоматический')
-            self.timer.setInterval(1500 if self.resource_state['mode']=='Экономичный' else 650)
+            self.timer.setInterval(4000)
             if previous_deep and not self.resource_state.get('deep'):self.backend.cancel()
             if self.window.isMinimized() or not self.resource_state['bert'] or not self.window.library.ai.enabled('neural_enabled'):
                 self.backend.cancel();self.last_status='LocalAI активен — нейроанализ приостановлен'
@@ -35,7 +36,7 @@ class HybridCoordinator:
     def changed(self):
         if self.closed:return
         self.version+=1
-        if self.busy:self.backend.cancel()
+        # Keep a warm worker; stale results are discarded by revision.
         self.timer.start()
     def reset(self):
         self.version+=1;self.cache.clear();self.backend.cancel();self.timer.stop()
@@ -44,16 +45,18 @@ class HybridCoordinator:
         if hasattr(self,'search_poll'):self.search_poll.stop()
         self.backend.close();self.executor.shutdown(wait=False,cancel_futures=True)
     def allowed(self):
-        return not self.closed and not self.window.isMinimized() and self.window.library.ai.enabled('neural_enabled') and self.resource_state.get('bert',False) and time.monotonic()>self.cooldown
+        return not self.closed and not self.window.isMinimized() and self.window.library.ai.enabled('neural_enabled') and self.resource_state.get('bert',False) and self.resource_state.get('resources',{}).get('cpu',100)<40 and time.monotonic()>self.cooldown
     def analyze(self):
         if self.closed:return
         if self.busy:self.timer.start(400);return
         if not self.allowed():return
         editor=self.window.editor;block=editor.textCursor().block().text()
         if len(block.strip())<8:return
-        digest=hashlib.sha256(block.encode()).hexdigest()
+        from context_identity import context_key
+        state=self.window.protocol_context.update(editor.toPlainText(),editor.document().revision())
+        digest=context_key('analysis',block,area=state.area,kind=state.modality,model='rubert-tiny2+sage-v1')
         if digest in self.cache:return
-        area=classify(editor.document().firstBlock().text()+' '+block) if self.window.library.ai.enabled('auto_area') else ''
+        area=state.area if self.window.library.ai.enabled('auto_area') else ''
         issues=self.window.live_spelling.cache.get(block,())
         tasks=[]
         for issue in issues[:3]:
@@ -75,6 +78,10 @@ class HybridCoordinator:
         # Context classification from the same encoder; no diagnostic head is claimed.
         prototypes=[('ГМ','МРТ головного мозга. Срединные структуры.'),('Позвоночник','МРТ позвоночника. Межпозвонковые диски.'),('ОМТ','МРТ органов малого таза.'),('Суставы','МРТ сустава. Связки и мениски.'),('Брюшная полость','КТ органов брюшной полости. Печень и почки.'),('Мягкие ткани','МРТ мягких тканей.'),('Сосуды','МР ангиография артерий и вен.')]
         version=self.version
+        cursor_snapshot=(cursor.position(),cursor.anchor())
+        completion_after=block[len(cursor_before):]
+        completion_pool=self.window.completion_index.suggest(cursor_before,completion_after,area,state.modality,30)
+        completion_key=context_key('completion',cursor_before,completion_after,area,state.modality,[v['source_id']+v['suffix'] for v in completion_pool],model='rubert-tiny2-v1')
         definitions=self.window.glossary.verified_context(block) if hasattr(self.window,'glossary') else []
         glossary_context=' '.join(term+': '+definition for term,definition in definitions)[:350]
         settings=dict(self.resource_state)
@@ -83,6 +90,11 @@ class HybridCoordinator:
             try:
                 if self.closed or version!=self.version:raise RuntimeError('cancelled')
                 classification=self.backend.semantic(block,[p[1] for p in prototypes],settings['threads'],cache_path)
+                if completion_pool:
+                    classification['completion_key']=completion_key
+                    classification['completion_scores']=self.backend.semantic(cursor_before+' '+completion_after,[c['phrase'] for c in completion_pool],settings['threads'],cache_path,timeout=3)['scores']
+                    classification['completion_ids']=[c['source_id']+c['suffix'] for c in completion_pool]
+                classification['cursor_snapshot']=cursor_snapshot
                 ranked=[]
                 for word,before,after,options in tasks:
                     if self.closed or version!=self.version:return self.results.put((version,digest,block,area,[],None,'cancelled'))
@@ -106,6 +118,19 @@ class HybridCoordinator:
                 self.failure=error;self.last_status='LocalAI активен — нейромодуль недоступен';self.cooldown=time.monotonic()+60
                 # No raw text or exception detail is logged or shown.
                 continue
+            from context_identity import context_key
+            if classification and classification.get('cursor_snapshot') is not None:
+                cursor=self.window.editor.textCursor()
+                if classification['cursor_snapshot']!=(cursor.position(),cursor.anchor()):continue
+            if classification and 'completion_key' in classification:
+                self.completion_scores[classification['completion_key']]=dict(zip(classification['completion_ids'],classification['completion_scores']))
+                while len(self.completion_scores)>64:self.completion_scores.pop(next(iter(self.completion_scores)))
+                popup=self.window.completer.popup()
+                if popup.isVisible():
+                    selected=popup.currentIndex().data()
+                    self.window.update_suggestions()
+                    labels=self.window.completion_model.stringList()
+                    if selected in labels:popup.setCurrentIndex(popup.model().index(labels.index(selected),0))
             ai=self.window.library.ai
             for word,before,after,options,scores,deep_scores in ranked:
                 values=dict(zip(options,scores))
@@ -113,9 +138,9 @@ class HybridCoordinator:
                     import math
                     top=max(deep_scores)
                     weights=[math.exp(s-top) for s in deep_scores]
-                    ai.deep_scores[(word,before,after,area)]=dict(zip(options,weights))
+                    ai.deep_scores[context_key('word',before+word,after,area,candidates=options,model='hybrid-v1')]=dict(zip(options,weights))
                     while len(ai.deep_scores)>256:ai.deep_scores.pop(next(iter(ai.deep_scores)))
-                ai.neural_scores[(word,before,after,area)]=values
+                ai.neural_scores[context_key('word',before+word,after,area,candidates=options,model='hybrid-v1')]=values
                 while len(ai.neural_scores)>256:ai.neural_scores.pop(next(iter(ai.neural_scores)))
             self.cache[digest]=True
             while len(self.cache)>256:self.cache.popitem(last=False)
@@ -137,7 +162,9 @@ class HybridCoordinator:
         if self.busy:
             self.pending_search=(query,rows,callback)
             return
-        snapshot=tuple(rows);version=self.version;self.busy=True
+        # A lexical shortlist bounds neural work; do not encode the entire library on every search.
+        lexical=self.window.library.ai.search(query,rows,limit=60)
+        snapshot=tuple(lexical[:60] or rows[:60]);version=self.version;self.busy=True
         cache=self.window.library.path.parent/'hybrid-embeddings.sqlite3'
         def work():
             try:

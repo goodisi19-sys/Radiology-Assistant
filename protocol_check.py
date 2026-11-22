@@ -150,21 +150,8 @@ def consistency_findings(text):
     heading=re.search(r'(?im)^\s*заключение\s*[:：]',text)
     if not heading:return []
     desc,conclusion=text[:heading.start()],text[heading.end():];out=[]
-    # Compare only a unique measurement for the same named organ in each section.
-    measure=r'(\d+(?:[.,]\d+)?(?:\s*[xх×]\s*\d+(?:[.,]\d+)?){0,2})\s*(мм|см)\b'
-    for entity,noun in ENTITIES.items():
-        values=[]
-        for section in (desc,conclusion):
-            found=[]
-            for clause in re.split(r'[;\n]|(?<!\d)\.(?!\d)',section):
-                if re.search(noun,clause,re.I):
-                    matches=list(re.finditer(measure,clause,re.I))
-                    for m in matches:
-                        scale=10 if m[2].casefold()=='см' else 1
-                        found.append(tuple(float(n.replace(',','.'))*scale for n in re.split(r'\s*[xх×]\s*',m[1])))
-            values.append(found)
-        if len(values[0])==len(values[1])==1 and values[0]!=values[1]:
-            out.append(Finding(heading.end(),len(text),'Возможное несоответствие размеров: '+entity,True))
+    from protocol_context import ProtocolContextState,conflicts
+    out.extend(Finding(a,b,message,True,related) for a,b,message,related in conflicts(ProtocolContextState().update(text)))
     level=r'\b(?:C|Th|T|L|S)\d{1,2}\s*[-–]\s*(?:C|Th|T|L|S)\d{1,2}\b'
     a=set(re.findall(level,desc,re.I));b=set(re.findall(level,conclusion,re.I))
     if len(a)==len(b)==1 and {v.upper().replace(' ','') for v in a}!={v.upper().replace(' ','') for v in b}:

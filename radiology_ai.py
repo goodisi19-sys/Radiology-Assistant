@@ -78,14 +78,17 @@ class LocalAI:
     def ranked_corrections(self,word,before='',after='',area=''):
         values=self.corrections(word,before,after,area)
         if not hasattr(self,'ranker'):return values
-        key=(word,before.rsplit('\n',1)[-1],after.split('\n',1)[0],area)
+        from context_identity import context_key
+        key=context_key('word',before.rsplit('\n',1)[-1]+word,after.split('\n',1)[0],area,candidates=values,model='hybrid-v1')
         scores=self.neural_scores.get(key,{})
         return tuple(self.ranker.rank(word,values,area,modality(before+after),scores,self.deep_scores.get(key,{})))
 
     def ranked_completion(self,prefix,before='',area=''):
         values=self.complete(prefix,before,area)
         if not hasattr(self,'ranker'):return values
-        return tuple(self.ranker.rank(prefix,values,area,modality(before),self.neural_scores.get((prefix,before,'',area),{}),self.deep_scores.get((prefix,before,'',area),{})))
+        from context_identity import context_key
+        key=context_key('word',before+prefix,'',area,candidates=values,model='hybrid-v1')
+        return tuple(self.ranker.rank(prefix,values,area,modality(before),self.neural_scores.get(key,{}),self.deep_scores.get(key,{})))
 
     def enabled(self, key):
         row=self.db.execute('SELECT value FROM app_settings WHERE key=?',(key,)).fetchone()

@@ -22,7 +22,8 @@ class Encoder:
         for key,text in zip(keys,texts):
             if key in self.cache:continue
             row=self.db.execute('SELECT vector FROM vectors WHERE model=? AND digest=?',(self.model,key)).fetchone() if self.db else None
-            if row:self.cache[key]=np.frombuffer(row[0],dtype=np.float32).copy()
+            vector=np.frombuffer(row[0],dtype=np.float32).copy() if row else None
+            if vector is not None and vector.size==312 and np.isfinite(vector).all():self.cache[key]=vector
             else:missing.append((key,text[:2000]))
         for start in range(0,len(missing),8):
             batch=missing[start:start+8];encoded=self.tokenizer.encode_batch([t for _,t in batch])
@@ -65,7 +66,7 @@ def main():
             else:
                 if encoder is None:encoder=Encoder(task['root'],task.get('threads',2),task.get('cache'))
                 scores=encoder.rank(task['context'],task['options'][:600])
-            result={'scores':scores,'ms':(time.perf_counter()-start)*1000}
+            result={'scores':scores,'ms':(time.perf_counter()-start)*1000,'loaded':{'rubert':encoder is not None,'sage':sage is not None},'context_key':task.get('context_key')}
         except Exception as exc:
             import traceback
             frame=traceback.extract_tb(exc.__traceback__)[-1]

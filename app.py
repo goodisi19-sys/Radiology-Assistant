@@ -475,6 +475,13 @@ class MainWindow(QMainWindow):
         glossary_path=(installation_root() if getattr(sys,'frozen',False) else app_data_dir())/'med_glossary.json'
         self.glossary=MedicalGlossary(glossary_path)
         self.library.ai.glossary_words=self.glossary.verified_words();self.library.ai.refresh_memory()
+        from context_retrieval import ContextIndex
+        from phrase_memory import PhraseMemory
+        from protocol_context import ProtocolContextState
+        self.completion_index=ContextIndex(self.library)
+        self.phrase_memory=PhraseMemory(self.library)
+        self.protocol_context=ProtocolContextState()
+        self._accept_events=[]
         self.current_file = None
         self._closing = False
         self.setWindowTitle(APP_NAME)
@@ -511,7 +518,7 @@ class MainWindow(QMainWindow):
         self.status_timer.timeout.connect(self.update_status);self.editor.textChanged.connect(self.status_timer.start)
         self.completion_timer=QTimer(self); self.completion_timer.setSingleShot(True)
         self.completion_timer.setInterval(140); self.completion_timer.timeout.connect(self.update_suggestions)
-        self.editor.textChanged.connect(self.completion_timer.start)
+        self.editor.textChanged.connect(self.schedule_context_completion)
         self.editor.installEventFilter(self)
         self.editor.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.editor.customContextMenuRequested.connect(self.show_editor_menu)
@@ -529,6 +536,8 @@ class MainWindow(QMainWindow):
         self.editor.cursorPositionChanged.connect(self.completer.popup().hide)
         self.editor.installEventFilter(self)
         self.completer.popup().installEventFilter(self)
+        self.completer.popup().setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.completer.popup().customContextMenuRequested.connect(self.reject_completion_menu)
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self.editor)
         side = QWidget(); side_l = QVBoxLayout(side); side_l.setContentsMargins(10,10,10,10)
@@ -624,6 +633,9 @@ class MainWindow(QMainWindow):
         bar.addAction(self.action("Оформить текст","Ctrl+Shift+F",self.format_all_text))
         ai_menu = self.menuBar().addMenu("Настройки")
         ai_menu.addAction(self.action("Локальный ИИ", "", self.show_ai_settings))
+        from document_tools import show_volume,show_source_review
+        ai_menu.addAction(self.action('Объём эллипсоида…','',lambda:show_volume(self)))
+        ai_menu.addAction(self.action('Сравнить с вставленным шаблоном…','',lambda:show_source_review(self)))
         lib.addAction(self.action("Запомнить проверенный текст", "", self.learn_confirmed_description))
         edit = self.menuBar().addMenu("Правка")
         edit.addAction(self.action("Оформить предложения","Ctrl+Shift+F",self.format_all_text))
@@ -665,6 +677,7 @@ class MainWindow(QMainWindow):
         try:
             self.library.verify(title,category,self.editor.toPlainText())
             self.live_spelling.reload_words()
+            self.completion_index.sync()
             self.refresh_phrases()
             QMessageBox.information(self,"Верифицировано","Протокол сохранён как личный стандарт.")
         except Exception as exc: QMessageBox.critical(self,"Ошибка",str(exc))
@@ -704,12 +717,15 @@ class MainWindow(QMainWindow):
             if hasattr(self,'hybrid'): self.hybrid.close()
             if hasattr(self, 'shorthand_dialog'): self.shorthand_dialog.close()
             if hasattr(self, 'protocol_check_dialog'): self.protocol_check_dialog.close()
+            self.completion_index.close()
+            self.protocol_context.clear()
             self.library.db.close()
             event.accept()
         else: event.ignore()
 
     def new_file(self):
         if not self.confirm_discard(): return
+        self._accept_events=[];self.protocol_context.clear();self._inserted_template_baseline=None;self.completion_index.shortlist=None
         if hasattr(self,'hybrid'):self.hybrid.reset()
         if hasattr(self,'term_lookup'):self.term_lookup.reset()
         self.editor.clear(); self.current_file=None; self.editor.document().setModified(False); self.update_status()
@@ -723,6 +739,8 @@ class MainWindow(QMainWindow):
                 from document_io import read_docx
                 text = read_docx(path)
             else: text = Path(path).read_text(encoding="utf-8")
+            self._accept_events=[];self.protocol_context.clear();self._inserted_template_baseline=None;self.completion_index.shortlist=None
+            if hasattr(self,'hybrid'):self.hybrid.reset()
             if hasattr(self,'term_lookup'):self.term_lookup.reset()
             self.editor.setPlainText(text)
             self.current_file=path; self.editor.document().setModified(False); self.update_status()
@@ -937,7 +955,7 @@ class MainWindow(QMainWindow):
         if not folder: return
         try:
             fragments,full=self.library.import_files([folder])
-            self.refresh_phrases(); self.refresh_templates()
+            self.refresh_phrases(); self.refresh_templates(); self.completion_index.sync()
             QMessageBox.information(self,"Импорт",f"Новых полных протоколов: {full}\nФрагментов: {fragments}")
         except Exception as exc:
             QMessageBox.critical(self,"Ошибка импорта",str(exc))
@@ -945,7 +963,7 @@ class MainWindow(QMainWindow):
     def import_templates(self):
         paths=QFileDialog.getOpenFileNames(self,"Выберите DOCX/TXT или ZIP с шаблонами","","Шаблоны (*.docx *.txt *.zip)")
         if not paths[0]: return
-        n, full=self.library.import_files(paths[0]); self.refresh_phrases(); self.refresh_templates()
+        n, full=self.library.import_files(paths[0]); self.refresh_phrases(); self.refresh_templates(); self.completion_index.sync()
         QMessageBox.information(self,"Импорт завершён",f"Добавлено/обновлено фрагментов: {n}\nВсего фраз в библиотеке: {self.library.db.execute('SELECT COUNT(*) FROM phrases').fetchone()[0]}")
     def refresh_phrases(self):
         if self._closing:return
@@ -1130,6 +1148,7 @@ class MainWindow(QMainWindow):
                 self.editor.setPlainText(format_report(content))
             else:
                 cursor.insertText(format_report(content) + "\n")
+            self._inserted_template_baseline=self.editor.toPlainText()
             self.editor.setFocus()
             self.statusBar().showMessage("Вставлен протокол: " + title,4000)
     def insert_selected(self, *_):
@@ -1137,6 +1156,19 @@ class MainWindow(QMainWindow):
         if item:
             phrase=item.text(); self.editor.textCursor().insertText(format_report(phrase)+" ")
             self.editor.setFocus()
+    def reject_completion_menu(self,point):
+        popup=self.completer.popup();index=popup.indexAt(point);label=index.data() if index.isValid() else ''
+        option=getattr(self,'_library_options',{}).get(label)
+        if not option:return
+        menu=QMenu(self);action=menu.addAction('Этот вариант не подходит к контексту')
+        if menu.exec(popup.mapToGlobal(point)) is not action:return
+        cursor=self.editor.textCursor()
+        if self._completion_snapshot!=(self.editor.toPlainText(),cursor.position(),cursor.anchor()):return
+        before=cursor.block().text().encode('utf-16-le')[:cursor.positionInBlock()*2].decode('utf-16-le')
+        state=self.protocol_context.at(cursor.position())
+        self.phrase_memory.record(before,option['phrase'],state['area'],state['modality'],option['source_id'],accepted=False)
+        popup.hide()
+
     def accept_completion(self, phrase):
         if self._closing or not isinstance(phrase, str) or not phrase: return
         cursor = self.editor.textCursor()
@@ -1146,10 +1178,14 @@ class MainWindow(QMainWindow):
         continuation = getattr(self, '_adaptive_options', {}).get(phrase)
         library_option=getattr(self,'_library_options',{}).get(phrase)
         if library_option:
+            before=cursor.block().text().encode('utf-16-le')[:cursor.positionInBlock()*2].decode('utf-16-le')
+            previous_text=self.editor.toPlainText()
             cursor.beginEditBlock();cursor.insertText(library_option['suffix']+' ');cursor.endEditBlock()
             if self.library.ai.enabled('self_learning'):
-                self.library.ai.learn_text(library_option['phrase'],confirmed=True)
-                self.library.used(library_option['phrase'])
+                state=self.protocol_context.at(cursor.position())
+                event=self.phrase_memory.record(before,library_option['phrase'],state['area'],state['modality'],library_option.get('source_id','library'))
+                self._accept_events.append((event,previous_text,self.editor.toPlainText()))
+                self._accept_events=self._accept_events[-100:]
         elif phrase in getattr(self,'_word_options',{}):
             expected=self._word_options[phrase]
             cursor.movePosition(QTextCursor.MoveOperation.PreviousCharacter,QTextCursor.MoveMode.KeepAnchor,len(expected))
@@ -1178,6 +1214,26 @@ class MainWindow(QMainWindow):
         self.editor.setTextCursor(cursor)
         self.completer.popup().hide()
 
+    def schedule_context_completion(self):
+        self.completion_timer.start()
+        QTimer.singleShot(0,self.reconcile_phrase_acceptance)
+        QTimer.singleShot(0,self.prefetch_completion_boundary)
+    def reconcile_phrase_acceptance(self):
+        if self._closing:return
+        text=self.editor.toPlainText()
+        # Revert learning only when undo reaches the exact pre-insertion state.
+        if not self.editor.document().isRedoAvailable():return
+        for event,previous,accepted in self._accept_events[:]:
+            if text==previous:
+                self.phrase_memory.undo(event)
+                self._accept_events.remove((event,previous,accepted))
+    def prefetch_completion_boundary(self):
+        if self._closing:return
+        cursor=self.editor.textCursor();before=cursor.block().text().encode('utf-16-le')[:cursor.positionInBlock()*2].decode('utf-16-le')
+        if before.endswith((' ', ';', ',')):
+            self.protocol_context.update(self.editor.toPlainText(),self.editor.document().revision())
+            state=self.protocol_context.at(cursor.position())
+            self.completion_index.suggest(before,'',state['area'],state['modality'],30)
     def update_suggestions(self):
         if self._closing or not hasattr(self,'completer'): return
         if not self.library.ai.enabled('smart_completion'):
@@ -1197,10 +1253,17 @@ class MainWindow(QMainWindow):
         self._word_options={}
         self._library_options={}
         from radiology_ai import classify
-        from adaptive_completion import library_completions
-        completion_area=classify(self.editor.document().firstBlock().text()+' '+cursor.block().text()) if self.library.ai.enabled('auto_area') else ''
-        if cursor.positionInBlock()==len(cursor.block().text().encode('utf-16-le'))//2 and not cursor.hasSelection():
-            for candidate in library_completions(self.library.db,before,completion_area,excluded=self.library.ai.excluded):
+        from context_retrieval import context_key
+        document=self.editor.toPlainText();self.protocol_context.update(document,self.editor.document().revision())
+        document_state=self.protocol_context.at(cursor.position())
+        after=cursor.block().text().encode('utf-16-le')[cursor.positionInBlock()*2:].decode('utf-16-le')
+        completion_area=document_state['area'] if self.library.ai.enabled('auto_area') else ''
+        if not cursor.hasSelection() and document_state['section']!='method':
+            candidates=self.completion_index.suggest(before,after,completion_area,document_state['modality'],30)
+            neural_key=context_key('completion',before,after,completion_area,document_state['modality'],[c['source_id']+c['suffix'] for c in candidates],model='rubert-tiny2-v1')
+            semantic=getattr(getattr(self,'hybrid',None),'completion_scores',{}).get(neural_key,{})
+            candidates.sort(key=lambda c:-(int(c['personal'])*10+self.phrase_memory.boost(before,c['phrase'],completion_area,document_state['modality'])+.12*semantic.get(c['source_id']+c['suffix'],0)))
+            for candidate in candidates[:8]:
                 label=('Личный стандарт: ' if candidate['personal'] else 'Из библиотеки: ')+candidate['phrase']
                 self._library_options[label]=candidate
         if prefix:
