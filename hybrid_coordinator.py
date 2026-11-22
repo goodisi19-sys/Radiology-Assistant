@@ -27,7 +27,9 @@ class HybridCoordinator:
             self.timer.setInterval(1500 if self.resource_state['mode']=='Экономичный' else 650)
             if previous_deep and not self.resource_state.get('deep'):self.backend.cancel()
             if self.window.isMinimized() or not self.resource_state['bert'] or not self.window.library.ai.enabled('neural_enabled'):
-                self.backend.cancel();self.last_status='Экономичный режим — LocalAI активен'
+                self.backend.cancel();self.last_status='LocalAI активен — нейроанализ приостановлен'
+            elif not self.busy:
+                self.last_status='LocalAI активен — '+self.resource_state['mode'].lower()+' профиль'
         except Exception:self.resource_state={'bert':False,'deep':False,'mode':'Экономичный','threads':1};self.last_status='LocalAI активен — ресурсы недоступны'
         if hasattr(self.window,'hybrid_indicator'):self.window.hybrid_indicator.setText(self.last_status)
     def changed(self):
