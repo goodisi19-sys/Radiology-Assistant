@@ -31,6 +31,9 @@ def check_protocol(text):
         findings.append(Finding(match.start(), match.end(), 'Возможно, поле или размер не заполнены'))
     for match in re.finditer(r'(?im)^[ \t]*(?:(?:размеры|сторона|контрастирование)[ \t]*:[ \t]*|[-•–—][ \t]*)$', text):
         findings.append(Finding(match.start(), match.end(), 'Незаполненный пункт шаблона'))
+    alternative=r'(?:однородн|неоднородн|сохран|измен|увелич|снижен|повышен)\w*'
+    for match in re.finditer(r'\b'+alternative+r'\s*(?:/|или)\s*(?:не\s+)?'+alternative+r'\b',text,re.I):
+        findings.append(Finding(match.start(),match.end(),'Возможно, оставлен альтернативный вариант шаблона',True))
     heading = re.search(r'(?im)^[ \t]*заключение[ \t]*(?:[:：]|$)|\bзаключение[ \t]*[:：]', text)
     if heading:
         sections = [(text[:heading.start()], 0), (text[heading.end():], heading.end())]

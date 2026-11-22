@@ -100,7 +100,8 @@ class PhraseLibrary:
         if any(identity(t)==identity(text) for t, in self.db.execute('SELECT text FROM quick_lines')):return False
         if len(text) > 12000: raise ValueError('Выберите строку или фрагмент до 12 000 символов.')
         result = self.db.execute("INSERT OR IGNORE INTO quick_lines(text) VALUES(?)", (text,))
-        self.db.execute('INSERT OR IGNORE INTO quick_line_details VALUES(?,?,0)',(text,category or self.guess_category(text)))
+        from radiology_ai import classify
+        self.db.execute('INSERT OR IGNORE INTO quick_line_details VALUES(?,?,0)',(text,category or classify(text,self.guess_category(text))))
         self.db.commit()
         return result.rowcount > 0
 
@@ -433,8 +434,7 @@ class PhraseLibrary:
             return "Суставы"
         if any(k in t for k in ("позвоночник","позвон","шоп","гоп","поп","спинн","диск l","диск th")):
             return "Позвоночник"
-        from radiology_ai import classify
-        return classify(text)
+        return "Другие исследования"
 
     @staticmethod
     def folder_tree_path(folder, category):
@@ -647,6 +647,7 @@ class MainWindow(QMainWindow):
             if hasattr(self, 'yandex_dialog'): self.yandex_dialog.close()
             self.completion_timer.stop()
             self.status_timer.stop()
+            if hasattr(self,'search_timer'):self.search_timer.stop()
             self.live_spelling.stop()
             if hasattr(self, 'shorthand_dialog'): self.shorthand_dialog.close()
             if hasattr(self, 'protocol_check_dialog'): self.protocol_check_dialog.close()
@@ -845,7 +846,9 @@ class MainWindow(QMainWindow):
         old=item.text();row=self.library.db.execute('SELECT category,builtin FROM quick_line_details WHERE text=?',(old,)).fetchone()
         category,builtin=row or (self.library.guess_category(old),0)
         if category_only:
-            value,ok=QInputDialog.getItem(self.quick_dialog,'Быстрая строка','Категория:',[self.area_filter.itemText(i) for i in range(1,self.area_filter.count())],editable=True)
+            options=[self.area_filter.itemText(i) for i in range(1,self.area_filter.count())]
+            if category not in options:options.append(category)
+            value,ok=QInputDialog.getItem(self.quick_dialog,'Быстрая строка','Категория:',options,current=options.index(category),editable=True)
             if ok and value.strip():
                 self.library.db.execute('INSERT INTO quick_line_details VALUES(?,?,?) ON CONFLICT(text) DO UPDATE SET category=excluded.category',(old,value.strip(),builtin));self.library.db.commit()
         else:
@@ -882,6 +885,7 @@ class MainWindow(QMainWindow):
         n, full=self.library.import_files(paths[0]); self.refresh_phrases(); self.refresh_templates()
         QMessageBox.information(self,"Импорт завершён",f"Добавлено/обновлено фрагментов: {n}\nВсего фраз в библиотеке: {self.library.db.execute('SELECT COUNT(*) FROM phrases').fetchone()[0]}")
     def refresh_phrases(self):
+        if self._closing:return
         if not hasattr(self, 'phrases'): return
         self.phrases.clear()
         rows = self.library.quick_lines(self.search.text().strip())
@@ -902,6 +906,7 @@ class MainWindow(QMainWindow):
         self.search_timer.start(180)
 
     def refresh_templates(self):
+        if self._closing:return
         if not hasattr(self,"template_list"): return
         query=self.template_search.text().strip()
         rows=self.library.db.execute("""SELECT t.id,t.title,t.category,
@@ -911,7 +916,9 @@ class MainWindow(QMainWindow):
             WHERE casefold(t.title) LIKE ? OR casefold(COALESCE(l.content,t.content)) LIKE ?
             ORDER BY 4,t.title""", ("%"+query.casefold()+"%","%"+query.casefold()+"%")).fetchall()
         area=self.area_filter.currentText() if hasattr(self,'area_filter') else 'Все области'
-        if area!='Все области':rows=[r for r in rows if r[2]==area]
+        if area!='Все области':
+            from radiology_ai import classify
+            rows=[r for r in rows if r[2]==area or classify(r[1]+' '+self.library.get_template(r[0])[1])==area]
         self.template_list.clear()
         nodes={}
         for template_id,title,category,path,kind in rows:
@@ -1041,7 +1048,11 @@ class MainWindow(QMainWindow):
             cursor.endEditBlock()
         else:
             prefix = getattr(self, '_completion_word', self.completer.completionPrefix())
-            if prefix and phrase.casefold().startswith(prefix.casefold()): cursor.insertText(phrase[len(prefix):] + ' ')
+            if prefix and phrase.casefold().startswith(prefix.casefold()):
+                cursor.insertText(phrase[len(prefix):] + ' ')
+                if self.library.ai.enabled('self_learning'):
+                    self.library.ai.learn_text(phrase,confirmed=True)
+                    self.library.used(phrase)
         if continuation and self.library.ai.enabled('self_learning'):
             self.library.ai.learn_text(' '.join(before.split()[-2:])+' '+continuation['text'],confirmed=True)
         self.editor.setTextCursor(cursor)
@@ -1064,6 +1075,8 @@ class MainWindow(QMainWindow):
                 self._adaptive_options[label] = candidate
         personal = [phrase for phrase in normal if self.library.db.execute("SELECT 1 FROM phrases WHERE text=? AND source='Личный стандарт'", (phrase,)).fetchone()]
         self._word_options={}
+        if prefix:
+            for value in self.library.ai.complete(prefix,before[:-len(prefix)]):self._word_options[value]=prefix
         if prefix and self.library.ai.enabled('context_corrections'):
             from radiology_ai import classify
             for value in self.library.ai.corrections(prefix,before[:-len(prefix)],'',(classify(self.editor.document().firstBlock().text()+' '+self.editor.textCursor().block().text()) if self.library.ai.enabled('auto_area') else '')):

@@ -11,6 +11,10 @@ def db():
 class LocalAITests(unittest.TestCase):
     def setUp(self):self.db=db();self.ai=LocalAI(self.db,CORPUS)
     def tearDown(self):self.db.close()
+    def test_prefix_completion_and_partial_typo(self):
+        self.assertIn('структуры',self.ai.complete('стру','Срединные '))
+        self.assertIn('структуры',self.ai.complete('стрк','Срединные '))
+        self.assertFalse(self.ai.complete('не'))
     def test_wrong_keyboard_layout(self):
         self.assertEqual(self.ai.corrections('cnhernehs')[0],'структуры')
         from spell_check import find_typos
@@ -129,3 +133,10 @@ class LocalAIApplicationTests(unittest.TestCase):
         # Generous regression bound: no synchronous full dictionary scan on keystrokes.
         self.assertLess(elapsed,1.0)
         self.assertTrue(self.window.completion_timer.isActive())
+
+    def test_pending_search_stops_before_database_close(self):
+        self.window.template_search.setText('гловного мозга')
+        self.assertTrue(self.window.search_timer.isActive())
+        self.window.editor.document().setModified(False);self.window.close()
+        self.assertFalse(self.window.search_timer.isActive())
+        self.window.refresh_templates();self.window.refresh_phrases()

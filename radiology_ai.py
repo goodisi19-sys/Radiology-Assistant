@@ -84,6 +84,7 @@ class LocalAI:
         self.confirmed={(a,b,c):n for a,b,c,n in self.db.execute('SELECT original,replacement,area,uses FROM ai_corrections ORDER BY uses DESC LIMIT 10000')}
         self.excluded={x[0] for x in self.db.execute('SELECT phrase FROM ai_exclusions')}
         self.corrections.cache_clear()
+        self.complete.cache_clear()
 
     def learn_text(self,text,confirmed=False):
         if not confirmed or not self.enabled('self_learning'): return 0
@@ -131,6 +132,18 @@ class LocalAI:
             if word.isupper():value=candidate.upper()
             ranked.append((score,value))
         return tuple(v for _,v in sorted(ranked)[:6])
+
+    @lru_cache(maxsize=2048)
+    def complete(self,prefix,before='',area=''):
+        if not WORDS.fullmatch(prefix) or len(prefix)<2 or CRITICAL.fullmatch(prefix):return ()
+        q=prefix.casefold();previous=(WORDS.findall(before.casefold()) or [''])[-1];ranked=[]
+        for word,count in self.words.items():
+            if len(word)<=len(q) or CRITICAL.fullmatch(word):continue
+            distance=DamerauLevenshtein.distance(q,word[:len(q)])
+            if distance>(1 if len(q)>=4 else 0):continue
+            score=distance*10-math.log1p(self.bigrams[previous,word])*2-math.log1p(count)*.3-math.log1p(self.area_words[area][word])*.5
+            ranked.append((score,word.capitalize() if prefix[0].isupper() else word))
+        return tuple(v for _,v in sorted(ranked)[:5])
 
     def continuations(self,before,limit=3):
         words=WORDS.findall(before.casefold()); context=' '.join(words[-2:]); last=words[-1] if words else ''
