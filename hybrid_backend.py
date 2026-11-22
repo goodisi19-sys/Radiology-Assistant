@@ -28,7 +28,10 @@ class NeuralBackend:
         epoch=self.epoch;answers=self.answers
         cold=self.encoder is None or self.encoder.poll() is not None
         if cold:
-            cmd=[sys.executable,'--hybrid-worker'] if getattr(sys,'frozen',False) else [sys.executable,str(installation_root()/'hybrid_worker.py')]
+            if getattr(sys,'frozen',False):
+                helper=installation_root()/'RadiologyNeuralWorker'/'RadiologyNeuralWorker.exe'
+                cmd=[str(helper)] if helper.exists() else [sys.executable,'--hybrid-worker']
+            else:cmd=[sys.executable,str(installation_root()/'hybrid_worker.py')]
             p=subprocess.Popen(cmd,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True,encoding='utf8',creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
             with self.lock:
                 if self.dead or epoch!=self.epoch:

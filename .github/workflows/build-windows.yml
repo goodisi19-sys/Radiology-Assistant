@@ -55,6 +55,8 @@ jobs:
       - name: Build portable executable
         run: |
           pyinstaller --noconfirm --clean --onefile --windowed --add-data "protocols.json.br.b64;." --add-data "quick_lines.json;." --add-data "protocols_extra.json;." --add-data "protocols_legacy.json;." --add-data "protocol_sources.json;." --add-data "protocol_source_map.json;." --add-data "drive_odt_01.json;." --add-data "drive_odt_02.json;." --add-data "drive_odt_03.json;." --add-data "drive_odt_04.json;." --add-data "drive_odt_05.json;." --add-data "drive_odt_06.json;." --add-data "drive_odt_07.json;." --add-data "drive_odt_08.json;." --add-data "drive_odt_09.json;." --add-data "drive_odt_10.json;." --add-data "drive_odt_11.json;." --add-data "drive_odt_12.json;." --add-data "drive_odt_13.json;." --add-data "drive_odt_14.json;." --add-data "drive_odt_15.json;." --add-data "drive_odt_16.json;." --add-data "drive_odt_17.json;." --add-data "drive_odt_18.json;." --add-data "spelling_data;spelling_data" --name RadiologyAssistant app.py
+      - name: Build isolated console inference worker
+        run: pyinstaller --noconfirm --clean --onedir --console --name RadiologyNeuralWorker hybrid_worker.py
       - name: Install external model assets beside executable
         shell: pwsh
         run: |
@@ -68,7 +70,10 @@ jobs:
           $result = Join-Path $PWD "exe-smoke.json"
           $process = Start-Process dist/RadiologyAssistant.exe -ArgumentList "--smoke-test", "`"$result`"" -PassThru
           if (!$process.WaitForExit(120000)) { $process.Kill(); throw "EXE smoke test timed out" }
-          if ($process.ExitCode -ne 0 -or !(Test-Path $result)) { throw "EXE smoke test failed" }
+          if ($process.ExitCode -ne 0 -or !(Test-Path $result)) {
+            if (Test-Path "$result.error.txt") { Get-Content "$result.error.txt" }
+            throw "EXE smoke test failed"
+          }
           Get-Content $result
       - name: Package
         shell: pwsh
@@ -76,6 +81,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path package | Out-Null
           Copy-Item dist/RadiologyAssistant.exe package/
           Copy-Item dist/models package/models -Recurse
+          Copy-Item dist/RadiologyNeuralWorker package/RadiologyNeuralWorker -Recurse
           Copy-Item model-lock.json package/
           Copy-Item HYBRID_AI_AUDIT.md package/
           Copy-Item hybrid-benchmark.json package/

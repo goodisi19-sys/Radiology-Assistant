@@ -1231,7 +1231,12 @@ class MainWindow(QMainWindow):
 if __name__ == "__main__":
     if len(sys.argv) == 3 and sys.argv[1] == "--smoke-test":
         from smoke_test import run
-        run(sys.argv[2])
+        try:run(sys.argv[2])
+        except Exception:
+            import traceback
+            Path(sys.argv[2]+'.error.txt').write_text(traceback.format_exc(),encoding='utf8')
+            # A windowed PyInstaller exception dialog would otherwise hang CI.
+            os._exit(1)
         sys.exit(0)
     app=QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
