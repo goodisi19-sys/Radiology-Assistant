@@ -14,6 +14,9 @@ jobs:
     # This branch already builds on push; do not duplicate its ZIP on PR events.
     if: github.event_name != 'pull_request' || github.head_ref != 'fix/library-audit-and-document-safety'
     runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
     permissions:
       contents: write
     steps:
