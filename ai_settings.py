@@ -26,12 +26,19 @@ class AISettings(QDialog):
         hybrid=getattr(self.window,'hybrid',None)
         if not hybrid:return
         state=hybrid.resource_state;resource=state.get('resources',{})
-        self.activity.setText(f"{hybrid.last_status}; режим: {state.get('mode','—')}; CPU системы: {resource.get('cpu',0):.0f} %; свободно ОЗУ: {resource.get('available_gb',0):.1f} ГиБ. "
+        self.activity.setText(f"{hybrid.last_status}; выбран: {state.get('requested','—')}; активный профиль: {state.get('mode','—')}; "
+            f"RuBERT: {'доступен' if state.get('bert') else 'приостановлен'}; SAGE: {'доступна' if state.get('deep') else 'приостановлена'}; "
+            f"{state.get('reason','')} CPU системы: {resource.get('cpu',0):.0f} %; свободно ОЗУ: {resource.get('available_gb',0):.1f} ГиБ. "
             'SAGE оценивает готовые варианты исправлений; её ответы не обучают память.')
     def change_resource_mode(self,value):
         self.window.library.set_setting('hybrid_mode',value)
         self.change_mode('Расширенный' if value=='Расширенный' else 'Быстрый')
-        if hasattr(self.window,'hybrid'):self.window.hybrid.resources()
+        if hasattr(self.window,'hybrid'):
+            self.window.hybrid.reset()
+            self.window.library.ai.neural_scores.clear();self.window.library.ai.deep_scores.clear()
+            self.window.hybrid.resources()
+            self.window.hybrid.timer.start()
+        self.refresh_activity()
     def change_mode(self,value):
         self.window.library.set_setting('ai_mode',value);self.window.library.ai.refresh_memory()
     def change(self,key,value):

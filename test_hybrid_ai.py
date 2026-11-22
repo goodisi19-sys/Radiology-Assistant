@@ -151,3 +151,18 @@ class MedicalIntegrationTests(unittest.TestCase):
                 deep=b.deep('Контруы ровные.',['Контуры ровные.','Контур ровный.'])['scores']
                 self.assertGreater(deep[0],deep[1])
         finally:b.close()
+
+
+class ManualResourcePolicyTests(unittest.TestCase):
+    def test_manual_preference_changes_now_without_automatic_ceiling(self):
+        p=ResourcePolicy();r=Resources(4,8,4,20,True)
+        self.assertEqual(p.choose(r,'Экономичный',now=30)['mode'],'Экономичный')
+        state=p.choose(r,'Расширенный',now=31)
+        self.assertEqual(state['mode'],'Расширенный');self.assertTrue(state['deep'])
+        state=p.choose(r,'Экономичный',now=32)
+        self.assertEqual(state['mode'],'Экономичный');self.assertFalse(state['deep'])
+    def test_manual_profile_still_has_safety_guard(self):
+        p=ResourcePolicy()
+        state=p.choose(Resources(2,4,.8,90,True),'Расширенный',now=30)
+        self.assertEqual(state['requested'],'Расширенный');self.assertEqual(state['mode'],'Экономичный')
+        self.assertFalse(state['bert']);self.assertFalse(state['deep']);self.assertTrue(state['reason'])

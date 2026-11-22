@@ -20,17 +20,27 @@ def sample():
     return Resources(os.cpu_count() or 1,m.total/2**30,m.available/2**30,psutil.cpu_percent(interval=None),avx2)
 
 class ResourcePolicy:
-    def __init__(self):self.mode='Экономичный';self.changed=0;self.bert_allowed=False;self.deep_allowed=False
+    def __init__(self):self.mode='Экономичный';self.changed=0;self.requested=None;self.bert_allowed=False;self.deep_allowed=False
     def choose(self,r,requested='Автоматический',now=None):
         now=time.monotonic() if now is None else now
         target='Расширенный' if r.available_gb>=6 and r.cores>=8 and r.cpu<35 else ('Сбалансированный' if r.available_gb>=2.5 and r.cores>=4 and r.cpu<65 else 'Экономичный')
-        if requested!='Автоматический':
-            order=['Экономичный','Сбалансированный','Расширенный'];target=order[min(order.index(target),order.index(requested) if requested in order else 1)]
-        urgent=r.available_gb<1.5 or r.cpu>=85
-        if target!=self.mode and (urgent or now-self.changed>=20):self.mode=target;self.changed=now
+        if requested not in ('Автоматический','Экономичный','Сбалансированный','Расширенный'):requested='Автоматический'
+        urgent=r.available_gb<1.5 or r.cpu>=85 or not r.avx2
+        manual_changed=requested!=self.requested
+        self.requested=requested
+        if requested!='Автоматический':target=requested
+        if urgent:target='Экономичный'
+        if target!=self.mode and (manual_changed or urgent or now-self.changed>=20):
+            self.mode=target;self.changed=now
         if not r.avx2 or r.available_gb<1.0 or r.cpu>=80:self.bert_allowed=False
         elif r.available_gb>=1.5 and r.cpu<60:self.bert_allowed=True
         if self.mode=='Экономичный' or not r.avx2 or r.available_gb<2.5 or r.cpu>=70:self.deep_allowed=False
         elif r.available_gb>=3.5 and r.cpu<50:self.deep_allowed=True
         bert=self.bert_allowed;deep=self.deep_allowed
-        return {'mode':self.mode,'bert':bert,'deep':deep,'threads':max(1,min(2,r.cores//2)), 'resources':r.__dict__}
+        reason=''
+        if not r.avx2:reason='Процессор не поддерживает AVX2'
+        elif urgent:reason='Недостаточно свободной памяти или высокая загрузка CPU'
+        elif not bert:reason='RuBERT приостановлен: недостаточно ресурсов'
+        elif self.mode!='Экономичный' and not deep:reason='SAGE приостановлена: недостаточно ресурсов'
+        elif requested!='Автоматический' and self.mode!=requested:reason='Ожидание безопасного восстановления ресурсов'
+        return {'mode':self.mode,'requested':requested,'reason':reason,'bert':bert,'deep':deep,'threads':max(1,min(2,r.cores//2)), 'resources':r.__dict__}
