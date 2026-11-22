@@ -528,6 +528,7 @@ class MainWindow(QMainWindow):
         self.completer.activated.connect(self.accept_completion)
         self.editor.cursorPositionChanged.connect(self.completer.popup().hide)
         self.editor.installEventFilter(self)
+        self.completer.popup().installEventFilter(self)
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self.editor)
         side = QWidget(); side_l = QVBoxLayout(side); side_l.setContentsMargins(10,10,10,10)
@@ -1032,14 +1033,35 @@ class MainWindow(QMainWindow):
         self._semantic_phrase_query=query;self._semantic_phrase_rows=rows;self.refresh_phrases()
 
     def eventFilter(self, obj, event):
-        if obj is getattr(self, "editor", None) and event.type() == QEvent.Type.KeyPress:
-            popup = self.completer.popup()
-            selected = popup.currentIndex().data()
-            if popup.isVisible():
-                if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter): popup.hide()
-                elif event.key() == Qt.Key.Key_Tab and not event.modifiers():
-                    self.accept_completion(selected); return True
-            if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and not (
+        editor = getattr(self, 'editor', None)
+        completer = getattr(self, 'completer', None)
+        if editor is None or completer is None:
+            return super().eventFilter(obj, event)
+        popup = completer.popup()
+        if obj is editor or obj is popup:
+            if popup.isVisible() and event.type() in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress):
+                key = event.key()
+                if key == Qt.Key.Key_Tab and not event.modifiers():
+                    event.accept()
+                    if event.type() == QEvent.Type.KeyPress:
+                        index = popup.currentIndex()
+                        if not index.isValid() and popup.model().rowCount():
+                            index = popup.model().index(0, 0)
+                        selected = index.data()
+                        if isinstance(selected, str) and selected:
+                            self.accept_completion(selected)
+                        else:
+                            popup.hide()
+                    return True
+                if event.type() == QEvent.Type.KeyPress and key == Qt.Key.Key_Escape:
+                    popup.hide()
+                    return True
+                if event.type() == QEvent.Type.KeyPress and key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                    popup.hide()
+                    if obj is popup:
+                        QApplication.sendEvent(editor, event)
+                        return True
+            if obj is editor and event.type() == QEvent.Type.KeyPress and event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and not (
                 event.modifiers() & (Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier)
             ):
                 QTimer.singleShot(0, self.format_previous_line)
@@ -1116,7 +1138,7 @@ class MainWindow(QMainWindow):
             phrase=item.text(); self.editor.textCursor().insertText(format_report(phrase)+" ")
             self.editor.setFocus()
     def accept_completion(self, phrase):
-        if self._closing: return
+        if self._closing or not isinstance(phrase, str) or not phrase: return
         cursor = self.editor.textCursor()
         snapshot = getattr(self, '_completion_snapshot', None)
         if snapshot is not None and snapshot != (self.editor.toPlainText(), cursor.position(), cursor.anchor()):
@@ -1211,6 +1233,10 @@ class MainWindow(QMainWindow):
         height=min(len(matches),5)*max(22,popup.sizeHintForRow(0))+8
         rect.moveBottom(rect.top()-min(height,available)-12)
         self.completer.complete(rect)
+        # Use the completer's proxy model (not the underlying QStringListModel).
+        if popup.isVisible() and popup.model().rowCount():
+            self.completer.setCurrentRow(0)
+            popup.setCurrentIndex(popup.model().index(0, 0))
         self.position_completion_popup()
         # Qt can adjust a freshly shown popup during the next event cycle.
         QTimer.singleShot(0, self.position_completion_popup)

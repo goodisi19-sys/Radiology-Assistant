@@ -102,13 +102,41 @@ class ApplicationTests(unittest.TestCase):
         self.window.update_suggestions()
         self.assertTrue(self.window._adaptive_options)
         label=next(iter(self.window._adaptive_options))
-        index=self.window.completion_model.index(self.window.completion_model.stringList().index(label))
+        index=self.window.completer.popup().model().index(self.window.completion_model.stringList().index(label), 0)
         self.window.completer.popup().setCurrentIndex(index)
         QTest.keyClick(self.window.editor,Qt.Key.Key_Tab)
         text=self.window.editor.toPlainText()
         self.assertIn('L4-L5 до 5 мм, с локальной деформацией',text)
         self.assertNotIn('L5-S1',text)
         self.window.editor.undo();self.assertEqual(self.window.editor.toPlainText(),'\n'*7+QUERY)
+
+    def test_tab_accepts_first_suggestion_without_mouse_in_editor_and_popup(self):
+        from PySide6.QtCore import QModelIndex
+        prefix='Срединные структуры '
+        phrase=prefix+'расположены обычно.'
+        self.window.library.add(phrase,'Личный стандарт','ГМ')
+        self.window.library.db.commit()
+        self.window.show()
+        QT.processEvents()
+        for destination,clear_selection in (('editor',False),('popup',True)):
+            text='\n'*7+prefix
+            self.window.editor.setPlainText(text)
+            cursor=self.window.editor.textCursor()
+            cursor.movePosition(QTextCursor.MoveOperation.End)
+            self.window.editor.setTextCursor(cursor)
+            self.window.editor.setFocus()
+            self.window.completion_timer.stop()
+            self.window.update_suggestions()
+            popup=self.window.completer.popup()
+            self.assertTrue(popup.isVisible())
+            self.assertTrue(popup.currentIndex().isValid())
+            self.assertEqual(popup.currentIndex().data(),'Личный стандарт: '+phrase)
+            if clear_selection:popup.setCurrentIndex(QModelIndex())
+            QTest.keyClick(popup if destination=='popup' else self.window.editor,Qt.Key.Key_Tab)
+            self.assertEqual(self.window.editor.toPlainText(),'\n'*7+phrase+' ')
+            self.assertFalse(popup.isVisible())
+            self.window.editor.undo()
+            self.assertEqual(self.window.editor.toPlainText(),text)
 
     def test_adaptive_enter_does_not_accept_clinical_suggestion(self):
         from test_adaptive_completion import SAMPLE,QUERY
@@ -117,7 +145,7 @@ class ApplicationTests(unittest.TestCase):
         cursor=self.window.editor.textCursor();cursor.movePosition(QTextCursor.MoveOperation.End);self.window.editor.setTextCursor(cursor)
         self.window.update_suggestions()
         label=next(iter(self.window._adaptive_options))
-        self.window.completer.popup().setCurrentIndex(self.window.completion_model.index(self.window.completion_model.stringList().index(label)))
+        self.window.completer.popup().setCurrentIndex(self.window.completer.popup().model().index(self.window.completion_model.stringList().index(label), 0))
         QTest.keyClick(self.window.editor,Qt.Key.Key_Return)
         self.assertNotIn('деформацией',self.window.editor.toPlainText())
         self.assertEqual(self.window.editor.toPlainText(),QUERY+'\n')
