@@ -12,7 +12,9 @@ def google_url(question='', ai_mode=True):
     query={}
     if question:query['q']=question
     if ai_mode:query['udm']='50'
-    return QUrl('https://www.google.com/search?'+urlencode(query,quote_via=quote))
+    # RFC 3986 permits '/' and '?' inside a query. Retain their readable form
+    # for existing QUrlQuery callers while escaping '+', '&', '=' and '#'.
+    return QUrl('https://www.google.com/search?'+urlencode(query,quote_via=quote,safe='/?'))
 
 
 @dataclass(frozen=True)
