@@ -89,6 +89,34 @@ class ApplicationTests(unittest.TestCase):
         self.window.favorites.items.setCurrentRow(0); self.window.favorites.open_current()
         self.assertEqual(self.window.editor.toPlainText(),'Контуры ровные.')
 
+    def test_explicit_save_verifies_document_but_export_does_not(self):
+        from test_adaptive_completion import SAMPLE
+        self.window.editor.setPlainText(SAMPLE)
+        exported=Path(self.tmp.name)/'export-only.docx'
+        self.window.export_to_path(exported)
+        self.assertEqual(self.window.library.adaptive.count(),0)
+        self.window.current_file=str(Path(self.tmp.name)/'verified.docx')
+        self.assertTrue(self.window.save_file())
+        count=self.window.library.adaptive.count()
+        self.assertGreater(count,0)
+        verified=self.window.library.db.execute(
+            "SELECT count(*) FROM adaptive_continuations WHERE source='verified'").fetchone()[0]
+        self.assertGreater(verified,0)
+        self.assertTrue(self.window.save_file())
+        self.assertEqual(self.window.library.adaptive.count(),count)
+        # A failed save must not turn an edited draft into verified memory.
+        self.window.editor.setPlainText(SAMPLE+' Добавленный проверяемый текст.')
+        with patch('document_io.write_docx',side_effect=OSError('disk full')):
+            self.assertFalse(self.window.save_file())
+        self.assertEqual(self.window.library.adaptive.count(),count)
+
+    def test_explicit_txt_save_also_verifies(self):
+        from test_adaptive_completion import SAMPLE
+        self.window.editor.setPlainText(SAMPLE)
+        self.window.current_file=str(Path(self.tmp.name)/'verified.txt')
+        self.assertTrue(self.window.save_file())
+        self.assertGreater(self.window.library.adaptive.count(),0)
+
     def test_adaptive_saved_docx_tab_apply_and_undo(self):
         from test_adaptive_completion import SAMPLE,QUERY
         self.window.editor.setPlainText(SAMPLE)
