@@ -167,6 +167,17 @@ def run(result_path):
         window.update_suggestions();QTest.keyClick(window.editor,Qt.Key.Key_Return)
         assert window.editor.toPlainText()==original+'\n'
         assert window.completion_index.fts
+        # Mid-line completion must insert only the missing text, preserving the tail.
+        original='\n'*7+'Срединные стр не смещены.'
+        window.library.add('Срединные структуры не смещены.','Личный стандарт','ГМ');window.library.db.commit()
+        window.editor.setPlainText(original)
+        cursor=window.editor.textCursor();cursor.setPosition(len('\n'*7+'Срединные стр'));window.editor.setTextCursor(cursor)
+        window.update_suggestions();label='Личный стандарт: Срединные структуры не смещены.'
+        assert label in window._library_options
+        popup=window.completer.popup();popup.setCurrentIndex(popup.model().index(window.completion_model.stringList().index(label),0))
+        QTest.keyClick(window.editor,Qt.Key.Key_Tab)
+        assert window.editor.toPlainText()=='\n'*7+'Срединные структуры не смещены.'
+        window.editor.undo();assert window.editor.toPlainText()==original
         from model_assets import verify_files
         verify_files()
         from hybrid_backend import NeuralBackend
@@ -178,7 +189,7 @@ def run(result_path):
             assert deep['scores'][0]>deep['scores'][1]
         finally:neural.close()
         window.editor.document().setModified(False); window.close()
-        Path(result_path).write_text(json.dumps({'protocols': visible, 'packaged_tab_editor_popup_undo_enter':'ok', 'fts5':'ok', 'docx': 'ok', 'view_scale': 'ok',
+        Path(result_path).write_text(json.dumps({'protocols': visible, 'packaged_tab_editor_popup_undo_enter':'ok','midline_overlap_tab_undo':'ok', 'fts5':'ok', 'docx': 'ok', 'view_scale': 'ok',
             'quick_lines': 'ok', 'spelling': 'ok', 'punctuation': 'ok', 'google_input': 'ok', 'yandex_exchange': 'ok',
             'mra_paragraphs': 'ok', 'layouts_audited': 497, 'methodology': 'ok', 'protocol_check': 'ok', 'live_spelling': 'ok', 'favorites': 'ok', 'shorthand': 'ok', 'adaptive_completion': 'ok', 'fragment_flow': 'ok', 'local_ai': 'ok', 'bundled_rubert': 'ok', 'bundled_sage': 'ok', 'critical_tokens': 'ok', 'explicit_learning': 'ok', 'memory_backup': 'ok',
             'base_sources_restored': 127, 'source_review_required': 18}), encoding='utf-8')

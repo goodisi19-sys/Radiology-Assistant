@@ -1180,7 +1180,9 @@ class MainWindow(QMainWindow):
         if library_option:
             before=cursor.block().text().encode('utf-16-le')[:cursor.positionInBlock()*2].decode('utf-16-le')
             previous_text=self.editor.toPlainText()
-            cursor.beginEditBlock();cursor.insertText(library_option['suffix']+' ');cursor.endEditBlock()
+            from completion_overlap import insertion_text
+            after=cursor.block().text().encode('utf-16-le')[cursor.positionInBlock()*2:].decode('utf-16-le')
+            cursor.beginEditBlock();cursor.insertText(insertion_text(library_option['suffix'],after));cursor.endEditBlock()
             if self.library.ai.enabled('self_learning'):
                 state=self.protocol_context.at_qt(cursor.position())
                 event=self.phrase_memory.record(before,library_option['phrase'],state['area'],state['modality'],library_option.get('source_id','library'))

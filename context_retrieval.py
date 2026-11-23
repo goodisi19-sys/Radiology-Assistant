@@ -1,5 +1,6 @@
 """Versioned, source-backed FTS5 contexts and RAM prefetch. Drafts are never indexed."""
 import hashlib,re,sqlite3,time
+from collections import deque
 from rapidfuzz.distance import DamerauLevenshtein
 from adaptive_completion import RISK,META,ANCHORS,tokens
 from radiology_ai import safe_lines,classify,modality
@@ -24,7 +25,7 @@ class ContextIndex:
                 self.db.execute('CREATE VIRTUAL TABLE IF NOT EXISTS window_fts USING fts5(context,content=windows,content_rowid=id)');self.fts=True
                 if not existed:self.db.execute("INSERT INTO window_fts(window_fts) VALUES('rebuild')")
             except sqlite3.OperationalError:pass
-        self.generation=0;self.shortlist=None;self.query_count=0;self.sync()
+        self.generation=0;self.shortlist=None;self.query_count=0;self.lookup_times=deque(maxlen=128);self.sync()
     def records(self):
         db=self.library.db
         rows=db.execute("SELECT t.id,t.title,COALESCE(l.content,t.content),t.category FROM templates t LEFT JOIN template_layouts l ON l.template_id=t.id AND l.original_digest=raw_digest(t.content) WHERE COALESCE(l.kind,'')!='base-evidence'").fetchall()
@@ -67,7 +68,7 @@ class ContextIndex:
     def retrieve(self,context,area='',kind='',limit=40):
         terms=norm(context).split()[-5:]
         if len(terms)<2:return []
-        self.query_count+=1
+        self.query_count+=1;lookup_started=time.perf_counter()
         if self.fts:
             match=' AND '.join('"'+word.replace('"','""')+'"*' for word in terms[-4:])
             rows=self.db.execute('SELECT w.*,bm25(window_fts) FROM window_fts JOIN windows w ON w.id=window_fts.rowid WHERE window_fts MATCH ? ORDER BY bm25(window_fts) LIMIT 150',(match,)).fetchall()
@@ -89,12 +90,13 @@ class ContextIndex:
                 if a[:-1]==b[:-1] and (b[-1].startswith(a[-1]) or (len(a[-1])>=4 and DamerauLevenshtein.distance(a[-1],b[-1])<=1)):
                     matched=True;break
             if not matched or not safe_suffix(suffix,context):continue
-            if region and area and region!=area:continue
+            if region and area and area!='Другие исследования' and region!=area:continue
             if mode and kind and mode!=kind:continue
             score=length*4+verified*8+(region==area)*3+(mode==kind)*2-float(bm)*.01
             ranked.append((score,{'suffix':suffix,'phrase':phrase,'source_id':source,'personal':bool(verified),'source':label,'context':stored,'id':key,'last':st[-1],'area':region,'modality':mode,'frequency':freq,'source_version':self.source_versions.get(source,'')}))
         unique={}
         for score,value in sorted(ranked,key=lambda x:-x[0]):unique.setdefault((value['context'],value['suffix']),value)
+        self.lookup_times.append((time.perf_counter()-lookup_started)*1000)
         return list(unique.values())[:limit]
     def suggest(self,before,after='',area='',kind='',limit=8):
         if self.library.db.total_changes!=self.library_changes:self.sync()
@@ -125,7 +127,9 @@ class ContextIndex:
             elif not clause.endswith((' ', '\t')) and not suffix.startswith((' ', ',', ';', '.', ':')):suffix=' '+suffix
             if boundary and clause.endswith((' ', '\t')):suffix=suffix.lstrip()
             if item['phrase'].casefold() in getattr(self.library.ai,'excluded',()):continue
-            if not suffix.strip() or (after.strip() and norm(after).startswith(norm(suffix))):continue
+            from completion_overlap import trim_right_overlap
+            suffix=trim_right_overlap(suffix,after)
+            if suffix is None or not suffix.strip():continue
             if any(norm(v['suffix'])==norm(suffix) for v in out):continue
             value=dict(item);value['suffix']=suffix;out.append(value)
             if len(out)>=limit:break

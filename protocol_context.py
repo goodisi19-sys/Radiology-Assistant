@@ -22,9 +22,14 @@ def extract_block(text,section):
         sides=set('right' if x.group().lower().startswith(('прав','справа')) else 'left' for x in re.finditer(r'\b(?:прав\w*|лев\w*|справа|слева)\b',clause,re.I))
         bilateral=bool(re.search(r'двусторонн|обе\s+почк|оба\s+сустав|обеих',clause,re.I))
         side='bilateral' if bilateral else next(iter(sides)) if len(sides)==1 else ''
-        uncertain=bool(re.search(r'не\s+исключ|исключить|вероятн|возможн|подозр|\?',clause,re.I))
+        uncertain=bool(re.search(r'не\s+исключ|исключить|вероятн|возможн|подозр|дифференциров\w*\s+с\b|\?',clause,re.I))
         alternatives=bool(re.search(r'/|\bили\b|_{2,}|\[',clause))
         absent=bool(re.search(r'без\s+(?:признаков\s+)?|не\s+(?:выявл|определя|обнаруж)|отсутств',clause,re.I))
+        # 'Не получено' negates the evidence named after 'данных за/признаков',
+        # not an unrelated lesion earlier in the clause.
+        no_evidence=bool(re.search(r'\bне\s+получен',clause,re.I))
+        scoped_absence=any(re.search(r'(?:данн\w*\s+за|признак\w*)\s+[^;.\n]{0,80}'+LESIONS.get(lesion,r'(?!)')+r'[^;.\n]{0,100}\bне\s+получен',clause,re.I) for lesion in lesions)
+        absent=absent or scoped_absence
         polarity='alternative' if alternatives else 'uncertain' if uncertain else 'absent' if absent else 'present'
         sizes=[]
         for size in MEASURE.finditer(clause):
@@ -32,7 +37,7 @@ def extract_block(text,section):
             sizes.append(tuple(sorted(round(float(v.replace(',','.'))*factor,4) for v in re.split(r'\s*[xх×]\s*',size[1]))))
         location='upper' if re.search(r'верхн\w*\s+полюс',clause,re.I) else 'lower' if re.search(r'нижн\w*\s+полюс',clause,re.I) else ''
         levels=tuple(sorted(v.group().upper().replace('TH','T').replace(' ','').replace('–','-') for v in LEVEL.finditer(clause)))
-        ambiguous=len(lesions)>1 or len(sizes)>1 or len(sides)>1 or len(structures)>1
+        ambiguous=(no_evidence and not scoped_absence) or len(levels)>1 or len(lesions)>1 or len(sizes)>1 or len(sides)>1 or len(structures)>1
         # A disc and its named level are sufficient; a generic lesion without an organ is unknown.
         structure=structures[0] if len(structures)==1 else 'диск' if levels and not structures else ''
         for lesion in lesions:out.append(Fact(structure,lesion,side,levels,tuple(sizes),polarity,location,section,m.start(),m.end(),ambiguous))
@@ -79,7 +84,16 @@ def conflicts(state):
     for (organ,finding),sections in groups.items():
         desc,conc=sections['description'],sections['conclusion']
         for right in conc:
-            candidates=[left for left in desc if left.side==right.side and left.location==right.location and (left.levels==right.levels or not left.levels or not right.levels)]
+            # Match by an independent anatomical anchor before comparing side or size.
+            # Never use the size itself to decide which lesion should be compared.
+            if right.levels:
+                candidates=[left for left in desc if left.levels==right.levels and left.location==right.location]
+            elif right.location:
+                candidates=[left for left in desc if left.location==right.location]
+            else:
+                candidates=[left for left in desc if left.side==right.side and not left.location and not left.levels]
+            if len(candidates)>1 and right.side:
+                candidates=[left for left in candidates if left.side==right.side]
             if not candidates and len(desc)==len(conc)==1:candidates=desc
             if len(candidates)!=1:continue
             left=candidates[0];issues=[]

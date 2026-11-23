@@ -154,7 +154,7 @@ def consistency_findings(text):
     out.extend(Finding(a,b,message,True,related) for a,b,message,related in conflicts(ProtocolContextState().update(text)))
     level=r'\b(?:C|Th|T|L|S)\d{1,2}\s*[-–]\s*(?:C|Th|T|L|S)\d{1,2}\b'
     a=set(re.findall(level,desc,re.I));b=set(re.findall(level,conclusion,re.I))
-    uncertain=re.search(r'не\s+исключ|вероятн|возможн|подозр|\?',text,re.I)
+    uncertain=re.search(r'не\s+исключ|вероятн|возможн|подозр|дифференциров\w*\s+с\b|\?',text,re.I)
     if not uncertain and not any('уровня' in item.message for item in out) and len(a)==len(b)==1 and {v.upper().replace('TH','T').replace(' ','') for v in a}!={v.upper().replace('TH','T').replace(' ','') for v in b}:
         out.append(Finding(heading.end(),len(text),'Возможное несоответствие анатомического уровня — сверьте описание и заключение',True))
     for subject in ('выпот','отек','перелом','грыжа'):
