@@ -2,17 +2,19 @@
 import hashlib,re,sqlite3,time
 from collections import deque
 from rapidfuzz.distance import DamerauLevenshtein
-from adaptive_completion import RISK,META,ANCHORS,tokens
+from adaptive_completion import META
+from slot_phrases import slots_from_source,safe_slot_suffix
 from radiology_ai import safe_lines,classify,modality
 
 WORDS=re.compile(r'[А-Яа-яЁёA-Za-z]+(?:-\w+)*|\d+(?:[.,]\d+)?')
 def norm(text):return ' '.join(m.group().casefold().replace('ё','е') for m in WORDS.finditer(text))
 from context_identity import context_key
 def safe_suffix(suffix,before):
-    return bool(suffix.strip()) and len(suffix)<=180 and not RISK.search(suffix) and not re.search(r'\b(?:мм|см|мл|влево|вправо|mm|cm)\b',suffix,re.I) and not META.search(suffix) and not re.search(r'\b[IVX]+(?:-го|-й)?\b',suffix) and not ((set(tokens(suffix))&ANCHORS)-set(tokens(before))) and not any(re.search(r'\b'+root+r'\w*',suffix,re.I) and not re.search(r'\b'+root+r'\w*',before,re.I) for root in ('метастаз','опухол','инфаркт','ишеми','демиелинизац','кровоизлияни'))
+    return safe_slot_suffix(suffix) and not META.search(suffix)
+
 
 class ContextIndex:
-    VERSION=2
+    VERSION=3
     def __init__(self,library,fts=True):
         self.library=library;self.path=library.path.with_name('completion-index.sqlite3');self.db=sqlite3.connect(self.path)
         self.db.execute('PRAGMA busy_timeout=1500');self.db.executescript('''CREATE TABLE IF NOT EXISTS sources(id TEXT PRIMARY KEY,digest TEXT);
@@ -32,6 +34,10 @@ class ContextIndex:
         for key,title,body,area in rows:yield 'template:'+str(key),body,area,modality(title+' '+body[:300]),False,'Библиотека'
         for key,body,area in db.execute("SELECT rowid,text,category FROM phrases WHERE source='Личный стандарт'"):yield 'phrase:'+str(key),body,area,modality(body),True,'Личный стандарт'
         for key,body,area in db.execute('SELECT id,content,category FROM verified_standards'):yield 'verified:'+str(key),body,area,modality(body[:300]),True,'Личный стандарт'
+        for key,body,area,builtin in db.execute("""SELECT q.id,q.text,COALESCE(d.category,''),COALESCE(d.builtin,1)
+            FROM quick_lines q LEFT JOIN quick_line_details d ON d.text=q.text"""):
+            label='Быстрая строка' if builtin else 'Моя быстрая строка'
+            yield 'quick:'+str(key),body,area,modality(body[:300]),not bool(builtin),label
     def sync(self):
         started=time.perf_counter();seen=set();changed=False;phrases=0;word_count=0
         with self.db:
@@ -47,8 +53,9 @@ class ContextIndex:
                         if not 3<=len(spans)<=70 or len(phrase)>700:continue
                         phrases+=1;word_count+=len(spans)
                         for end in range(2,len(spans)):
-                            suffix=phrase[spans[end-1].end():]
-                            if not safe_suffix(suffix,phrase[:spans[end-1].end()]):continue
+                            source_prefix=phrase[:spans[end-1].end()]
+                            suffix=slots_from_source(phrase[spans[end-1].end():],source_prefix)
+                            if suffix is None or not safe_suffix(suffix,source_prefix):continue
                             for size in (2,3,4,5):
                                 start=max(0,end-size)
                                 if size>end:continue
@@ -90,10 +97,13 @@ class ContextIndex:
                 if a[:-1]==b[:-1] and (b[-1].startswith(a[-1]) or (len(a[-1])>=4 and DamerauLevenshtein.distance(a[-1],b[-1])<=1)):
                     matched=True;break
             if not matched or not safe_suffix(suffix,context):continue
-            if region and area and area!='Другие исследования' and region!=area:continue
+            if region and area and area!='Другие исследования' and region not in (area,'Другие исследования','Общее','Общие исследования'):continue
             if mode and kind and mode!=kind:continue
-            score=length*4+verified*8+(region==area)*3+(mode==kind)*2-float(bm)*.01
-            ranked.append((score,{'suffix':suffix,'phrase':phrase,'source_id':source,'personal':bool(verified),'source':label,'context':stored,'id':key,'last':st[-1],'area':region,'modality':mode,'frequency':freq,'source_version':self.source_versions.get(source,''),'lexical_score':score}))
+            bonus=25 if label=='Моя быстрая строка' else 6 if label=='Быстрая строка' else 0
+            score=length*4+verified*8+bonus+(region==area)*3+(mode==kind)*2-float(bm)*.01
+            ranked.append((score,{'suffix':suffix,'phrase':phrase,'display_phrase':slots_from_source(phrase) or phrase,
+                'source_id':source,'personal':bool(verified),'source':label,'context':stored,'id':key,'last':st[-1],
+                'area':region,'modality':mode,'frequency':freq,'source_version':self.source_versions.get(source,''),'lexical_score':score}))
         unique={}
         for score,value in sorted(ranked,key=lambda x:-x[0]):unique.setdefault((value['context'],value['suffix']),value)
         self.lookup_times.append((time.perf_counter()-lookup_started)*1000)
