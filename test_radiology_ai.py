@@ -91,11 +91,12 @@ class LocalAIApplicationTests(unittest.TestCase):
         self.assertNotIn('струткуры',[x.word for x in self.window.live_spelling.issues(self.window.editor.toPlainText())])
         p=Path(self.tmp.name)/'clean.docx';self.window.export_to_path(p)
         self.assertTrue(all(not r.underline for para in Document(p).paragraphs for r in para.runs))
-    def test_no_learning_from_save_or_favorite_and_backup_migration(self):
+    def test_export_verifies_but_favorite_does_not_and_backup_survives(self):
         self.window.editor.setPlainText('Контуры ровные; структура однородная.')
-        self.window.export_to_path(Path(self.tmp.name)/'draft.docx')
         self.window.favorites.store('Личный шаблон','ГМ',self.window.editor.toHtml())
         self.assertFalse(any(self.window.library.ai.stats().values()))
+        self.window.export_to_path(Path(self.tmp.name)/'draft.docx')
+        self.assertGreater(self.window.library.ai.stats()['Слова'],0)
         self.assertEqual(self.window.library.db.execute('SELECT count(*) FROM templates').fetchone()[0],497)
         backup=self.window.library.backup();self.assertTrue(backup.exists())
         self.assertNotEqual(backup,self.window.library.backup())
