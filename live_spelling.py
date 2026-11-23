@@ -115,7 +115,7 @@ class LiveSpelling(QSyntaxHighlighter):
             target.setPosition(block.position() + end, QTextCursor.MoveMode.KeepAnchor)
             submenu = menu.addMenu('Исправить: ' + issue.word)
             from radiology_ai import classify
-            options = self.window.library.ai.ranked_corrections(issue.word,text[:issue.start],text[issue.end:],(classify(self.window.editor.document().firstBlock().text()+' '+text) if self.window.library.ai.enabled('auto_area') else '')) if self.window.library.ai.enabled('context_corrections') else ()
+            options = self.window.library.ai.ranked_corrections(issue.word,text[:issue.start],text[issue.end:],self.window.ai_context()['area'],self.window.ai_context()['modality']) if self.window.library.ai.enabled('context_corrections') else ()
             options = options or suggest(issue.word)
             for candidate in options:
                 submenu.addAction(candidate, lambda c=candidate: self.replace(target, issue.word, c))

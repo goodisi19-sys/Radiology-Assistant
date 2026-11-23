@@ -73,22 +73,46 @@ class LocalAI:
         self.refresh_memory()
         from personal_ranker import PersonalRanker
         self.ranker=PersonalRanker(db)
-        self.neural_scores={};self.deep_scores={}
+        self.neural_scores={};self.deep_scores={};self.extra_candidates={}
+        self.score_cache_stats={'sage_hit':0,'sage_miss':0}
 
-    def ranked_corrections(self,word,before='',after='',area=''):
-        values=self.corrections(word,before,after,area)
-        if not hasattr(self,'ranker'):return values
-        from context_identity import context_key
-        key=context_key('word',before.rsplit('\n',1)[-1]+word,after.split('\n',1)[0],area,candidates=values,model='hybrid-v1')
-        scores=self.neural_scores.get(key,{})
-        return tuple(self.ranker.rank(word,values,area,modality(before+after),scores,self.deep_scores.get(key,{})))
+    def correction_candidates(self,word,before='',after='',area='',kind=''):
+        from word_scoring import word_key,safe_word_correction
+        before=before.rsplit('\n',1)[-1];after=after.split('\n',1)[0]
+        values=list(self.corrections(word,before,after,area))
+        values.extend(self.extra_candidates.get(word_key(word,before,after,area,kind),()))
+        return tuple(dict.fromkeys(c for c in values if safe_word_correction(word,c,self.words)))[:6]
 
-    def ranked_completion(self,prefix,before='',area=''):
-        values=self.complete(prefix,before,area)
-        if not hasattr(self,'ranker'):return values
-        from context_identity import context_key
-        key=context_key('word',before+prefix,'',area,candidates=values,model='hybrid-v1')
-        return tuple(self.ranker.rank(prefix,values,area,modality(before),self.neural_scores.get(key,{}),self.deep_scores.get(key,{})))
+    def editor_candidates(self,prefix,before='',after='',area='',kind=''):
+        from word_scoring import safe_completion
+        values=[c for c in self.complete(prefix,before,area) if safe_completion(prefix,c,self.words)]
+        if self.enabled('context_corrections'):values.extend(self.correction_candidates(prefix,before,after,area,kind))
+        return tuple(dict.fromkeys(values))
+
+    def deep_for(self,key,values):
+        import math
+        if not self.enabled('neural_enabled'):return {}
+        scores=self.deep_scores.get(key,{})
+        # A partial set must not give evaluated options an unfair default bonus.
+        if values and all(c in scores for c in values):
+            self.score_cache_stats['sage_hit']+=1;top=max(scores[c] for c in values)
+            return {c:math.exp(scores[c]-top) for c in values}
+        self.score_cache_stats['sage_miss']+=1;return {}
+
+    def ranked_corrections(self,word,before='',after='',area='',kind=''):
+        from word_scoring import word_key
+        values=self.correction_candidates(word,before,after,area,kind)
+        return tuple(self.ranker.rank(word,values,area,kind,deep=self.deep_for(word_key(word,before,after,area,kind),values),trusted=self.words))
+
+    def ranked_completion(self,prefix,before='',area='',after='',kind=''):
+        from word_scoring import word_key,safe_completion
+        values=tuple(c for c in self.complete(prefix,before,area) if safe_completion(prefix,c,self.words))
+        return tuple(self.ranker.rank(prefix,values,area,kind,deep=self.deep_for(word_key(prefix,before,after,area,kind),values),mode='completion',trusted=self.words))
+
+    def editor_options(self,prefix,before='',after='',area='',kind=''):
+        from word_scoring import word_key
+        values=self.editor_candidates(prefix,before,after,area,kind)
+        return tuple(self.ranker.rank(prefix,values,area,kind,deep=self.deep_for(word_key(prefix,before,after,area,kind),values),mode='editor',trusted=self.words))
 
     def enabled(self, key):
         row=self.db.execute('SELECT value FROM app_settings WHERE key=?',(key,)).fetchone()
@@ -196,7 +220,7 @@ class LocalAI:
     def clear(self):
         with self.db:
             for table in ('ai_corrections','ai_words','ai_ngrams'): self.db.execute('DELETE FROM '+table)
-        if hasattr(self,'ranker'):self.ranker.clear();self.neural_scores.clear();self.deep_scores.clear()
+        if hasattr(self,'ranker'):self.ranker.clear();self.neural_scores.clear();self.deep_scores.clear();self.extra_candidates.clear()
         # Keep processed source digests to prevent silent re-learning on restart.
         self.refresh_memory()
 

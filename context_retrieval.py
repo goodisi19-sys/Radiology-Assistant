@@ -93,7 +93,7 @@ class ContextIndex:
             if region and area and area!='Другие исследования' and region!=area:continue
             if mode and kind and mode!=kind:continue
             score=length*4+verified*8+(region==area)*3+(mode==kind)*2-float(bm)*.01
-            ranked.append((score,{'suffix':suffix,'phrase':phrase,'source_id':source,'personal':bool(verified),'source':label,'context':stored,'id':key,'last':st[-1],'area':region,'modality':mode,'frequency':freq,'source_version':self.source_versions.get(source,'')}))
+            ranked.append((score,{'suffix':suffix,'phrase':phrase,'source_id':source,'personal':bool(verified),'source':label,'context':stored,'id':key,'last':st[-1],'area':region,'modality':mode,'frequency':freq,'source_version':self.source_versions.get(source,''),'lexical_score':score}))
         unique={}
         for score,value in sorted(ranked,key=lambda x:-x[0]):unique.setdefault((value['context'],value['suffix']),value)
         self.lookup_times.append((time.perf_counter()-lookup_started)*1000)

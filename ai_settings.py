@@ -12,6 +12,9 @@ class AISettings(QDialog):
         neural=QCheckBox('Нейросетевые компоненты (автоматически, в фоне)')
         neural.setChecked(window.library.ai.enabled('neural_enabled'))
         neural.toggled.connect(lambda value:self.change('neural_enabled',value));layout.addWidget(neural)
+        phrase_rerank=QCheckBox('Эксперимент: ранжирование продолжений RuBERT (по умолчанию выключено)')
+        phrase_rerank.setChecked(window.library.get_setting('bert_phrase_rerank')=='1')
+        phrase_rerank.toggled.connect(self.change_phrase_rerank);layout.addWidget(phrase_rerank)
         resource_mode=QComboBox();resource_mode.addItems(['Автоматический','Экономичный','Сбалансированный','Расширенный'])
         resource_mode.setCurrentText(window.library.get_setting('hybrid_mode') or 'Автоматический')
         resource_mode.currentTextChanged.connect(self.change_resource_mode);layout.addWidget(resource_mode)
@@ -21,7 +24,14 @@ class AISettings(QDialog):
         self.status=QLabel();self.status.setWordWrap(True);layout.addWidget(self.status);self.items=QListWidget();layout.addWidget(self.items)
         for name,fn in [('Исключить выбранную формулировку',self.exclude),('Резервная копия всей памяти',window.backup_database),('Откатить последнее изменение ранжирования',self.rollback),('Очистить память обучения',self.clear)]:
             button=QPushButton(name);button.clicked.connect(fn);layout.addWidget(button)
+        analyze=QPushButton('Оценить текущий абзац сейчас');analyze.clicked.connect(self.analyze_now);layout.addWidget(analyze)
         self.refresh()
+    def change_phrase_rerank(self,value):
+        self.window.library.set_setting('bert_phrase_rerank','1' if value else '0')
+        self.window.hybrid.cache.clear();self.window.hybrid.timer.start()
+    def analyze_now(self):
+        h=self.window.hybrid;h.cache.clear();h.cooldown=0;h.resources();h.timer.start(0)
+        self.refresh_activity()
     def refresh_activity(self):
         hybrid=getattr(self.window,'hybrid',None)
         if not hybrid:return
@@ -30,7 +40,7 @@ class AISettings(QDialog):
         self.activity.setText(f"В памяти RuBERT: {'да' if loaded.get('rubert') else 'нет'}, SAGE: {'да' if loaded.get('sage') else 'нет'}. {hybrid.last_status}; выбран: {state.get('requested','—')}; активный профиль: {state.get('mode','—')}; "
             f"RuBERT: {'доступен' if state.get('bert') else 'приостановлен'}; SAGE: {'доступна' if state.get('deep') else 'приостановлена'}; "
             f"{state.get('reason','')} CPU системы: {resource.get('cpu',0):.0f} %; свободно ОЗУ: {resource.get('available_gb',0):.1f} ГиБ. "
-            'SAGE оценивает готовые варианты исправлений; её ответы не обучают память.')
+            'RuBERT — поиск и формулировки; SAGE — варианты слов в сбалансированном/расширенном профиле. Веса моделей не обучаются автоматически. '+f"Кэш SAGE: попаданий {self.window.library.ai.score_cache_stats['sage_hit']}, без полной оценки {self.window.library.ai.score_cache_stats['sage_miss']}.")
     def change_resource_mode(self,value):
         self.window.library.set_setting('hybrid_mode',value)
         self.change_mode('Расширенный' if value=='Расширенный' else 'Быстрый')
@@ -46,7 +56,8 @@ class AISettings(QDialog):
         self.window.library.set_setting(key,'1' if value else '0')
         if key=='live_spelling':self.window.live_spelling.set_enabled(value)
         if key=='neural_enabled' and hasattr(self.window,'hybrid'):
-            self.window.hybrid.resources()
+            self.window.hybrid.reset();self.window.hybrid.resources()
+            if value:self.window.hybrid.timer.start()
             if not value:self.window.library.ai.neural_scores.clear();self.window.library.ai.deep_scores.clear()
     def refresh(self):
         ai=self.window.library.ai;self.status.setText('Готов. '+', '.join(f'{k}: {v}' for k,v in ai.stats().items()))

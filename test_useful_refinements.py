@@ -74,18 +74,6 @@ class ClinicalRegressionTests(unittest.TestCase):
               'Заключение: Киста верхнего полюса правой почки 2x1 см; киста нижнего полюса левой почки 3 см.')
         self.assertFalse(conflicts(ProtocolContextState().update(text)))
 
-class TLSDiagnosticTests(unittest.TestCase):
-    def test_bad_certificate_is_rejected_and_query_not_disclosed(self):
-        from tls_diagnostics import reject_and_describe
-        certificate=Mock();certificate.issuerInfo.return_value=['Corporate CA']
-        error=Mock();error.url.return_value=QUrl('https://www.google.com/search?q=PRIVATE_PROTOCOL')
-        error.type.return_value=type('Error',(),{'name':'CertificateAuthorityInvalid'})()
-        error.certificateChain.return_value=[certificate]
-        message=reject_and_describe(error)
-        error.rejectCertificate.assert_called_once();error.acceptCertificate.assert_not_called()
-        self.assertIn('www.google.com',message);self.assertIn('Corporate CA',message)
-        self.assertIn('CertificateAuthorityInvalid',message);self.assertNotIn('PRIVATE_PROTOCOL',message)
-
 class EditorOverlapTests(unittest.TestCase):
     def test_midline_tab_insertion_is_single_undo_and_preserves_right_text(self):
         import tempfile

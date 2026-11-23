@@ -48,6 +48,29 @@ def run(result_path):
         QApplication.sendEvent(window.reference.input, event)
         assert window.reference.input.toPlainText() == 'Проверка ввода'
         assert window.editor.toPlainText() == expected
+        # Test the real context-menu action in the frozen EXE, intercepting only
+        # the external browser boundary. Never send smoke text to the Internet.
+        from unittest.mock import patch
+        from PySide6.QtWidgets import QMenu
+        from PySide6.QtCore import QPoint, QUrlQuery, QTimer
+        menu_errors=[]
+        def choose_review():
+            menu=application.activePopupWidget()
+            try:
+                assert isinstance(menu,QMenu)
+                actions=menu.actions()
+                next(a for a in actions if a.objectName()=='reviewInDefaultBrowser').trigger()
+            except Exception as error:menu_errors.append(str(error))
+            finally:
+                if menu:menu.close()
+        with patch('privacy_review.approve_preview',return_value='Одобренная проверка протокола') as preview, patch('PySide6.QtGui.QDesktopServices.openUrl',return_value=True) as browser:
+            window.editor.moveCursor(window.editor.textCursor().MoveOperation.Start)
+            QTimer.singleShot(0,choose_review)
+            window.show_editor_menu(QPoint(1,1))
+            assert not menu_errors, menu_errors
+            assert expected in preview.call_args.args[1]
+            assert QUrlQuery(browser.call_args.args[0]).queryItemValue('q')=='Одобренная проверка протокола'
+            assert window.editor.toPlainText()==expected
         from yandex_editor import BrowserBridge
         import urllib.request
         window.show_yandex_editor()
@@ -190,6 +213,6 @@ def run(result_path):
         finally:neural.close()
         window.editor.document().setModified(False); window.close()
         Path(result_path).write_text(json.dumps({'protocols': visible, 'packaged_tab_editor_popup_undo_enter':'ok','midline_overlap_tab_undo':'ok', 'fts5':'ok', 'docx': 'ok', 'view_scale': 'ok',
-            'quick_lines': 'ok', 'spelling': 'ok', 'punctuation': 'ok', 'google_input': 'ok', 'yandex_exchange': 'ok',
+            'quick_lines': 'ok', 'spelling': 'ok', 'punctuation': 'ok', 'google_input': 'ok', 'google_context_default_browser': 'ok', 'yandex_exchange': 'ok',
             'mra_paragraphs': 'ok', 'layouts_audited': 497, 'methodology': 'ok', 'protocol_check': 'ok', 'live_spelling': 'ok', 'favorites': 'ok', 'shorthand': 'ok', 'adaptive_completion': 'ok', 'fragment_flow': 'ok', 'local_ai': 'ok', 'bundled_rubert': 'ok', 'bundled_sage': 'ok', 'critical_tokens': 'ok', 'explicit_learning': 'ok', 'memory_backup': 'ok',
             'base_sources_restored': 127, 'source_review_required': 18}), encoding='utf-8')

@@ -22,10 +22,12 @@ class PersonalRanker:
             else:bad=n
         return {'distance':-min(3,DamerauLevenshtein.distance(original.casefold(),candidate.casefold()))/3,
                 'base':1/(index+1),'positive':min(1,math.log1p(good)/3),'negative':-min(1,math.log1p(bad)/3),'semantic':max(-1,min(1,semantic))}
-    def rank(self,original,candidates,area='',modality='',semantic=None,deep=None):
+    def rank(self,original,candidates,area='',modality='',semantic=None,deep=None,mode='correction',trusted=()):
         semantic=semantic or {};deep=deep or {};ranked=[]
         for i,c in enumerate(candidates):
-            if not safe_pair(original,c):continue
+            from word_scoring import safe_completion,safe_word_correction
+            allowed=(safe_completion(original,c,trusted) if mode=='completion' else (safe_completion(original,c,trusted) or safe_word_correction(original,c,trusted)) if mode=='editor' else safe_word_correction(original,c,trusted))
+            if not allowed:continue
             f=self.features(original,c,i,area,modality,semantic.get(c,0))
             learned=sum(self.weights.get(k,0)*v for k,v in f.items())
             # Neural influence and individual examples are deliberately bounded.

@@ -134,8 +134,8 @@ class SpellingDialog(QDialog):
         from radiology_ai import classify
         before=self.snapshot[:issue.start];after=self.snapshot[issue.end:]
         line=before.rsplit('\n',1)[-1]+issue.word+after.split('\n',1)[0]
-        area=classify(self.snapshot.split('\n',1)[0]+' '+line) if self.window.library.ai.enabled('auto_area') else ''
-        options=self.window.library.ai.ranked_corrections(issue.word,before,after,area)
+        state=self.window.ai_context();area=state['area']
+        options=self.window.library.ai.ranked_corrections(issue.word,before,after,area,state['modality'])
         self.suggestions.addItems(options or suggest(issue.word))
         if self.window.editor.toPlainText() != self.snapshot: return
         cursor = self.window.editor.textCursor()

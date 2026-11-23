@@ -39,7 +39,7 @@ class HybridCoordinator:
         # Keep a warm worker; stale results are discarded by revision.
         self.timer.start()
     def reset(self):
-        self.version+=1;self.cache.clear();self.completion_scores.clear();self.backend.cancel();self.timer.stop()
+        self.version+=1;self.cache.clear();self.completion_scores.clear();self.cooldown=0;self.failure='';self.backend.cancel();self.timer.stop()
     def close(self):
         self.closed=True;self.timer.stop();self.poll.stop();self.monitor.stop();
         if hasattr(self,'search_poll'):self.search_poll.stop()
@@ -50,108 +50,114 @@ class HybridCoordinator:
         if self.closed:return
         if self.busy:self.timer.start(400);return
         if not self.allowed():return
-        editor=self.window.editor;block=editor.textCursor().block().text()
-        if len(block.strip())<8:return
+        editor=self.window.editor;cursor=editor.textCursor();block=cursor.block().text()
+        if len(block.strip())<3:return
+        spelling=self.window.live_spelling
+        if spelling.enabled and block not in spelling.cache:
+            self.timer.start(400);return # Never cache an empty analysis before spelling is ready.
         from context_identity import context_key
-        state=self.window.protocol_context.update(editor.toPlainText(),editor.document().revision())
-        digest=context_key('analysis',block,area=state.area,kind=state.modality,model='rubert-tiny2+sage-v1')
-        if digest in self.cache:return
-        area=state.area if self.window.library.ai.enabled('auto_area') else ''
-        issues=self.window.live_spelling.cache.get(block,())
+        from word_scoring import word_key
+        state=self.window.ai_context();area=state['area'];kind=state['modality']
         tasks=[]
-        for issue in issues[:3]:
+        for issue in spelling.cache.get(block,())[:3]:
             before,after=block[:issue.start],block[issue.end:]
-            candidates=self.window.library.ai.ranked_corrections(issue.word,before,after,area)
-            if candidates:tasks.append((issue.word,before,after,tuple(candidates)))
-        cursor=editor.textCursor()
+            options=self.window.library.ai.correction_candidates(issue.word,before,after,area,kind)
+            tasks.append((issue.word,before,after,tuple(options)))
         cursor_before=block.encode('utf-16-le')[:cursor.positionInBlock()*2].decode('utf-16-le')
-        prefix=re.search(r'[А-Яа-яЁё]{3,}$',cursor_before)
-        if prefix:
-            word=prefix.group();before=cursor_before[:-len(word)];after=block[len(cursor_before):]
-            if not any(t[0]==word and t[1]==before for t in tasks):
-                options=self.window.library.ai.complete(word,before,area)
-                if options:tasks.append((word,before,after,tuple(options)))
-        if self.window.library.ai.enabled('grammar_warnings'):
-            from medical_grammar import candidates as grammar_candidates
-            for start,end,word,value in grammar_candidates(block)[:2]:
-                tasks.append((word,block[:start],block[end:],(word,value)))
-        # Context classification from the same encoder; no diagnostic head is claimed.
-        prototypes=[('ГМ','МРТ головного мозга. Срединные структуры.'),('Позвоночник','МРТ позвоночника. Межпозвонковые диски.'),('ОМТ','МРТ органов малого таза.'),('Суставы','МРТ сустава. Связки и мениски.'),('Брюшная полость','КТ органов брюшной полости. Печень и почки.'),('Мягкие ткани','МРТ мягких тканей.'),('Сосуды','МР ангиография артерий и вен.')]
-        version=self.version
-        cursor_snapshot=(cursor.position(),cursor.anchor())
         completion_after=block[len(cursor_before):]
-        completion_pool=self.window.completion_index.suggest(cursor_before,completion_after,area,state.modality,30)
-        completion_key=context_key('completion',cursor_before,completion_after,area,state.modality,[v['source_id']+v['suffix'] for v in completion_pool],model='rubert-tiny2-v1')
-        definitions=self.window.glossary.verified_context(block) if hasattr(self.window,'glossary') else []
-        glossary_context=' '.join(term+': '+definition for term,definition in definitions)[:350]
-        settings=dict(self.resource_state)
-        self.busy=True;self.last_status=('Глубокий анализ' if settings.get('deep') and tasks else 'Контекстный анализ');cache_path=self.window.library.path.parent/'hybrid-embeddings.sqlite3'
+        prefix=re.search(r'[А-Яа-яЁё]{3,}$',cursor_before)
+        if prefix and not cursor.hasSelection():
+            word=prefix.group();before=cursor_before[:-len(word)]
+            options=self.window.library.ai.editor_candidates(word,before,completion_after,area,kind)
+            task=(word,before,completion_after,tuple(options))
+            if options and task not in tasks:tasks.append(task)
+        pool=self.window.completion_index.suggest(cursor_before,completion_after,area,kind,30) if not cursor.hasSelection() and self.window.library.get_setting('bert_phrase_rerank')=='1' else []
+        completion_key=context_key('completion',cursor_before,completion_after,area,kind,[v['source_id']+v['suffix'] for v in pool],model='rubert-tiny2-v1')
+        signature=[word_key(w,b,a,area,kind)+repr(opts) for w,b,a,opts in tasks]
+        digest=context_key('analysis',block,area=area,kind=kind,candidates=signature+[completion_key,str(spelling.generation)],model='word-v2')
+        if digest in self.cache:return
+        if not tasks and not pool:
+            self.last_status='Лексический анализ: нет задач для моделей';return
+        version=self.version;cursor_snapshot=(cursor.position(),cursor.anchor());settings=dict(self.resource_state)
+        trusted=frozenset(self.window.library.ai.words)
+        self.busy=True;self.last_status='Фоновая проверка вариантов'
+        cache_path=self.window.library.path.parent/'hybrid-embeddings.sqlite3'
+        def cancelled():return self.closed or version!=self.version
         def work():
+            metadata={'cursor_snapshot':cursor_snapshot,'extra_candidates':[],'sage_tasks':0,'bert_used':False}
+            ranked=[]
             try:
-                if self.closed or version!=self.version:raise RuntimeError('cancelled')
-                classification=self.backend.semantic(block,[p[1] for p in prototypes],settings['threads'],cache_path)
-                if completion_pool:
-                    classification['completion_key']=completion_key
-                    classification['completion_scores']=self.backend.semantic(cursor_before+' '+completion_after,[c['phrase'] for c in completion_pool],settings['threads'],cache_path,timeout=3)['scores']
-                    classification['completion_ids']=[c['source_id']+c['suffix'] for c in completion_pool]
-                classification['cursor_snapshot']=cursor_snapshot
-                ranked=[]
+                if cancelled():raise RuntimeError('cancelled')
+                # RuBERT is a phrase/retrieval model, not a spelling likelihood model.
+                if pool:
+                    metadata['bert_used']=True
+                    metadata['completion_key']=completion_key
+                    metadata['completion_scores']=self.backend.semantic(cursor_before+' '+completion_after,[c['phrase'] for c in pool],settings['threads'],cache_path,timeout=3)['scores']
+                    metadata['completion_ids']=[c['source_id']+c['suffix'] for c in pool]
+                score_cache={}
                 for word,before,after,options in tasks:
-                    if self.closed or version!=self.version:return self.results.put((version,digest,block,area,[],None,'cancelled'))
-                    context=before[-180:]+word+after[:180]
-                    rendered=[before[-180:]+c+after[:180] for c in options]
-                    scores=self.backend.semantic(context+(' Справочник: '+glossary_context if glossary_context else ''),rendered,settings['threads'],cache_path)['scores']
+                    if cancelled():raise RuntimeError('cancelled')
+                    if not options:
+                        from spell_check import suggest
+                        from rapidfuzz.distance import DamerauLevenshtein
+                        from word_scoring import safe_word_correction,WORD
+                        options=tuple(c for c in suggest(word) if WORD.fullmatch(c) and DamerauLevenshtein.distance(word.casefold(),c.casefold())<=2 and safe_word_correction(word,c,trusted))[:6]
+                        if options:metadata['extra_candidates'].append((word_key(word,before,after,area,kind),options))
                     deep_scores=None
                     if settings.get('deep') and len(options)>1:
+                        from word_scoring import local_window
+                        key=word_key(word,before,after,area,kind);known=score_cache.setdefault(key,{})
+                        left,_,right=local_window(before,word,after)
+                        missing=[c for c in options if c not in known]
                         try:
-                            deep_scores=self.backend.deep(context,rendered,settings['threads'],cache_path)['scores']
-                        except Exception:pass # Retain already computed lexical/encoder results on deadline.
-                    ranked.append((word,before,after,options,scores,deep_scores))
-                self.results.put((version,digest,block,area,ranked,classification,None))
-            except Exception as e:self.results.put((version,digest,block,area,[],None,type(e).__name__))
+                            for start in range(0,len(missing),6):
+                                if cancelled():raise RuntimeError('cancelled')
+                                chunk=missing[start:start+6]
+                                values=self.backend.deep(left+word+right,[left+c+right for c in chunk],settings['threads'],cache_path)['scores']
+                                known.update(zip(chunk,values))
+                            if all(c in known for c in options):deep_scores=[known[c] for c in options];metadata['sage_tasks']+=1
+                        except Exception:pass # Lexical suggestions remain available.
+                    ranked.append((word,before,after,options,[],deep_scores))
+                self.results.put((version,digest,block,area,ranked,metadata,None))
+            except Exception as error:self.results.put((version,digest,block,area,[],None,type(error).__name__))
         self.executor.submit(work)
+
     def drain(self):
         while not self.results.empty():
-            version,digest,block,area,ranked,classification,error=self.results.get();self.busy=False
+            version,digest,block,area,ranked,metadata,error=self.results.get();self.busy=False
             if self.closed or version!=self.version:continue
             if error:
+                if not self.window.library.ai.enabled('neural_enabled'):continue
                 self.failure=error;self.last_status='LocalAI активен — нейромодуль недоступен';self.cooldown=time.monotonic()+60
-                # No raw text or exception detail is logged or shown.
                 continue
-            from context_identity import context_key
-            if classification and classification.get('cursor_snapshot') is not None:
-                cursor=self.window.editor.textCursor()
-                if classification['cursor_snapshot']!=(cursor.position(),cursor.anchor()):continue
-            if classification and 'completion_key' in classification:
-                self.completion_scores[classification['completion_key']]=dict(zip(classification['completion_ids'],classification['completion_scores']))
-                while len(self.completion_scores)>64:self.completion_scores.pop(next(iter(self.completion_scores)))
-                popup=self.window.completer.popup()
-                if popup.isVisible():
-                    selected=popup.currentIndex().data()
-                    self.window.update_suggestions()
-                    labels=self.window.completion_model.stringList()
-                    if selected in labels:popup.setCurrentIndex(popup.model().index(labels.index(selected),0))
-            ai=self.window.library.ai
-            for word,before,after,options,scores,deep_scores in ranked:
-                values=dict(zip(options,scores))
+            from word_scoring import word_key
+            ai=self.window.library.ai;kind=self.window.ai_context()['modality']
+            metadata=metadata or {}
+            for key,options in metadata.get('extra_candidates',()):ai.extra_candidates[key]=options
+            while len(ai.extra_candidates)>256:ai.extra_candidates.pop(next(iter(ai.extra_candidates)))
+            for word,before,after,options,_,deep_scores in ranked:
                 if deep_scores:
-                    import math
-                    top=max(deep_scores)
-                    weights=[math.exp(s-top) for s in deep_scores]
-                    ai.deep_scores[context_key('word',before+word,after,area,candidates=options,model='hybrid-v1')]=dict(zip(options,weights))
+                    key=word_key(word,before,after,area,kind)
+                    ai.deep_scores.setdefault(key,{}).update(zip(options,deep_scores))
                     while len(ai.deep_scores)>256:ai.deep_scores.pop(next(iter(ai.deep_scores)))
-                ai.neural_scores[context_key('word',before+word,after,area,candidates=options,model='hybrid-v1')]=values
-                while len(ai.neural_scores)>256:ai.neural_scores.pop(next(iter(ai.neural_scores)))
+            if 'completion_key' in metadata:
+                self.completion_scores[metadata['completion_key']]=dict(zip(metadata['completion_ids'],metadata['completion_scores']))
+                while len(self.completion_scores)>64:self.completion_scores.pop(next(iter(self.completion_scores)))
             self.cache[digest]=True
             while len(self.cache)>256:self.cache.popitem(last=False)
-            self.last_status='LocalAI активен · контекст проверен'
-            if classification and ai.enabled('auto_area'):
-                labels=['ГМ','Позвоночник','ОМТ','Суставы','Брюшная полость','Мягкие ткани','Сосуды']
-                scores=classification['scores'];order=sorted(range(len(scores)),key=lambda i:scores[i],reverse=True)
-                self.inferred_area=labels[order[0]] if scores[order[0]]-scores[order[1]]>.1 else area
-        if hasattr(self.window,'hybrid_indicator'):
-            self.window.hybrid_indicator.setText(self.last_status)
+            self.last_status=('SAGE: оценены варианты слов ('+str(metadata['sage_tasks'])+')') if metadata.get('sage_tasks') else ('RuBERT: оценены формулировки' if metadata.get('bert_used') else 'Обновлены словарные варианты; SAGE в этом профиле не использовалась')
+            # Cache immutable word scores even after a caret move; refresh only the
+            # current popup. Write every score BEFORE rebuilding its visible order.
+            cursor=self.window.editor.textCursor();same_cursor=metadata.get('cursor_snapshot') in (None,(cursor.position(),cursor.anchor()))
+            popup=self.window.completer.popup()
+            if same_cursor and popup.isVisible():
+                selected=popup.currentIndex().data();preserve=getattr(self.window,'_completion_user_selected',False) or popup.currentIndex().row()>0
+                self.window.update_suggestions()
+                labels=self.window.completion_model.stringList()
+                if preserve and selected in labels:popup.setCurrentIndex(popup.model().index(labels.index(selected),0))
+        if hasattr(self.window,'hybrid_indicator'):self.window.hybrid_indicator.setText(self.last_status)
         self.start_pending_search()
+
     def start_pending_search(self):
         if self.pending_search and not self.busy and self.allowed():
             task=self.pending_search;self.pending_search=None
@@ -163,13 +169,8 @@ class HybridCoordinator:
             self.pending_search=(query,rows,callback)
             return
         # A lexical shortlist bounds neural work; do not encode the entire library on every search.
-        lexical=self.window.library.ai.search(query,rows,limit=60)
-        from rapidfuzz import fuzz
-        area=classify(query)
-        fallback=sorted(rows,key=lambda r:(str(r[2])==area if len(r)>2 else False,fuzz.WRatio(query,' '.join(str(v) for v in r[1:])[:1500])),reverse=True)[:60]
-        selected={r[0]:r for r in lexical}
-        for row in fallback:selected.setdefault(row[0],row)
-        snapshot=tuple(list(selected.values())[:60]);version=self.version;self.busy=True
+        from neural_retrieval import shortlist
+        snapshot=shortlist(self.window.library.ai,query,rows);version=self.version;self.busy=True
         cache=self.window.library.path.parent/'hybrid-embeddings.sqlite3'
         def work():
             try:

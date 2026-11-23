@@ -51,7 +51,8 @@ class NeuralBackend:
         task['context_key']=context_key(kind,context,candidates=options,model=task['root'])
         try:
             p.stdin.write(json.dumps(task,ensure_ascii=True)+'\n');p.stdin.flush()
-            raw=answers.get(timeout=12 if cold else timeout)
+            budget=15 if kind=='sage' and not self.loaded.get('sage') else (12 if cold else timeout)
+            raw=answers.get(timeout=budget)
             result=json.loads(raw)
             if 'error' in result:raise RuntimeError(result['error']+':'+result.get('error_type','')+'@'+result.get('stage',''))
             roundtrip_ms=(time.perf_counter()-roundtrip_started)*1000

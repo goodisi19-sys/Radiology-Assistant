@@ -467,7 +467,7 @@ class PhraseLibrary:
         self.db.commit()
 
 class MainWindow(QMainWindow):
-    def __init__(self, allow_external_lookup=False):
+    def __init__(self):
         super().__init__()
         self.library = PhraseLibrary()
         from medical_glossary import MedicalGlossary
@@ -499,8 +499,6 @@ class MainWindow(QMainWindow):
         self.hybrid_indicator = QLabel('LocalAI активен')
         self.statusBar().addPermanentWidget(self.hybrid_indicator)
         self.hybrid = HybridCoordinator(self)
-        from google_term_lookup import TermLookup
-        self.term_lookup=TermLookup(self,allow_network=allow_external_lookup)
 
     def build_ui(self):
         self.setStatusBar(QStatusBar())
@@ -709,7 +707,6 @@ class MainWindow(QMainWindow):
             self.completer.popup().hide()
             self.autosave_timer.stop()
             if hasattr(self, 'yandex_dialog'): self.yandex_dialog.close()
-            if hasattr(self,'term_lookup'):self.term_lookup.close()
             self.completion_timer.stop()
             self.status_timer.stop()
             if hasattr(self,'search_timer'):self.search_timer.stop()
@@ -727,7 +724,6 @@ class MainWindow(QMainWindow):
         if not self.confirm_discard(): return
         self._accept_events=[];self.protocol_context.clear();self._inserted_template_baseline=None;self.completion_index.shortlist=None
         if hasattr(self,'hybrid'):self.hybrid.reset()
-        if hasattr(self,'term_lookup'):self.term_lookup.reset()
         self.editor.clear(); self.current_file=None; self.editor.document().setModified(False); self.update_status()
 
     def open_file(self):
@@ -741,7 +737,6 @@ class MainWindow(QMainWindow):
             else: text = Path(path).read_text(encoding="utf-8")
             self._accept_events=[];self.protocol_context.clear();self._inserted_template_baseline=None;self.completion_index.shortlist=None
             if hasattr(self,'hybrid'):self.hybrid.reset()
-            if hasattr(self,'term_lookup'):self.term_lookup.reset()
             self.editor.setPlainText(text)
             self.current_file=path; self.editor.document().setModified(False); self.update_status()
         except Exception as e: QMessageBox.critical(self,"Ошибка открытия",str(e))
@@ -813,8 +808,9 @@ class MainWindow(QMainWindow):
         cursor = QTextCursor(self.editor.textCursor())
         if not cursor.hasSelection(): cursor = self.editor.cursorForPosition(position)
         action.triggered.connect(lambda: self.add_selection_to_quick_lines(cursor))
-        term_action=menu.addAction('Уточнить медицинский термин в Google AI Mode')
-        term_action.triggered.connect(lambda:self.lookup_editor_term(cursor))
+        google_action=menu.addAction('Проверить выделенное в Google…' if cursor.hasSelection() else 'Проверить протокол в Google…')
+        google_action.setObjectName('reviewInDefaultBrowser')
+        google_action.triggered.connect(lambda:self.reference.review_protocol(cursor))
         menu.addAction('Развернуть заметку' , self.show_shorthand)
         menu.addAction('Улучшить формулировку локально', self.improve_fragment)
         menu.addAction('★ В избранное', self.favorites.save_current)
@@ -824,11 +820,6 @@ class MainWindow(QMainWindow):
         spelling.triggered.connect(self.show_spelling)
         menu.exec(self.editor.viewport().mapToGlobal(position))
         menu.deleteLater()
-
-    def lookup_editor_term(self,cursor):
-        target=QTextCursor(cursor)
-        if not target.hasSelection():target.select(QTextCursor.SelectionType.WordUnderCursor)
-        self.reference.term.setText(target.selectedText());self.side_tabs.setCurrentWidget(self.reference);self.reference.lookup_term()
 
     def add_selection_to_quick_lines(self, cursor=None):
         cursor = QTextCursor(cursor) if isinstance(cursor, QTextCursor) else QTextCursor(self.editor.textCursor())
@@ -1059,6 +1050,7 @@ class MainWindow(QMainWindow):
         if obj is editor or obj is popup:
             if popup.isVisible() and event.type() in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress):
                 key = event.key()
+                if event.type()==QEvent.Type.KeyPress and key in (Qt.Key.Key_Up,Qt.Key.Key_Down,Qt.Key.Key_PageUp,Qt.Key.Key_PageDown):self._completion_user_selected=True
                 if key == Qt.Key.Key_Tab and not event.modifiers():
                     event.accept()
                     if event.type() == QEvent.Type.KeyPress:
@@ -1192,7 +1184,9 @@ class MainWindow(QMainWindow):
             expected=self._word_options[phrase]
             cursor.movePosition(QTextCursor.MoveOperation.PreviousCharacter,QTextCursor.MoveMode.KeepAnchor,len(expected))
             if cursor.selectedText()!=expected:return
-            cursor.beginEditBlock();cursor.insertText(phrase+' ');cursor.endEditBlock()
+            from completion_overlap import insertion_text
+            right=cursor.block().text().encode('utf-16-le')[cursor.positionInBlock()*2:].decode('utf-16-le')
+            cursor.beginEditBlock();cursor.insertText(insertion_text(phrase,right));cursor.endEditBlock()
             self.library.ai.confirm_correction(expected,phrase)
         elif continuation:
             before = cursor.block().text().encode('utf-16-le')[:cursor.positionInBlock()*2].decode('utf-16-le')
@@ -1215,6 +1209,10 @@ class MainWindow(QMainWindow):
             self.library.ai.learn_text(' '.join(before.split()[-2:])+' '+continuation['text'],confirmed=True)
         self.editor.setTextCursor(cursor)
         self.completer.popup().hide()
+
+    def ai_context(self):
+        state=self.protocol_context.update(self.editor.toPlainText(),self.editor.document().revision())
+        return {'area':state.area if self.library.ai.enabled('auto_area') else '', 'modality':state.modality}
 
     def schedule_context_completion(self):
         self.completion_timer.start()
@@ -1263,23 +1261,23 @@ class MainWindow(QMainWindow):
         if not cursor.hasSelection() and document_state['section']!='method':
             candidates=self.completion_index.suggest(before,after,completion_area,document_state['modality'],30)
             neural_key=context_key('completion',before,after,completion_area,document_state['modality'],[c['source_id']+c['suffix'] for c in candidates],model='rubert-tiny2-v1')
-            semantic=getattr(getattr(self,'hybrid',None),'completion_scores',{}).get(neural_key,{}) if self.library.ai.enabled('neural_enabled') else {}
-            candidates.sort(key=lambda c:-(int(c['personal'])*10+self.phrase_memory.boost(before,c['phrase'],completion_area,document_state['modality'])+.12*semantic.get(c['source_id']+c['suffix'],0)))
+            semantic=getattr(getattr(self,'hybrid',None),'completion_scores',{}).get(neural_key,{}) if self.library.ai.enabled('neural_enabled') and self.library.get_setting('bert_phrase_rerank')=='1' else {}
+            candidates.sort(key=lambda c:-(c['lexical_score']+self.phrase_memory.boost(before,c['phrase'],completion_area,document_state['modality'])+.12*semantic.get(c['source_id']+c['suffix'],0)))
             for candidate in candidates[:8]:
                 label=('Личный стандарт: ' if candidate['personal'] else 'Из библиотеки: ')+candidate['phrase']
                 self._library_options[label]=candidate
-        if prefix:
-            for value in self.library.ai.ranked_completion(prefix,before[:-len(prefix)],completion_area):self._word_options[value]=prefix
-        if prefix and self.library.ai.enabled('context_corrections'):
-            from radiology_ai import classify
-            for value in self.library.ai.ranked_corrections(prefix,before[:-len(prefix)],'',(classify(self.editor.document().firstBlock().text()+' '+self.editor.textCursor().block().text()) if self.library.ai.enabled('auto_area') else '')):
+        if prefix and not after[:1].isalpha():
+            for value in self.library.ai.editor_options(prefix,before[:-len(prefix)],after,completion_area,document_state['modality']):
                 self._word_options[value]=prefix
         if before.endswith(' ') and self.library.ai.enabled('self_learning'):
             for value in self.library.ai.continuations(before):
                 self._adaptive_options.setdefault('Продолжить (Tab): '+value,{'text':value,'separator':' '})
-        matches = list(dict.fromkeys(list(self._library_options) + personal + list(self._adaptive_options) + list(self._word_options) + [phrase for phrase in normal if phrase not in personal]))
+        words=list(self._word_options);phrases=list(self._library_options)+personal+list(self._adaptive_options)
+        matches=list(dict.fromkeys(words[:2]+phrases[:3]+words[2:]+phrases[3:]+[phrase for phrase in normal if phrase not in personal]))
         self._completion_word = prefix
-        self._completion_snapshot = (self.editor.toPlainText(), cursor.position(), cursor.anchor())
+        next_snapshot=(self.editor.toPlainText(),cursor.position(),cursor.anchor())
+        if getattr(self,'_completion_snapshot',None)!=next_snapshot:self._completion_user_selected=False
+        self._completion_snapshot=next_snapshot
         if not matches:
             self.completer.popup().hide(); return
         self.completion_model.setStringList(matches)
@@ -1374,8 +1372,7 @@ if __name__ == "__main__":
             # A windowed PyInstaller exception dialog would otherwise hang CI.
             os._exit(1)
         sys.exit(0)
-    QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
     app=QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
-    w=MainWindow(allow_external_lookup=True); w.show()
+    w=MainWindow(); w.show()
     sys.exit(app.exec())
