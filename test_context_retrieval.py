@@ -6,7 +6,7 @@ from phrase_memory import PhraseMemory
 class Library:
  def __init__(self,path):
   self.path=path;self.db=sqlite3.connect(path);self.db.create_function('raw_digest',1,lambda t:hashlib.sha256(t.encode()).hexdigest())
-  self.db.executescript('CREATE TABLE templates(id INTEGER PRIMARY KEY,title,content,category);CREATE TABLE template_layouts(template_id,content,original_digest,kind);CREATE TABLE verified_standards(id,content,category);CREATE TABLE phrases(text,category,source);CREATE TABLE hybrid_weights(feature PRIMARY KEY,weight);')
+  self.db.executescript('CREATE TABLE templates(id INTEGER PRIMARY KEY,title,content,category);CREATE TABLE template_layouts(template_id,content,original_digest,kind);CREATE TABLE verified_standards(id,content,category);CREATE TABLE phrases(text,category,source);CREATE TABLE quick_lines(id INTEGER PRIMARY KEY,text TEXT UNIQUE);CREATE TABLE quick_line_details(text TEXT PRIMARY KEY,category TEXT,builtin INTEGER);CREATE TABLE hybrid_weights(feature PRIMARY KEY,weight);')
   self.ai=type('AI',(),{'enabled':lambda s,k:True})()
  def backup(self):
   dst=self.path.with_suffix('.bak');conn=sqlite3.connect(dst);self.db.backup(conn);conn.close();return dst
@@ -21,6 +21,23 @@ class RetrievalTests(unittest.TestCase):
   for tail in ('н','не','не с','не см'):self.idx.suggest(q+tail)
   self.assertLessEqual(self.idx.query_count-count,1)
   self.assertEqual(self.idx.suggest('Срединные стр')[0]['suffix'],'уктуры не смещены.')
+ def test_saved_quick_lines_priority_and_slots(self):
+  phrase='На уровне L4-L5 определяется грыжа справа размерами 12x14 мм.'
+  self.lib.db.execute('INSERT INTO quick_lines(text) VALUES(?)',(phrase,))
+  self.lib.db.execute('INSERT INTO quick_line_details VALUES(?,?,0)',(phrase,'Позвоночник'))
+  self.lib.db.commit()
+  options=self.idx.suggest('На уровне ',area='Позвоночник')
+  self.assertTrue(options)
+  self.assertEqual(options[0]['source'],'Моя быстрая строка')
+  for slot in ('[уровень]','[находка]','[сторона]','[размер]'):
+   self.assertIn(slot,options[0]['suffix'])
+  self.assertNotIn('12x14',options[0]['suffix'])
+  # Newly authored lines are reindexed automatically on the next lookup.
+  phrase2='На уровне L3-L4 определяется протрузия слева до 3 мм.'
+  self.lib.db.execute('INSERT INTO quick_lines(text) VALUES(?)',(phrase2,))
+  self.lib.db.execute('INSERT INTO quick_line_details VALUES(?,?,0)',(phrase2,'Позвоночник'))
+  self.lib.db.commit();self.idx.suggest('На уровне ',area='Позвоночник')
+  self.assertEqual(self.idx.db.execute("SELECT count(*) FROM sources WHERE id LIKE 'quick:%'").fetchone()[0],2)
  def test_safe_source_and_incremental_removal(self):
   self.lib.db.execute('INSERT INTO templates VALUES(2,?,?,?)',('МРТ','Срединные структуры смещены влево до мм.','ГМ'));self.lib.db.commit();self.idx.sync()
   self.assertFalse(any('мм' in r['suffix'] for r in self.idx.suggest('Срединные структуры ')))
