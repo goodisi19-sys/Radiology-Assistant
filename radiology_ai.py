@@ -139,7 +139,7 @@ class LocalAI:
         self.corrections.cache_clear()
         self.complete.cache_clear()
 
-    def learn_text(self,text,confirmed=False):
+    def learn_text(self,text,confirmed=False,store_examples=True):
         if not confirmed or not self.enabled('self_learning'): return 0
         clean='\n'.join(safe_lines(text)); digest=hashlib.sha256(clean.encode()).hexdigest()
         if not clean or self.db.execute('SELECT 1 FROM ai_sources WHERE digest=?',(digest,)).fetchone():return 0
@@ -158,7 +158,7 @@ class LocalAI:
             for w,n in counts.items(): self.db.execute('INSERT INTO ai_words VALUES(?,?) ON CONFLICT(word) DO UPDATE SET uses=uses+excluded.uses',(w,n))
             for (ctx,p),n in grams.items(): self.db.execute('INSERT INTO ai_ngrams VALUES(?,?,?) ON CONFLICT(context,phrase) DO UPDATE SET uses=uses+excluded.uses',(ctx,p,n))
         self.index(clean); self.refresh_memory()
-        if hasattr(self,'ranker'):
+        if store_examples and hasattr(self,'ranker'):
             for line in clean.splitlines():self.ranker.add_example(line,classify(line),modality(line))
         return sum(counts.values())
 

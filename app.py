@@ -752,7 +752,7 @@ class MainWindow(QMainWindow):
             else:
                 from document_io import atomic_write_text
                 atomic_write_text(path, self.editor.toPlainText())
-                self.learn_saved_description()
+            self.learn_saved_description()
             self.current_file=path; self.editor.document().setModified(False); self.update_status()
             return True
         except Exception as e:
@@ -761,15 +761,28 @@ class MainWindow(QMainWindow):
     def export_to_path(self,path):
         from document_io import write_docx
         write_docx(path, self.editor.document())
-        # A successfully completed DOCX Save or explicit DOCX Export verifies the
-        # author's finished report; do not learn before the file is written.
-        self.learn_saved_description()
 
     def learn_saved_description(self):
-        # The doctor explicitly saved or exported a finished report. Use the existing
-        # locally filtered, deduplicated learning pipeline; do not copy the raw
-        # patient report into the shared verified-template catalog.
-        self.learn_confirmed_description()
+        if not self.library.ai.enabled('self_learning'):
+            return
+        from difflib import SequenceMatcher
+        from radiology_ai import safe_lines
+        lines = self.editor.toPlainText().splitlines()
+        baseline = (self._inserted_template_baseline or '').splitlines()
+        changed = []
+        for operation, _, _, start, end in SequenceMatcher(None, baseline, lines, autojunk=False).get_opcodes():
+            if operation in ('replace', 'insert'):
+                changed.extend(lines[start:end])
+        text = '\n'.join(safe_lines('\n'.join(changed)))
+        if not text:
+            return
+        try:
+            if self.library.get_setting('adaptive_enabled') != '0':
+                self.library.adaptive.learn(text, verified=True)
+            self.library.ai.learn_text(text, confirmed=True, store_examples=False)
+        except sqlite3.Error:
+            self.library.db.rollback()
+            self.statusBar().showMessage('Документ сохранён, но память не обновилась.', 5000)
 
     def learn_confirmed_description(self):
         if self.library.get_setting('adaptive_enabled') == '0' or not self.library.ai.enabled('self_learning'): return
@@ -783,7 +796,7 @@ class MainWindow(QMainWindow):
     def adaptive_info(self):
         QMessageBox.information(self, 'Адаптивное продолжение',
             f'Сохранено продолжений: {self.library.adaptive.count()}.\n'
-            'Память пополняется после успешного сохранения (Ctrl+S), экспорта DOCX, подтверждения текста или верификации стандарта. '
+            'Память пополняется после успешного сохранения (Ctrl+S), подтверждения текста или верификации стандарта. '
             'Продолжения с цифрами, уровнями и явно указанной стороной не предлагаются. '
             'После пробела выбирайте продолжение по Tab или щелчком; Enter оставляет новый абзац. '
             'Это варианты из вашей базы, а не вывод о текущем исследовании.')

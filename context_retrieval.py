@@ -3,14 +3,14 @@ import hashlib,re,sqlite3,time
 from collections import deque
 from rapidfuzz.distance import DamerauLevenshtein
 from adaptive_completion import META
-from slot_phrases import slots_from_source,safe_slot_suffix
+from slot_phrases import slots_from_source,safe_slot_suffix,FINDING
 from radiology_ai import safe_lines,classify,modality
 
 WORDS=re.compile(r'[А-Яа-яЁёA-Za-z]+(?:-\w+)*|\d+(?:[.,]\d+)?')
 def norm(text):return ' '.join(m.group().casefold().replace('ё','е') for m in WORDS.finditer(text))
 from context_identity import context_key
 def safe_suffix(suffix,before):
-    return safe_slot_suffix(suffix) and not META.search(suffix)
+    return safe_slot_suffix(suffix) and not META.search(suffix) and not FINDING.search(suffix)
 
 
 class ContextIndex:
@@ -78,13 +78,13 @@ class ContextIndex:
         self.query_count+=1;lookup_started=time.perf_counter()
         if self.fts:
             match=' AND '.join('"'+word.replace('"','""')+'"*' for word in terms[-4:])
-            rows=self.db.execute('SELECT w.*,bm25(window_fts) FROM window_fts JOIN windows w ON w.id=window_fts.rowid WHERE window_fts MATCH ? ORDER BY bm25(window_fts) LIMIT 150',(match,)).fetchall()
+            rows=self.db.execute("SELECT w.*,bm25(window_fts) FROM window_fts JOIN windows w ON w.id=window_fts.rowid WHERE window_fts MATCH ? ORDER BY CASE w.source WHEN 'Моя быстрая строка' THEN 0 WHEN 'Личный стандарт' THEN 1 WHEN 'Быстрая строка' THEN 2 ELSE 3 END,bm25(window_fts) LIMIT 150",(match,)).fetchall()
             if not rows:
                 match=' AND '.join('"'+word+'"*' for word in terms[-2:])
-                rows=self.db.execute('SELECT w.*,bm25(window_fts) FROM window_fts JOIN windows w ON w.id=window_fts.rowid WHERE window_fts MATCH ? ORDER BY bm25(window_fts) LIMIT 150',(match,)).fetchall()
+                rows=self.db.execute("SELECT w.*,bm25(window_fts) FROM window_fts JOIN windows w ON w.id=window_fts.rowid WHERE window_fts MATCH ? ORDER BY CASE w.source WHEN 'Моя быстрая строка' THEN 0 WHEN 'Личный стандарт' THEN 1 WHEN 'Быстрая строка' THEN 2 ELSE 3 END,bm25(window_fts) LIMIT 150",(match,)).fetchall()
             if not rows:
                 match='"'+terms[-2]+'"'
-                rows=self.db.execute('SELECT w.*,bm25(window_fts) FROM window_fts JOIN windows w ON w.id=window_fts.rowid WHERE window_fts MATCH ? ORDER BY bm25(window_fts) LIMIT 150',(match,)).fetchall()
+                rows=self.db.execute("SELECT w.*,bm25(window_fts) FROM window_fts JOIN windows w ON w.id=window_fts.rowid WHERE window_fts MATCH ? ORDER BY CASE w.source WHEN 'Моя быстрая строка' THEN 0 WHEN 'Личный стандарт' THEN 1 WHEN 'Быстрая строка' THEN 2 ELSE 3 END,bm25(window_fts) LIMIT 150",(match,)).fetchall()
         else:
             rows=self.db.execute('SELECT *,0 FROM windows WHERE context LIKE ? LIMIT 150',('%'+terms[-2]+'%',)).fetchall()
         ranked=[]
