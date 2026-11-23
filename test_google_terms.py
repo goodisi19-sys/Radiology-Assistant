@@ -25,12 +25,14 @@ class GlossaryTests(unittest.TestCase):
 
 class BrowserDispatchTests(unittest.TestCase):
     def test_short_unicode_protocol_is_preserved_in_query(self):
-        calls=[];copies=[];prompt='Проверь:\nКонтруы ровные; L4-L5, 4 мм, не выявлено.\nБез изменений.'
+        calls=[];copies=[];prompt='Проверь:\nКонтруы ровные; L4-L5, 4 мм, не выявлено.\nТ1+C; CD4+; A&B; 100%.'
         result=open_review(prompt,lambda url:calls.append(url) or True,copies.append)
         self.assertTrue(result.opened);self.assertFalse(result.copied);self.assertFalse(copies)
         self.assertEqual(calls[0].host(),'www.google.com')
         self.assertEqual(QUrlQuery(calls[0]).queryItemValue('q',QUrl.ComponentFormattingOption.FullyDecoded),prompt)
         self.assertEqual(QUrlQuery(calls[0]).queryItemValue('udm'),'50')
+        from urllib.parse import urlsplit,parse_qs
+        self.assertEqual(parse_qs(urlsplit(bytes(calls[0].toEncoded()).decode()).query)['q'],[prompt])
     def test_long_protocol_copied_whole_never_put_in_url(self):
         calls=[];copies=[];prompt='МРТ: протокол с размерами 30x21x36 мм.\n'*500
         result=open_review(prompt,lambda url:calls.append(url) or True,copies.append)

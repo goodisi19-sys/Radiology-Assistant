@@ -1,15 +1,18 @@
 """Explicit handoff to the OS browser. No HTTP client, renderer, parsing or training."""
 from dataclasses import dataclass
-from PySide6.QtCore import QUrl,QUrlQuery
+from urllib.parse import urlencode,quote
+from PySide6.QtCore import QUrl
 
 MAX_QUERY_URL_BYTES = 7500
 
 
 def google_url(question='', ai_mode=True):
-    url=QUrl('https://www.google.com/search');query=QUrlQuery()
-    if question:query.addQueryItem('q',question)
-    if ai_mode:query.addQueryItem('udm','50')
-    url.setQuery(query);return url
+    # QUrlQuery leaves literal '+' unescaped; search servers decode it as a
+    # space. Preserve contrast/sequence notation such as T1+C on the wire.
+    query={}
+    if question:query['q']=question
+    if ai_mode:query['udm']='50'
+    return QUrl('https://www.google.com/search?'+urlencode(query,quote_via=quote))
 
 
 @dataclass(frozen=True)

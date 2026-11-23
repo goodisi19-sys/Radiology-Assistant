@@ -7,10 +7,12 @@ def run(target):
     from privacy_review import make_prompt
     from PySide6.QtCore import QUrlQuery,QUrl
     calls=[];copies=[]
-    short=make_prompt('Контруы ровные; размер L4-L5 до 4 мм.')
+    short=make_prompt('Контруы ровные; размер L4-L5 до 4 мм. Т1+C; A&B; 100%.')
     result=open_review(short,lambda url:calls.append(url) or True,copies.append)
     assert result.opened and not result.copied and not copies
     assert QUrlQuery(calls[-1]).queryItemValue('q',QUrl.ComponentFormattingOption.FullyDecoded)==short
+    from urllib.parse import urlsplit,parse_qs
+    assert parse_qs(urlsplit(bytes(calls[-1].toEncoded()).decode()).query)['q']==[short]
     assert calls[-1].host()=='www.google.com'
     long=make_prompt('Длинный обезличенный протокол.\n'*1000)
     result=open_review(long,lambda url:calls.append(url) or True,copies.append)

@@ -1,6 +1,6 @@
 """User-controlled Google handoff and preserved local, physician-reviewed glossary."""
 import re
-from PySide6.QtCore import Qt,QUrl,QUrlQuery,QEvent
+from PySide6.QtCore import Qt,QEvent
 from PySide6.QtGui import QDesktopServices,QTextCursor
 from PySide6.QtWidgets import QWidget,QVBoxLayout,QLabel,QPlainTextEdit,QPushButton,QLineEdit
 
@@ -62,7 +62,8 @@ class GoogleReference(QWidget):
     def search_google(self):
         question=self.input.toPlainText().strip()
         if not question:self.status.setText('Введите вопрос.');self.activate();return
-        url=QUrl('https://www.google.com/search');query=QUrlQuery();query.addQueryItem('q',question);url.setQuery(query)
+        from google_dispatch import google_url
+        url=google_url(question,ai_mode=False)
         self.status.setText('Google открыт в браузере.' if QDesktopServices.openUrl(url) else 'Не удалось открыть браузер по умолчанию.')
 
     def eventFilter(self,obj,event):
