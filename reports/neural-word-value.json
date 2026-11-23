@@ -1,0 +1,929 @@
+{
+  "baseline": "bebe3b4",
+  "scope": "Development diagnostic, not independent clinical validation (the previous 24 include rank_guard controls); A models the old visible word union, excluding library phrase groups; no-change is a correct abstention only if no replacement is proposed. B differs in candidates/safety, C-E share B candidates and memory. Production does not use word cosine.",
+  "counts": {
+    "previous_24": {
+      "n": 24,
+      "correct": {
+        "A": 16,
+        "B": 18,
+        "C": 18,
+        "D": 19,
+        "E": 19
+      },
+      "candidate_coverage": 20
+    },
+    "additional_development": {
+      "n": 8,
+      "correct": {
+        "A": 4,
+        "B": 4,
+        "C": 4,
+        "D": 4,
+        "E": 4
+      },
+      "candidate_coverage": 5
+    }
+  },
+  "cases": [
+    {
+      "word": "струткуры",
+      "template": "Срединные {} не смещены.",
+      "gold": "структуры",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "структуры",
+        "структур",
+        "структура",
+        "структуру",
+        "структуре",
+        "структурны"
+      ],
+      "A_published_editor_words": "структуры",
+      "B_candidates_lexical": "структуры",
+      "C_word_bert_experimental": "структуры",
+      "D_sage": "структуры",
+      "E_combined_experimental": "структуры",
+      "correct": {
+        "A": true,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 48.97988200536929
+    },
+    {
+      "word": "смещны",
+      "template": "Срединные структуры не {}.",
+      "gold": "смещены",
+      "group": "previous_24",
+      "area": "ГМ",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "смещены",
+        "смещена",
+        "смежных",
+        "смещено",
+        "смежные",
+        "смежный"
+      ],
+      "A_published_editor_words": "смежных",
+      "B_candidates_lexical": "смещены",
+      "C_word_bert_experimental": "смещены",
+      "D_sage": "смещены",
+      "E_combined_experimental": "смещены",
+      "correct": {
+        "A": false,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 65.4048170108581
+    },
+    {
+      "word": "контруы",
+      "template": "{} ровные.",
+      "gold": "Контуры",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "контуры",
+        "контур",
+        "контуру",
+        "контура",
+        "корнтуры"
+      ],
+      "A_published_editor_words": "контуры",
+      "B_candidates_lexical": "контуры",
+      "C_word_bert_experimental": "контуры",
+      "D_sage": "контуры",
+      "E_combined_experimental": "контуры",
+      "correct": {
+        "A": true,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 63.797055001487024
+    },
+    {
+      "word": "однороднй",
+      "template": "Сигнал {}.",
+      "gold": "однородный",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "однороднйю",
+        "однородный",
+        "однородной",
+        "однородная",
+        "однородную",
+        "однородное"
+      ],
+      "A_published_editor_words": "однороднйю",
+      "B_candidates_lexical": "однороднйю",
+      "C_word_bert_experimental": "однороднйю",
+      "D_sage": "однородный",
+      "E_combined_experimental": "однородный",
+      "correct": {
+        "A": false,
+        "B": false,
+        "C": false,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 69.41231600649189
+    },
+    {
+      "word": "сужен",
+      "template": "Суставная щель {}.",
+      "gold": "сужена",
+      "group": "previous_24",
+      "area": "Суставы",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "сужена",
+        "сужены",
+        "сужено",
+        "сужением",
+        "сужение",
+        "ужен",
+        "снижен"
+      ],
+      "A_published_editor_words": "сужена",
+      "B_candidates_lexical": "сужена",
+      "C_word_bert_experimental": "сужена",
+      "D_sage": "сужена",
+      "E_combined_experimental": "сужена",
+      "correct": {
+        "A": true,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 45.68532700068317
+    },
+    {
+      "word": "обычнй",
+      "template": "Желудочки {} формы.",
+      "gold": "обычной",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "обычной",
+        "обычно",
+        "обычный",
+        "обычных",
+        "обычная",
+        "обычные"
+      ],
+      "A_published_editor_words": "обычной",
+      "B_candidates_lexical": "обычной",
+      "C_word_bert_experimental": "обычной",
+      "D_sage": "обычной",
+      "E_combined_experimental": "обычной",
+      "correct": {
+        "A": true,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 41.76529300457332
+    },
+    {
+      "word": "изменна",
+      "template": "Структура не {}.",
+      "gold": "изменена",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "изменена",
+        "изменены",
+        "изменен",
+        "изменено",
+        "изменний",
+        "измений"
+      ],
+      "A_published_editor_words": "изменний",
+      "B_candidates_lexical": "изменена",
+      "C_word_bert_experimental": "изменена",
+      "D_sage": "изменена",
+      "E_combined_experimental": "изменена",
+      "correct": {
+        "A": false,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 65.59262999508064
+    },
+    {
+      "word": "ровны",
+      "template": "Контуры {}.",
+      "gold": "ровные",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "ровные",
+        "ровными",
+        "ровный",
+        "уровне",
+        "зоны",
+        "ровная"
+      ],
+      "A_published_editor_words": "ровные",
+      "B_candidates_lexical": "ровные",
+      "C_word_bert_experimental": "ровные",
+      "D_sage": "ровные",
+      "E_combined_experimental": "ровные",
+      "correct": {
+        "A": true,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 60.02817599801347
+    },
+    {
+      "word": "перивентрикулярнные",
+      "template": "Определяются {} изменения белого вещества.",
+      "gold": "перивентрикулярные",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "перивентрикулярные",
+        "перивентрикулярных",
+        "перивентрикулярное",
+        "перивентрикулярный",
+        "перивентрикулярным"
+      ],
+      "A_published_editor_words": "перивентрикулярные",
+      "B_candidates_lexical": "перивентрикулярные",
+      "C_word_bert_experimental": "перивентрикулярные",
+      "D_sage": "перивентрикулярные",
+      "E_combined_experimental": "перивентрикулярные",
+      "correct": {
+        "A": true,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 42.22519599716179
+    },
+    {
+      "word": "субхондралный",
+      "template": "Отмечается {} склероз.",
+      "gold": "субхондральный",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "субхондральный",
+        "субхондральных",
+        "субхондральные",
+        "субхондральной",
+        "субхондральным"
+      ],
+      "A_published_editor_words": "субхондральный",
+      "B_candidates_lexical": "субхондральный",
+      "C_word_bert_experimental": "субхондральный",
+      "D_sage": "субхондральный",
+      "E_combined_experimental": "субхондральный",
+      "correct": {
+        "A": true,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 64.82745701214299
+    },
+    {
+      "word": "интрамедулярный",
+      "template": "{} очаг не выявлен.",
+      "gold": "Интрамедуллярный",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "интрамедуллярный",
+        "интрамедуллярным",
+        "интрамедуллярной",
+        "интрамедуллярные",
+        "интрамедуллярных"
+      ],
+      "A_published_editor_words": "интрамедуллярный",
+      "B_candidates_lexical": "интрамедуллярный",
+      "C_word_bert_experimental": "интрамедуллярный",
+      "D_sage": "интрамедуллярный",
+      "E_combined_experimental": "интрамедуллярный",
+      "correct": {
+        "A": true,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 64.58801501139533
+    },
+    {
+      "word": "параартикулярны",
+      "template": "{} мягкие ткани не изменены.",
+      "gold": "Параартикулярные",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "параартикулярные",
+        "параартикулярных",
+        "парартикулярные"
+      ],
+      "A_published_editor_words": "параартикулярные",
+      "B_candidates_lexical": "параартикулярные",
+      "C_word_bert_experimental": "параартикулярные",
+      "D_sage": "параартикулярные",
+      "E_combined_experimental": "параартикулярные",
+      "correct": {
+        "A": true,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 21.290575998136774
+    },
+    {
+      "word": "медиастиналные",
+      "template": "{} лимфатические узлы не увеличены.",
+      "gold": "Медиастинальные",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "медиастинальные",
+        "медиастинальный"
+      ],
+      "A_published_editor_words": null,
+      "B_candidates_lexical": "медиастинальные",
+      "C_word_bert_experimental": "медиастинальные",
+      "D_sage": "медиастинальные",
+      "E_combined_experimental": "медиастинальные",
+      "correct": {
+        "A": false,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 2148.776241010637,
+      "sage_ms": 89.0884870023001
+    },
+    {
+      "word": "синовиалная",
+      "template": "{} оболочка не утолщена.",
+      "gold": "Синовиальная",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "синовиальная"
+      ],
+      "A_published_editor_words": "синовиальная",
+      "B_candidates_lexical": "синовиальная",
+      "C_word_bert_experimental": "синовиальная",
+      "D_sage": "синовиальная",
+      "E_combined_experimental": "синовиальная",
+      "correct": {
+        "A": true,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 7.503244996769354
+    },
+    {
+      "word": "мезоректалная",
+      "template": "{} фасция прослеживается.",
+      "gold": "Мезоректальная",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": false,
+      "candidates": [],
+      "A_published_editor_words": null,
+      "B_candidates_lexical": null,
+      "C_word_bert_experimental": null,
+      "D_sage": null,
+      "E_combined_experimental": null,
+      "correct": {
+        "A": false,
+        "B": false,
+        "C": false,
+        "D": false,
+        "E": false
+      },
+      "fallback_ms": 641.6124929965008,
+      "sage_ms": 0.0007820053724572062
+    },
+    {
+      "word": "супратенториалные",
+      "template": "{} структуры без особенностей.",
+      "gold": "Супратенториальные",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "супратенториальные",
+        "супратенториальных"
+      ],
+      "A_published_editor_words": "супратенториальные",
+      "B_candidates_lexical": "супратенториальные",
+      "C_word_bert_experimental": "супратенториальные",
+      "D_sage": "супратенториальные",
+      "E_combined_experimental": "супратенториальные",
+      "correct": {
+        "A": true,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 18.413450990919955
+    },
+    {
+      "word": "дуралного",
+      "template": "Признаков деформации {} мешка нет.",
+      "gold": "дурального",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "дурального"
+      ],
+      "A_published_editor_words": "дурального",
+      "B_candidates_lexical": "дурального",
+      "C_word_bert_experimental": "дурального",
+      "D_sage": "дурального",
+      "E_combined_experimental": "дурального",
+      "correct": {
+        "A": true,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 9.634244997869246
+    },
+    {
+      "word": "параменискалная",
+      "template": "{} киста не определяется.",
+      "gold": "Параменискальная",
+      "group": "previous_24",
+      "area": "Суставы",
+      "no_change_case": false,
+      "candidate_coverage": false,
+      "candidates": [],
+      "A_published_editor_words": null,
+      "B_candidates_lexical": null,
+      "C_word_bert_experimental": null,
+      "D_sage": null,
+      "E_combined_experimental": null,
+      "correct": {
+        "A": false,
+        "B": false,
+        "C": false,
+        "D": false,
+        "E": false
+      },
+      "fallback_ms": 652.6475400023628,
+      "sage_ms": 0.0007810012903064489
+    },
+    {
+      "word": "холедха",
+      "template": "Диаметр {} не увеличен.",
+      "gold": "холедоха",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "холедох",
+        "холедоха"
+      ],
+      "A_published_editor_words": "холедоха",
+      "B_candidates_lexical": "холедох",
+      "C_word_bert_experimental": "холедох",
+      "D_sage": "холедох",
+      "E_combined_experimental": "холедох",
+      "correct": {
+        "A": true,
+        "B": false,
+        "C": false,
+        "D": false,
+        "E": false
+      },
+      "fallback_ms": 0,
+      "sage_ms": 20.789829999557696
+    },
+    {
+      "word": "спондилоартрза",
+      "template": "Признаки {}.",
+      "gold": "спондилоартроза",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "спондилоартроза",
+        "спондилоартроз",
+        "спондилоатроза",
+        "спондилоартрита"
+      ],
+      "A_published_editor_words": "спондилоартроза",
+      "B_candidates_lexical": "спондилоартроза",
+      "C_word_bert_experimental": "спондилоартроза",
+      "D_sage": "спондилоартроза",
+      "E_combined_experimental": "спондилоартроза",
+      "correct": {
+        "A": true,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 45.01204000553116
+    },
+    {
+      "word": "субарахноидалные",
+      "template": "{} пространства не расширены.",
+      "gold": "Субарахноидальные",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "субарахноидальные",
+        "субарахноидальное",
+        "субарахноидальных",
+        "субарахноидальный",
+        "субарахноидальным"
+      ],
+      "A_published_editor_words": "субарахноидальные",
+      "B_candidates_lexical": "субарахноидальные",
+      "C_word_bert_experimental": "субарахноидальные",
+      "D_sage": "субарахноидальные",
+      "E_combined_experimental": "субарахноидальные",
+      "correct": {
+        "A": true,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 80.83249100309331
+    },
+    {
+      "word": "интраселярный",
+      "template": "{} компонент не определяется.",
+      "gold": "Интраселлярный",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": false,
+      "candidates": [],
+      "A_published_editor_words": null,
+      "B_candidates_lexical": null,
+      "C_word_bert_experimental": null,
+      "D_sage": null,
+      "E_combined_experimental": null,
+      "correct": {
+        "A": false,
+        "B": false,
+        "C": false,
+        "D": false,
+        "E": false
+      },
+      "fallback_ms": 438.4327959996881,
+      "sage_ms": 0.0007210037438198924
+    },
+    {
+      "word": "дорзалная",
+      "template": "Определяется {} протрузия диска.",
+      "gold": "дорзальная",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": false,
+      "candidates": [],
+      "A_published_editor_words": null,
+      "B_candidates_lexical": null,
+      "C_word_bert_experimental": null,
+      "D_sage": null,
+      "E_combined_experimental": null,
+      "correct": {
+        "A": false,
+        "B": false,
+        "C": false,
+        "D": false,
+        "E": false
+      },
+      "fallback_ms": 489.7772659896873,
+      "sage_ms": 0.0011619995348155499
+    },
+    {
+      "word": "лигаментозные",
+      "template": "{} структуры сохранены.",
+      "gold": "Лигаментозные",
+      "group": "previous_24",
+      "area": "Другие исследования",
+      "no_change_case": true,
+      "candidate_coverage": true,
+      "candidates": [],
+      "A_published_editor_words": null,
+      "B_candidates_lexical": null,
+      "C_word_bert_experimental": null,
+      "D_sage": null,
+      "E_combined_experimental": null,
+      "correct": {
+        "A": true,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 867.8887260030024,
+      "sage_ms": 0.000720989191904664
+    },
+    {
+      "word": "однороденая",
+      "template": "Паренхима {}.",
+      "gold": "однородная",
+      "group": "additional_development",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "однородная"
+      ],
+      "A_published_editor_words": "однородная",
+      "B_candidates_lexical": "однородная",
+      "C_word_bert_experimental": "однородная",
+      "D_sage": "однородная",
+      "E_combined_experimental": "однородная",
+      "correct": {
+        "A": true,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 8.355056997970678
+    },
+    {
+      "word": "гладкые",
+      "template": "Поверхности {}.",
+      "gold": "гладкие",
+      "group": "additional_development",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": false,
+      "candidates": [
+        "глазные",
+        "гладкая"
+      ],
+      "A_published_editor_words": "глазные",
+      "B_candidates_lexical": "глазные",
+      "C_word_bert_experimental": "глазные",
+      "D_sage": "глазные",
+      "E_combined_experimental": "глазные",
+      "correct": {
+        "A": false,
+        "B": false,
+        "C": false,
+        "D": false,
+        "E": false
+      },
+      "fallback_ms": 0,
+      "sage_ms": 16.54685800895095
+    },
+    {
+      "word": "утолщнная",
+      "template": "Стенка {}.",
+      "gold": "утолщенная",
+      "group": "additional_development",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": false,
+      "candidates": [
+        "утолщена",
+        "утолщения"
+      ],
+      "A_published_editor_words": "утолщена",
+      "B_candidates_lexical": "утолщена",
+      "C_word_bert_experimental": "утолщена",
+      "D_sage": "утолщена",
+      "E_combined_experimental": "утолщена",
+      "correct": {
+        "A": false,
+        "B": false,
+        "C": false,
+        "D": false,
+        "E": false
+      },
+      "fallback_ms": 0,
+      "sage_ms": 14.733635995071381
+    },
+    {
+      "word": "обычног",
+      "template": "Костный мозг {} сигнала.",
+      "gold": "обычного",
+      "group": "additional_development",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "обычного",
+        "обычной",
+        "обычно",
+        "обычное",
+        "обычном",
+        "обычных"
+      ],
+      "A_published_editor_words": "обычного",
+      "B_candidates_lexical": "обычного",
+      "C_word_bert_experimental": "обычного",
+      "D_sage": "обычного",
+      "E_combined_experimental": "обычного",
+      "correct": {
+        "A": true,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 74.62439300434198
+    },
+    {
+      "word": "свобден",
+      "template": "Позвоночный канал {}.",
+      "gold": "свободен",
+      "group": "additional_development",
+      "area": "Позвоночник",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "своден",
+        "свободен"
+      ],
+      "A_published_editor_words": null,
+      "B_candidates_lexical": "своден",
+      "C_word_bert_experimental": "своден",
+      "D_sage": "своден",
+      "E_combined_experimental": "своден",
+      "correct": {
+        "A": false,
+        "B": false,
+        "C": false,
+        "D": false,
+        "E": false
+      },
+      "fallback_ms": 341.228945995681,
+      "sage_ms": 13.42262199614197
+    },
+    {
+      "word": "тонкя",
+      "template": "Капсула {}.",
+      "gold": "тонкая",
+      "group": "additional_development",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "тонкая",
+        "тока",
+        "тонкой",
+        "тонкие"
+      ],
+      "A_published_editor_words": "тонкая",
+      "B_candidates_lexical": "тонкая",
+      "C_word_bert_experimental": "тонкая",
+      "D_sage": "тонкая",
+      "E_combined_experimental": "тонкая",
+      "correct": {
+        "A": true,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 26.6069939971203
+    },
+    {
+      "word": "целсные",
+      "template": "Связки {}.",
+      "gold": "целостные",
+      "group": "additional_development",
+      "area": "Суставы",
+      "no_change_case": false,
+      "candidate_coverage": false,
+      "candidates": [
+        "желчные"
+      ],
+      "A_published_editor_words": "желчные",
+      "B_candidates_lexical": "желчные",
+      "C_word_bert_experimental": "желчные",
+      "D_sage": "желчные",
+      "E_combined_experimental": "желчные",
+      "correct": {
+        "A": false,
+        "B": false,
+        "C": false,
+        "D": false,
+        "E": false
+      },
+      "fallback_ms": 0,
+      "sage_ms": 6.0989990015514195
+    },
+    {
+      "word": "уплотнна",
+      "template": "Ткань {}.",
+      "gold": "уплотнена",
+      "group": "additional_development",
+      "area": "Другие исследования",
+      "no_change_case": false,
+      "candidate_coverage": true,
+      "candidates": [
+        "уплотнена",
+        "уплотнены",
+        "уплотенны"
+      ],
+      "A_published_editor_words": "уплотнена",
+      "B_candidates_lexical": "уплотнена",
+      "C_word_bert_experimental": "уплотнена",
+      "D_sage": "уплотнена",
+      "E_combined_experimental": "уплотнена",
+      "correct": {
+        "A": true,
+        "B": true,
+        "C": true,
+        "D": true,
+        "E": true
+      },
+      "fallback_ms": 0,
+      "sage_ms": 20.31686800182797
+    }
+  ]
+}

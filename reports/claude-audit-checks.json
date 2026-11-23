@@ -1,0 +1,211 @@
+{
+  "baseline": "bebe3b4",
+  "real_rapidfuzz": true,
+  "safe_pairs": [
+    {
+      "original": "моз",
+      "candidate": "мозг",
+      "allowed": false,
+      "distance": 1
+    },
+    {
+      "original": "мен",
+      "candidate": "мениск",
+      "allowed": false,
+      "distance": 3
+    },
+    {
+      "original": "печ",
+      "candidate": "печень",
+      "allowed": false,
+      "distance": 3
+    },
+    {
+      "original": "позв",
+      "candidate": "позвонок",
+      "allowed": false,
+      "distance": 4
+    },
+    {
+      "original": "гры",
+      "candidate": "грыжа",
+      "allowed": false,
+      "distance": 2
+    },
+    {
+      "original": "кис",
+      "candidate": "киста",
+      "allowed": false,
+      "distance": 2
+    },
+    {
+      "original": "печнь",
+      "candidate": "печень",
+      "allowed": false,
+      "distance": 1
+    },
+    {
+      "original": "мнеиск",
+      "candidate": "мениск",
+      "allowed": false,
+      "distance": 1
+    },
+    {
+      "original": "позвнок",
+      "candidate": "позвонок",
+      "allowed": false,
+      "distance": 1
+    },
+    {
+      "original": "сужен",
+      "candidate": "сужена",
+      "allowed": true,
+      "distance": 1
+    },
+    {
+      "original": "грыжа",
+      "candidate": "грыжи",
+      "allowed": true,
+      "distance": 1
+    }
+  ],
+  "sources": {
+    "drive_doc_08.json": {
+      "bytes": 210471,
+      "sha256": "3ff6e6215f2ba62fa8fda4c6632ca9d624eb45d64416b284eb0646730a672358"
+    },
+    "drive_doc_12.json": {
+      "bytes": 210471,
+      "sha256": "a208fbd40c1d677c294d76d441519fd968917329e32024c9c18b453f8fd1f058"
+    }
+  },
+  "sage_second_place_mean_gap_threshold": 1.252762968495368,
+  "sage_single_token_5_nats_over_40_tokens_bonus": 0.08225216819078318,
+  "source_payloads": {
+    "drive_doc_08.json": [
+      {
+        "title": "Плеч част разрыв ротаторн манжеты МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "dc39cad30db2ca1cdc3b24ec96fbea3e0f8e8ccc091a2cab9f9ad42c3d767c50"
+      },
+      {
+        "title": "Плеч разрыв сухож длин голов бицепса МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "56a77055149ba9a29d6f155cbcaaed9caa8c830c58f1c1140aaf7d7e038779c9"
+      },
+      {
+        "title": "Плеч полный разрыв манжеты МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "1810c02f29042499918d56582f4907d674b195c0f9cfb0fc7dd8dc835e899ce5"
+      },
+      {
+        "title": "Плеч передняя нестабильность МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "c1a89a28ef7263910c5d0b4bd0f124da74ee00a136bf6e7359f1e0179662e7ca"
+      },
+      {
+        "title": "Плеч отрыв перелом больш бугорка МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "305a9e9398fc85a6fd0727708a5f9cc21a9cc71ef0625d76d3ef2a7e35c99f4a"
+      },
+      {
+        "title": "Плеч импинджмент-синдром МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "bf3ebe87f6f7c37bce9e7b3832cf72502756966441ebc6e1e9809db154052439"
+      },
+      {
+        "title": "Плеч вывих сухож длин головк бицепса МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "2201f1580ef2cfac3f36490447aebec434819e571b17b675f3974a5cc22e7d18"
+      },
+      {
+        "title": "Плеч бурсит, синовит МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "61818c4814c6cb15e15bc3b3d8d72bd4aa1b6018e32703713a726b7bd6610a89"
+      },
+      {
+        "title": "Плеч акром-ключич разрыв МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "353590d88da7adb861f4eafa7f510c3740360493f1ee15eb9d98e53aa3ba8da8"
+      },
+      {
+        "title": "Плеч акром-ключ артроз МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "c44b04739154a2f726e06f42316909f6f117a2ed58f02bd46b659defd28137e6"
+      },
+      {
+        "title": "Плеч SLAP-разрыв МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "9ec7c2e3176b4e35961600d6f64e1cb5bfa9d095c8e98cd9673c53b21cdfccca"
+      },
+      {
+        "title": "Плечев суст норма МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "27fbd1c08f8a10cd087f6eeef6bed9d1aee97c02e7021cfba0dca74f23824ac1"
+      }
+    ],
+    "drive_doc_12.json": [
+      {
+        "title": "Плеч част разрыв ротаторн манжеты МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "dc39cad30db2ca1cdc3b24ec96fbea3e0f8e8ccc091a2cab9f9ad42c3d767c50"
+      },
+      {
+        "title": "Плеч разрыв сухож длин голов бицепса МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "56a77055149ba9a29d6f155cbcaaed9caa8c830c58f1c1140aaf7d7e038779c9"
+      },
+      {
+        "title": "Плеч полный разрыв манжеты МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "1810c02f29042499918d56582f4907d674b195c0f9cfb0fc7dd8dc835e899ce5"
+      },
+      {
+        "title": "Плеч передняя нестабильность МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "c1a89a28ef7263910c5d0b4bd0f124da74ee00a136bf6e7359f1e0179662e7ca"
+      },
+      {
+        "title": "Плеч отрыв перелом больш бугорка МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "305a9e9398fc85a6fd0727708a5f9cc21a9cc71ef0625d76d3ef2a7e35c99f4a"
+      },
+      {
+        "title": "Плеч импинджмент-синдром МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "bf3ebe87f6f7c37bce9e7b3832cf72502756966441ebc6e1e9809db154052439"
+      },
+      {
+        "title": "Плеч вывих сухож длин головк бицепса МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "2201f1580ef2cfac3f36490447aebec434819e571b17b675f3974a5cc22e7d18"
+      },
+      {
+        "title": "Плеч бурсит, синовит МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "61818c4814c6cb15e15bc3b3d8d72bd4aa1b6018e32703713a726b7bd6610a89"
+      },
+      {
+        "title": "Плеч акром-ключич разрыв МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "353590d88da7adb861f4eafa7f510c3740360493f1ee15eb9d98e53aa3ba8da8"
+      },
+      {
+        "title": "Плеч акром-ключ артроз МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "c44b04739154a2f726e06f42316909f6f117a2ed58f02bd46b659defd28137e6"
+      },
+      {
+        "title": "Плеч SLAP-разрыв МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "9ec7c2e3176b4e35961600d6f64e1cb5bfa9d095c8e98cd9673c53b21cdfccca"
+      },
+      {
+        "title": "Плечев суст норма МЕГИ.doc",
+        "folder": "Суставы М/Плечевой сустав М",
+        "payload_sha256": "27fbd1c08f8a10cd087f6eeef6bed9d1aee97c02e7021cfba0dca74f23824ac1"
+      }
+    ]
+  },
+  "decoded_payload_sequence_equal": true
+}

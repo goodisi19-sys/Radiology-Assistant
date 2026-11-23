@@ -78,18 +78,17 @@ jobs:
             throw "EXE smoke test failed"
           }
           Get-Content $result
-      - name: Test packaged Chromium renderer without network
+      - name: Test packaged default-browser dispatcher without network
         shell: pwsh
         env:
           QT_QPA_PLATFORM: offscreen
-          QTWEBENGINE_CHROMIUM_FLAGS: --disable-gpu
         run: |
           $result = Join-Path $PWD "browser-smoke.json"
           $process = Start-Process dist/RadiologyAssistant.exe -ArgumentList "--browser-smoke-test", "`"$result`"" -PassThru
           if (!$process.WaitForExit(30000)) { $process.Kill(); throw "Browser smoke test timed out" }
           if ($process.ExitCode -ne 0 -or !(Test-Path $result)) {
             if (Test-Path "$result.error.txt") { Get-Content "$result.error.txt" }
-            throw "Browser renderer test failed"
+            throw "Default-browser dispatcher test failed"
           }
           Get-Content $result
       - name: Package
@@ -103,12 +102,15 @@ jobs:
           Copy-Item HYBRID_AI_AUDIT.md package/
           Copy-Item RAD_CONTEXT_UPDATE.md package/
           Copy-Item RAD_REFINEMENTS_2026-11-23.md package/
+          Copy-Item CLAUDE_AUDIT_2026-11-23.md package/
+          Copy-Item RAD_BROWSER_AND_AI_VALUE_2026-11-23.md package/
+          Copy-Item reports/neural-word-value.json package/
+          Copy-Item reports/neural-retrieval-value.json package/
+          Copy-Item reports/claude-audit-checks.json package/
           Copy-Item reports/refinement-comparison.json package/
           Copy-Item reports/context-retrieval.json package/
           Copy-Item reports/sage-decoder-experiment.json package/
-          Copy-Item GOOGLE_TERM_AUDIT.md package/
           Copy-Item browser-smoke.json package/
-          Expand-Archive build_assets/chromium-6.8-licenses.zip package/THIRD_PARTY/Chromium
           Copy-Item hybrid-benchmark.json package/
           Copy-Item hybrid-gui-benchmark.json package/
           Copy-Item USER_GUIDE.md package/
