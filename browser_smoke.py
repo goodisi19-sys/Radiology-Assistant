@@ -33,5 +33,11 @@ def run(target):
         assert not echo['ai'] and not echo['text'],echo
         streaming=probe('<main><section data-ai-response aria-busy="true">RAD_AI_ANSWER\nНезавершенный ответ по термину.\nRAD_AI_END</section></main>')
         assert not streaming['ai'],streaming
+        captcha=probe('<main><form class="g-recaptcha">Confirm you are not a robot</form><section data-ai-response data-complete="true">RAD_AI_ANSWER<br>Fake answer during challenge.<br>RAD_AI_END</section></main>')
+        assert captcha['blocked'] and not captcha['text'],captcha
+        consent=probe('<main><form action="/consent">Before you continue to Google</form></main>')
+        assert consent['blocked'] and not consent['text'],consent
+        skeleton=probe('<main><section data-ai-response data-complete="true"><div data-skeleton></div>RAD_AI_ANSWER<br>Still loading this response.<br>RAD_AI_END</section></main>')
+        assert not skeleton['ai'],skeleton
         elapsed=time.perf_counter()-start;browser.close();QTest.qWait(300)
-        Path(target).write_text(json.dumps({'chromium_renderer':'ok','offline_fixture':'ok','extraction':'ok','ordinary_results_rejected':True,'elapsed_s':elapsed,'real_google_ai_mode':'not tested against corporate firewall'},ensure_ascii=False),encoding='utf8')
+        Path(target).write_text(json.dumps({'chromium_renderer':'ok','offline_fixture':'ok','extraction':'ok','ordinary_results_rejected':True,'captcha_consent_skeleton_rejected':True,'elapsed_s':elapsed,'real_google_ai_mode':'not tested against corporate firewall'},ensure_ascii=False),encoding='utf8')
