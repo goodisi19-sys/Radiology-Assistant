@@ -752,8 +752,10 @@ class MainWindow(QMainWindow):
             else:
                 from document_io import atomic_write_text
                 atomic_write_text(path, self.editor.toPlainText())
-                self.learn_saved_description()
             self.current_file=path; self.editor.document().setModified(False); self.update_status()
+            # An explicit successful Save (Ctrl+S / File > Save) is the doctor's
+            # verification event. Exports alone and failed writes are not.
+            self.learn_saved_description()
             return True
         except Exception as e:
             QMessageBox.critical(self,"Ошибка сохранения",str(e))
@@ -761,11 +763,12 @@ class MainWindow(QMainWindow):
     def export_to_path(self,path):
         from document_io import write_docx
         write_docx(path, self.editor.document())
-        self.learn_saved_description()
 
     def learn_saved_description(self):
-        # Saving/exporting is not verification; never learn raw drafts implicitly.
-        return
+        # The doctor explicitly saved a finished report. Use only the existing
+        # locally filtered, deduplicated learning pipeline; do not copy the raw
+        # patient report into the shared verified-template catalog.
+        self.learn_confirmed_description()
 
     def learn_confirmed_description(self):
         if self.library.get_setting('adaptive_enabled') == '0' or not self.library.ai.enabled('self_learning'): return
@@ -779,7 +782,7 @@ class MainWindow(QMainWindow):
     def adaptive_info(self):
         QMessageBox.information(self, 'Адаптивное продолжение',
             f'Сохранено продолжений: {self.library.adaptive.count()}.\n'
-            'Память пополняется только после подтверждения проверенного текста или верификации стандарта. '
+            'Память пополняется после явного сохранения документа (Ctrl+S), подтверждения текста или верификации стандарта. '
             'Продолжения с цифрами, уровнями и явно указанной стороной не предлагаются. '
             'После пробела выбирайте продолжение по Tab или щелчком; Enter оставляет новый абзац. '
             'Это варианты из вашей базы, а не вывод о текущем исследовании.')
