@@ -1049,6 +1049,11 @@ class MainWindow(QMainWindow):
             return super().eventFilter(obj, event)
         popup = completer.popup()
         if obj is editor or obj is popup:
+            if (obj is editor and not popup.isVisible()
+                    and event.type() in (QEvent.Type.ShortcutOverride,QEvent.Type.KeyPress)
+                    and event.key()==Qt.Key.Key_Tab and not event.modifiers()
+                    and self.advance_phrase_slot(select=event.type()==QEvent.Type.KeyPress)):
+                event.accept();return True
             if popup.isVisible() and event.type() in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress):
                 key = event.key()
                 if event.type()==QEvent.Type.KeyPress and key in (Qt.Key.Key_Up,Qt.Key.Key_Down,Qt.Key.Key_PageUp,Qt.Key.Key_PageDown):self._completion_user_selected=True
@@ -1077,6 +1082,21 @@ class MainWindow(QMainWindow):
             ):
                 QTimer.singleShot(0, self.format_previous_line)
         return super().eventFilter(obj, event)
+
+    def advance_phrase_slot(self,select=True):
+        from slot_phrases import SLOT_RE
+        cursor=self.editor.textCursor();block=cursor.block();value=block.text()
+        relative=cursor.selectionEnd()-block.position()
+        for found in SLOT_RE.finditer(value):
+            start=len(value[:found.start()].encode('utf-16-le'))//2
+            end=len(value[:found.end()].encode('utf-16-le'))//2
+            if start<relative:continue
+            if select:
+                cursor.setPosition(block.position()+start)
+                cursor.setPosition(block.position()+end,QTextCursor.MoveMode.KeepAnchor)
+                self.editor.setTextCursor(cursor)
+            return True
+        return False
 
     def format_previous_line(self):
         block = self.editor.textCursor().block().previous()
@@ -1159,7 +1179,7 @@ class MainWindow(QMainWindow):
         if self._completion_snapshot!=(self.editor.toPlainText(),cursor.position(),cursor.anchor()):return
         before=cursor.block().text().encode('utf-16-le')[:cursor.positionInBlock()*2].decode('utf-16-le')
         state=self.protocol_context.at_qt(cursor.position())
-        self.phrase_memory.record(before,option['phrase'],state['area'],state['modality'],option['source_id'],accepted=False)
+        self.phrase_memory.record(before,option.get('display_phrase',option['phrase']),state['area'],state['modality'],option['source_id'],accepted=False)
         popup.hide()
 
     def accept_completion(self, phrase):
@@ -1175,10 +1195,19 @@ class MainWindow(QMainWindow):
             previous_text=self.editor.toPlainText()
             from completion_overlap import insertion_text
             after=cursor.block().text().encode('utf-16-le')[cursor.positionInBlock()*2:].decode('utf-16-le')
-            cursor.beginEditBlock();cursor.insertText(insertion_text(library_option['suffix'],after));cursor.endEditBlock()
+            inserted=insertion_text(library_option['suffix'],after)
+            position=cursor.position()
+            cursor.beginEditBlock();cursor.insertText(inserted);cursor.endEditBlock()
+            from slot_phrases import SLOT_RE
+            first=SLOT_RE.search(inserted)
+            if first:
+                left=position+len(inserted[:first.start()].encode('utf-16-le'))//2
+                right=position+len(inserted[:first.end()].encode('utf-16-le'))//2
+                cursor.setPosition(left)
+                cursor.setPosition(right,QTextCursor.MoveMode.KeepAnchor)
             if self.library.ai.enabled('self_learning'):
                 state=self.protocol_context.at_qt(cursor.position())
-                event=self.phrase_memory.record(before,library_option['phrase'],state['area'],state['modality'],library_option.get('source_id','library'))
+                event=self.phrase_memory.record(before,library_option.get('display_phrase',library_option['phrase']),state['area'],state['modality'],library_option.get('source_id','library'))
                 self._accept_events.append((event,previous_text,self.editor.toPlainText()))
                 self._accept_events=self._accept_events[-100:]
         elif phrase in getattr(self,'_word_options',{}):
@@ -1272,8 +1301,11 @@ class MainWindow(QMainWindow):
             semantic=getattr(getattr(self,'hybrid',None),'completion_scores',{}).get(neural_key,{}) if self.library.ai.enabled('neural_enabled') and self.library.get_setting('bert_phrase_rerank')=='1' else {}
             candidates.sort(key=lambda c:-(c['lexical_score']+self.phrase_memory.boost(before,c['phrase'],completion_area,document_state['modality'])+.12*semantic.get(c['source_id']+c['suffix'],0)))
             for candidate in candidates[:8]:
-                label=('Личный стандарт: ' if candidate['personal'] else 'Из библиотеки: ')+candidate['phrase']
-                self._library_options[label]=candidate
+                label_prefix=('Моя быстрая строка: ' if candidate['source']=='Моя быстрая строка'
+                              else 'Быстрая строка: ' if candidate['source']=='Быстрая строка'
+                              else 'Личный стандарт: ' if candidate['personal'] else 'Из библиотеки: ')
+                label=label_prefix+candidate.get('display_phrase',candidate['phrase'])
+                self._library_options.setdefault(label,candidate)
         if prefix and not after[:1].isalpha():
             for value in self.library.ai.editor_options(prefix,before[:-len(prefix)],after,completion_area,document_state['modality']):
                 self._word_options[value]=prefix
@@ -1281,7 +1313,9 @@ class MainWindow(QMainWindow):
             for value in self.library.ai.continuations(before):
                 self._adaptive_options.setdefault('Продолжить (Tab): '+value,{'text':value,'separator':' '})
         words=list(self._word_options);phrases=list(self._library_options)+personal+list(self._adaptive_options)
-        matches=list(dict.fromkeys(words[:2]+phrases[:3]+words[2:]+phrases[3:]+[phrase for phrase in normal if phrase not in personal]))
+        quick=[p for p in phrases if p.startswith('Моя быстрая строка: ')]
+        other=[p for p in phrases if p not in quick]
+        matches=list(dict.fromkeys(quick[:2]+words[:2]+other[:3]+quick[2:]+words[2:]+other[3:]+[phrase for phrase in normal if phrase not in personal]))
         self._completion_word = prefix
         next_snapshot=(self.editor.toPlainText(),cursor.position(),cursor.anchor())
         if getattr(self,'_completion_snapshot',None)!=next_snapshot:self._completion_user_selected=False
