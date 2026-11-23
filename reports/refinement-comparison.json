@@ -1,0 +1,68 @@
+{
+  "baseline_commit": "afcec5dc9ffc7da89adce856a6af1cb2723596f3",
+  "synthetic_only": true,
+  "clinical_cases": [
+    {
+      "name": "absence",
+      "expected_warning": true,
+      "baseline_warning": false,
+      "new_warning": true,
+      "baseline_correct": false,
+      "new_correct": true
+    },
+    {
+      "name": "uncertainty",
+      "expected_warning": false,
+      "baseline_warning": true,
+      "new_warning": false,
+      "baseline_correct": false,
+      "new_correct": true
+    },
+    {
+      "name": "two_lesions_side",
+      "expected_warning": true,
+      "baseline_warning": false,
+      "new_warning": true,
+      "baseline_correct": false,
+      "new_correct": true
+    },
+    {
+      "name": "equivalent_units",
+      "expected_warning": false,
+      "baseline_warning": false,
+      "new_warning": false,
+      "baseline_correct": true,
+      "new_correct": true
+    }
+  ],
+  "midline_cases": [
+    {
+      "implementation": "baseline",
+      "left": "Срединные стр",
+      "right": " не смещены.",
+      "result": "Срединные структуры не смещены.  не смещены.",
+      "correct": false
+    },
+    {
+      "implementation": "baseline",
+      "left": "Срединные структуры ",
+      "right": " смещены.",
+      "result": "Срединные структуры не смещены.  смещены.",
+      "correct": false
+    },
+    {
+      "implementation": "new",
+      "left": "Срединные стр",
+      "right": " не смещены.",
+      "result": "Срединные структуры не смещены.",
+      "correct": true
+    },
+    {
+      "implementation": "new",
+      "left": "Срединные структуры ",
+      "right": " смещены.",
+      "result": "Срединные структуры не смещены.",
+      "correct": true
+    }
+  ]
+}

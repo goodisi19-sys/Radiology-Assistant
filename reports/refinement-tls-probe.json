@@ -1,0 +1,7 @@
+{
+  "response_received": false,
+  "response_length": 0,
+  "error": "TLS: www.google.com; CertificateAuthorityInvalid; издатель: openai.com. Сертификат отклонён. Проверьте доверие сертификатам с администратором; локальный анализ продолжает работать.",
+  "elapsed_s": 0.1955651339958422,
+  "scope": "Public-network benign term only; not target corporate firewall"
+}

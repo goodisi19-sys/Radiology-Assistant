@@ -1,0 +1,61 @@
+{
+  "workload": "synthetic typing 20ms per character then 5s idle",
+  "wall_s": 7.822640946003958,
+  "typing_p95_ms": 3.1424969929503277,
+  "typing_max_ms": 12.619347995496355,
+  "cpu_core_equivalent_percent": 27.356490151745717,
+  "cpu_machine_normalized_percent": 9.118830050581906,
+  "peak_parent_children_rss_mib": 343.5234375,
+  "cancel_dispatch_ms": 0.35637700057122856,
+  "resource_policy": {
+    "mode": "Экономичный",
+    "requested": "Автоматический",
+    "reason": "",
+    "bert": true,
+    "deep": false,
+    "threads": 1,
+    "resources": {
+      "cores": 3,
+      "total_gb": 9.734611511230469,
+      "available_gb": 8.827224731445312,
+      "cpu": 8.5,
+      "avx2": true
+    }
+  },
+  "status": "LocalAI активен · контекст проверен",
+  "peak_gui_rss_mib": 223.80859375,
+  "peak_worker_rss_mib": 119.734375,
+  "neural_stage_timings": [
+    {
+      "kind": "encoder",
+      "roundtrip_ms": 559.1025390021969,
+      "worker_ms": 494.1230729891686,
+      "onnx_ms": 2.9886960110161453,
+      "load_ms": 488.4811060037464,
+      "roundtrip_overhead_ms_including_startup": 64.97946601302829
+    },
+    {
+      "kind": "encoder",
+      "roundtrip_ms": 32.73192199412733,
+      "worker_ms": 5.120991001604125,
+      "onnx_ms": 1.871451997430995,
+      "load_ms": 0,
+      "roundtrip_overhead_ms_including_startup": 27.61093099252321
+    },
+    {
+      "kind": "encoder",
+      "roundtrip_ms": 53.01632601185702,
+      "worker_ms": 5.991452999296598,
+      "onnx_ms": 3.0151459941407666,
+      "load_ms": 0,
+      "roundtrip_overhead_ms_including_startup": 47.02487301256042
+    }
+  ],
+  "fts_lookup_ms": [
+    6.962637999095023,
+    2.1156399889150634
+  ],
+  "fts_initial_sync_ms": 4324.596699007088,
+  "memory_note": "Worker RSS includes ONNX runtime, tokenizer and SQLite; ONNX-only RSS is not separately attributed. Individual peaks need not coincide.",
+  "children_after_close": 0
+}

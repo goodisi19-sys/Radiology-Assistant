@@ -102,6 +102,8 @@ jobs:
           Copy-Item model-lock.json package/
           Copy-Item HYBRID_AI_AUDIT.md package/
           Copy-Item RAD_CONTEXT_UPDATE.md package/
+          Copy-Item RAD_REFINEMENTS_2026-11-23.md package/
+          Copy-Item reports/refinement-comparison.json package/
           Copy-Item reports/context-retrieval.json package/
           Copy-Item reports/sage-decoder-experiment.json package/
           Copy-Item GOOGLE_TERM_AUDIT.md package/

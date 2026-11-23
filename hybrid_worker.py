@@ -18,6 +18,7 @@ class Encoder:
         self.db=sqlite3.connect(str(cache_path)) if cache_path else None
         if self.db:self.db.execute('CREATE TABLE IF NOT EXISTS vectors(model TEXT,digest TEXT,vector BLOB,PRIMARY KEY(model,digest))')
     def embed(self,texts):
+        self.last_onnx_ms=0
         np=self.np;keys=[hashlib.sha256(t[:2000].encode()).hexdigest() for t in texts];missing=[]
         for key,text in zip(keys,texts):
             if key in self.cache:continue
@@ -29,7 +30,9 @@ class Encoder:
             batch=missing[start:start+8];encoded=self.tokenizer.encode_batch([t for _,t in batch])
             inputs={k:np.array([getattr(e,attr) for e in encoded],dtype=np.int64) for k,attr in [('input_ids','ids'),('attention_mask','attention_mask'),('token_type_ids','type_ids')]}
             inputs={k:v for k,v in inputs.items() if k in {i.name for i in self.session.get_inputs()}}
+            inference_started=time.perf_counter()
             vectors=self.session.run(None,inputs)[0]
+            self.last_onnx_ms+=(time.perf_counter()-inference_started)*1000
             for (key,_),v in zip(batch,vectors):
                 self.cache[key]=v
                 if self.db:self.db.execute('INSERT OR REPLACE INTO vectors VALUES(?,?,?)',(self.model,key,v.astype(np.float32).tobytes()))
@@ -59,14 +62,16 @@ def main():
     for line in sys.stdin:
         try:
             task=json.loads(line)
-            start=time.perf_counter()
+            start=time.perf_counter();load_ms=0
             if task.get('kind')=='sage':
-                if sage is None:sage=SageScorer(task['root'],task.get('threads',2))
+                if sage is None:
+                    loading=time.perf_counter();sage=SageScorer(task['root'],task.get('threads',2));load_ms=(time.perf_counter()-loading)*1000
                 scores=sage.rank(task['context'],task['options'][:6])
             else:
-                if encoder is None:encoder=Encoder(task['root'],task.get('threads',2),task.get('cache'))
+                if encoder is None:
+                    loading=time.perf_counter();encoder=Encoder(task['root'],task.get('threads',2),task.get('cache'));load_ms=(time.perf_counter()-loading)*1000
                 scores=encoder.rank(task['context'],task['options'][:600])
-            result={'scores':scores,'ms':(time.perf_counter()-start)*1000,'loaded':{'rubert':encoder is not None,'sage':sage is not None},'context_key':task.get('context_key')}
+            result={'scores':scores,'ms':(time.perf_counter()-start)*1000,'loaded':{'rubert':encoder is not None,'sage':sage is not None},'context_key':task.get('context_key'),'load_ms':load_ms,'onnx_ms':(sage if task.get('kind')=='sage' else encoder).last_onnx_ms}
         except Exception as exc:
             import traceback
             frame=traceback.extract_tb(exc.__traceback__)[-1]
@@ -89,13 +94,16 @@ class SageScorer:
         self.tokenizer=Tokenizer.from_file(str(root/'tokenizer.json'));self.tokenizer.enable_truncation(max_length=96);self.np=np
         config=json.loads((root/'config.json').read_text());self.start=config['decoder_start_token_id']
     def rank(self,source,candidates):
+        self.last_onnx_ms=0
         np=self.np;encoded=self.tokenizer.encode(source);scores=[]
         for candidate in candidates[:6]:
             labels=self.tokenizer.encode(candidate).ids
             if len(labels)<2:raise ValueError('Empty candidate')
             inputs={'input_ids':np.array([encoded.ids],dtype=np.int64),'attention_mask':np.array([encoded.attention_mask],dtype=np.int64),
                     'decoder_input_ids':np.array([[self.start]+labels[:-1]],dtype=np.int64),'labels':np.array([labels],dtype=np.int64)}
+            inference_started=time.perf_counter()
             scores.append(float(self.session.run(None,inputs)[0][0]))
+            self.last_onnx_ms+=(time.perf_counter()-inference_started)*1000
         return scores
 
 if __name__=='__main__':main()

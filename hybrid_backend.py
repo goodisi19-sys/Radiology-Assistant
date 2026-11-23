@@ -1,11 +1,12 @@
 """Bounded external CPU backends, hard cancellation, no external service calls."""
 import json,os,queue,subprocess,sys,threading,time
+from collections import deque
 from model_assets import installation_root,models_root
 
 class Cancelled(Exception):pass
 
 class NeuralBackend:
-    def __init__(self):self.encoder=None;self.running=None;self.answers=queue.Queue();self.lock=threading.Lock();self.dead=False;self.epoch=0;self.loaded={};self.last_used=0
+    def __init__(self):self.encoder=None;self.running=None;self.answers=queue.Queue();self.lock=threading.Lock();self.dead=False;self.epoch=0;self.loaded={};self.last_used=0;self.timings=deque(maxlen=128)
     def cancel(self):
         with self.lock:
             self.epoch+=1;self.answers.put('')
@@ -25,6 +26,7 @@ class NeuralBackend:
     def close(self):self.dead=True;self.cancel()
     def semantic(self,context,options,threads=2,cache=None,timeout=1.0,kind='encoder'):
         if self.dead:raise Cancelled()
+        roundtrip_started=time.perf_counter()
         epoch=self.epoch;answers=self.answers
         cold=self.encoder is None or self.encoder.poll() is not None
         if cold:
@@ -52,9 +54,14 @@ class NeuralBackend:
             raw=answers.get(timeout=12 if cold else timeout)
             result=json.loads(raw)
             if 'error' in result:raise RuntimeError(result['error']+':'+result.get('error_type','')+'@'+result.get('stage',''))
+            roundtrip_ms=(time.perf_counter()-roundtrip_started)*1000
+            with self.lock:
+                self.timings.append({'kind':kind,'roundtrip_ms':roundtrip_ms,'worker_ms':result.get('ms',0),'onnx_ms':result.get('onnx_ms',0),'load_ms':result.get('load_ms',0),'roundtrip_overhead_ms_including_startup':max(0,roundtrip_ms-result.get('ms',0))})
             self.loaded=result.get('loaded',{});self.last_used=time.monotonic()
             return result
         except Exception:
             self.cancel();raise
+    def timing_snapshot(self):
+        with self.lock:return list(self.timings)
     def deep(self,context,candidates,threads=2,cache=None):
         return self.semantic(context,candidates,threads,cache,timeout=3,kind='sage')
