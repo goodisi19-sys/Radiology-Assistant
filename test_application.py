@@ -89,19 +89,21 @@ class ApplicationTests(unittest.TestCase):
         self.window.favorites.items.setCurrentRow(0); self.window.favorites.open_current()
         self.assertEqual(self.window.editor.toPlainText(),'Контуры ровные.')
 
-    def test_explicit_save_verifies_document_but_export_does_not(self):
+    def test_explicit_save_and_docx_export_both_verify_document(self):
         from test_adaptive_completion import SAMPLE
         self.window.editor.setPlainText(SAMPLE)
         exported=Path(self.tmp.name)/'export-only.docx'
         self.window.export_to_path(exported)
-        self.assertEqual(self.window.library.adaptive.count(),0)
+        count_after_export=self.window.library.adaptive.count()
+        self.assertGreater(count_after_export,0)
+        verified_after_export=self.window.library.db.execute(
+            "SELECT count(*) FROM adaptive_continuations WHERE source='verified'").fetchone()[0]
+        self.assertGreater(verified_after_export,0)
+        # Re-saving precisely the same report must not double its weight.
         self.window.current_file=str(Path(self.tmp.name)/'verified.docx')
         self.assertTrue(self.window.save_file())
         count=self.window.library.adaptive.count()
-        self.assertGreater(count,0)
-        verified=self.window.library.db.execute(
-            "SELECT count(*) FROM adaptive_continuations WHERE source='verified'").fetchone()[0]
-        self.assertGreater(verified,0)
+        self.assertEqual(count,count_after_export)
         self.assertTrue(self.window.save_file())
         self.assertEqual(self.window.library.adaptive.count(),count)
         # A failed save must not turn an edited draft into verified memory.
@@ -109,6 +111,31 @@ class ApplicationTests(unittest.TestCase):
         with patch('document_io.write_docx',side_effect=OSError('disk full')):
             self.assertFalse(self.window.save_file())
         self.assertEqual(self.window.library.adaptive.count(),count)
+
+    def test_explicit_export_failure_does_not_verify(self):
+        from test_adaptive_completion import SAMPLE
+        self.window.editor.setPlainText(SAMPLE)
+        with patch('document_io.write_docx',side_effect=OSError('disk full')):
+            with self.assertRaises(OSError):
+                self.window.export_to_path(Path(self.tmp.name)/'failed.docx')
+        self.assertEqual(self.window.library.adaptive.count(),0)
+        self.assertEqual(
+            self.window.library.db.execute("SELECT count(*) FROM ai_sources").fetchone()[0],0)
+
+    def test_export_duplicate_dedup_and_new_verified_edit(self):
+        from test_adaptive_completion import SAMPLE
+        target=Path(self.tmp.name)/'report.docx'
+        self.window.editor.setPlainText(SAMPLE)
+        self.window.export_to_path(target)
+        before=self.window.library.db.execute(
+            "SELECT COALESCE(sum(uses),0) FROM adaptive_continuations").fetchone()[0]
+        self.window.export_to_path(target)
+        self.assertEqual(self.window.library.db.execute(
+            "SELECT COALESCE(sum(uses),0) FROM adaptive_continuations").fetchone()[0],before)
+        self.window.editor.setPlainText(SAMPLE.replace('локальной деформацией','умеренной деформацией'))
+        self.window.export_to_path(target)
+        self.assertGreater(self.window.library.db.execute(
+            "SELECT COALESCE(sum(uses),0) FROM adaptive_continuations").fetchone()[0],before)
 
     def test_explicit_txt_save_also_verifies(self):
         from test_adaptive_completion import SAMPLE
@@ -121,8 +148,6 @@ class ApplicationTests(unittest.TestCase):
         from test_adaptive_completion import SAMPLE,QUERY
         self.window.editor.setPlainText(SAMPLE)
         self.window.export_to_path(Path(self.tmp.name)/'learn.docx')
-        self.assertEqual(self.window.library.adaptive.count(),0)
-        self.window.learn_confirmed_description()
         self.assertGreater(self.window.library.adaptive.count(),0)
         self.window.show()
         self.window.editor.setPlainText('\n'*7+QUERY)
