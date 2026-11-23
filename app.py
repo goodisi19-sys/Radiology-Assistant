@@ -482,6 +482,7 @@ class MainWindow(QMainWindow):
         self.phrase_memory=PhraseMemory(self.library)
         self.protocol_context=ProtocolContextState()
         self._accept_events=[]
+        self._inserted_template_baseline=None
         self.current_file = None
         self._closing = False
         self.setWindowTitle(APP_NAME)
@@ -763,7 +764,7 @@ class MainWindow(QMainWindow):
             else:
                 from document_io import atomic_write_text
                 atomic_write_text(path, self.editor.toPlainText())
-            self.learn_saved_description()
+                self.learn_saved_description()
             self.current_file=path; self.editor.document().setModified(False); self.update_status()
             return True
         except Exception as e:
@@ -772,6 +773,7 @@ class MainWindow(QMainWindow):
     def export_to_path(self,path):
         from document_io import write_docx
         write_docx(path, self.editor.document())
+        self.learn_saved_description()
 
     def learn_saved_description(self):
         if not self.library.ai.enabled('self_learning'):

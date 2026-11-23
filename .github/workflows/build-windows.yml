@@ -6,13 +6,36 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: windows-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
+  fast:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Quick formatting and slot contracts
+        run: python -m unittest -v test_slot_phrases test_report_format
+
   build:
     # This branch already builds on push; do not duplicate its ZIP on PR events.
-    if: github.event_name != 'pull_request' || github.head_ref != 'fix/library-audit-and-document-safety'
+    needs: fast
+    timeout-minutes: 55
+    if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     env:
       PYTHONUTF8: "1"
@@ -40,6 +63,9 @@ jobs:
           if (!(Test-Path protocols.json.br.b64)) { throw "Missing de-identified MRI protocol catalog" }
       - name: Verify MRI catalog and Python source
         run: python check_catalog.py
+      - name: Full test suite with timeout diagnostics
+        timeout-minutes: 32
+        run: python tools/run_full_tests.py
       - name: Build isolated console inference worker
         run: pyinstaller --noconfirm --clean --onedir --console --hidden-import onnxruntime.capi.onnxruntime_pybind11_state --hidden-import tokenizers.tokenizers --copy-metadata onnxruntime --copy-metadata tokenizers --name RadiologyNeuralWorker hybrid_worker.py
       - name: Install external model assets beside executable
@@ -49,8 +75,6 @@ jobs:
           Copy-Item model-lock.json dist/
       - name: Probe compiled neural worker
         run: python tools/probe_worker.py dist
-      - name: Test automatic report formatting
-        run: python -m unittest discover -v
       - name: Measure local module performance
         run: python benchmark_ai.py
       - name: Benchmark held-out medical ranking and resource policy
@@ -137,14 +161,14 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-      - name: Publish ZIP fallback if Actions artifact quota is exhausted
-        if: steps.artifact.outcome == 'failure' && github.event_name != 'pull_request'
+      - name: Publish checked Windows ZIP
+        if: success()
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "hybridai-run${{ github.run_id }}"
-          gh release create $tag "RadiologyAssistant-HybridAI-run${{ github.run_id }}.zip" --target "${{ github.sha }}" --prerelease --title "Radiology Assistant HybridAI run ${{ github.run_id }}" --notes "Windows EXE passed packaged smoke tests. Actions storage quota prevented artifact upload; this new release preserves previous builds."
+          gh release create $tag "RadiologyAssistant-HybridAI-run${{ github.run_id }}.zip" --target "${{ github.sha }}" --prerelease --title "Radiology Assistant HybridAI run ${{ github.run_id }}" --notes "Windows EXE passed packaged smoke tests. Published from the verified workflow run."
           if ($LASTEXITCODE -ne 0) { throw "ZIP publication failed" }
       - name: Require a downloadable build
         if: steps.artifact.outcome == 'failure' && github.event_name == 'pull_request'

@@ -131,7 +131,6 @@ def run(result_path):
         assert window.editor.toPlainText().startswith('зад цент прот')
         window.editor.setPlainText('Задняя центральная грыжа диска L5-S1 до 4 мм, с локальной деформацией дурального мешка.')
         window.export_to_path(fixed_path)
-        window.learn_confirmed_description()
         window.editor.setPlainText('Грыжа диска L4-L5 до 5 мм ')
         cursor=window.editor.textCursor();cursor.movePosition(cursor.MoveOperation.End);window.editor.setTextCursor(cursor)
         window.update_suggestions()
@@ -216,6 +215,30 @@ def run(result_path):
         assert window.editor.toPlainText()==original
         assert window.library.db.execute('SELECT coalesce(sum(uses),0) FROM ai_corrections').fetchone()[0]==count_before
         assert dict(window.library.ai.ranker.weights)==weights_before
+        source='На уровне L4-L5 определяется грыжа справа размерами 12x14 мм.'
+        assert window.library.add_quick_line(source,'Позвоночник')
+        initial='\n'*7+'На уровне '
+        window.editor.setPlainText(initial)
+        cursor=window.editor.textCursor();cursor.movePosition(QTextCursor.MoveOperation.End)
+        window.editor.setTextCursor(cursor)
+        window.update_suggestions();application.processEvents()
+        label=next((x for x in window._library_options if x.startswith('Моя быстрая строка: ')),None)
+        assert label is not None
+        popup=window.completer.popup()
+        row=window.completion_model.stringList().index(label)
+        popup.setCurrentIndex(popup.model().index(row,0))
+        QTest.keyClick(window.editor,Qt.Key.Key_Tab);application.processEvents()
+        text=window.editor.toPlainText()
+        assert '[уровень]' in text
+        assert '[находка]' in text
+        assert '[сторона]' in text
+        assert '[размер]' in text
+        assert '12x14 мм' not in text
+        assert window.editor.textCursor().selectedText()=='[уровень]'
+        QTest.keyClicks(window.editor,'L3-L4');application.processEvents()
+        window.completer.popup().hide()
+        QTest.keyClick(window.editor,Qt.Key.Key_Tab);application.processEvents()
+        assert window.editor.textCursor().selectedText()=='[находка]'
         from model_assets import verify_files
         verify_files()
         from hybrid_backend import NeuralBackend

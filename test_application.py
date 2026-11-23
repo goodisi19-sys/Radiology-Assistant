@@ -17,8 +17,20 @@ QT = QApplication.instance() or QApplication([])
 
 
 class ApplicationTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import shutil
+        cls.seed = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.seed.cleanup)
+        with patch.object(app, 'app_data_dir', return_value=Path(cls.seed.name)):
+            window = app.MainWindow()
+            window.close()
+        cls.index_seed = Path(cls.seed.name) / 'completion-index.sqlite3'
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
+        import shutil
+        shutil.copyfile(self.index_seed, Path(self.tmp.name) / self.index_seed.name)
         self.override = patch.object(app, 'app_data_dir', return_value=Path(self.tmp.name))
         self.override.start()
         self.window = app.MainWindow()
@@ -89,27 +101,28 @@ class ApplicationTests(unittest.TestCase):
         self.window.favorites.items.setCurrentRow(0); self.window.favorites.open_current()
         self.assertEqual(self.window.editor.toPlainText(),'Контуры ровные.')
 
-    def test_explicit_save_verifies_but_export_does_not(self):
+    def test_explicit_save_and_docx_export_both_verify_document(self):
         from test_adaptive_completion import SAMPLE
         self.window.editor.setPlainText(SAMPLE)
         exported=Path(self.tmp.name)/'export-only.docx'
         self.window.export_to_path(exported)
         count_after_export=self.window.library.adaptive.count()
-        self.assertEqual(count_after_export,0)
+        self.assertGreater(count_after_export,0)
         verified_after_export=self.window.library.db.execute(
             "SELECT count(*) FROM adaptive_continuations WHERE source='verified'").fetchone()[0]
-        self.assertEqual(verified_after_export,0)
+        self.assertGreater(verified_after_export,0)
         # Re-saving precisely the same report must not double its weight.
         self.window.current_file=str(Path(self.tmp.name)/'verified.docx')
         self.assertTrue(self.window.save_file())
         count=self.window.library.adaptive.count()
-        self.assertGreater(count,count_after_export)
+        self.assertEqual(count,count_after_export)
         self.assertTrue(self.window.save_file())
         self.assertEqual(self.window.library.adaptive.count(),count)
         # A failed save must not turn an edited draft into verified memory.
         self.window.editor.setPlainText(SAMPLE+' Добавленный проверяемый текст.')
-        with patch('document_io.write_docx',side_effect=OSError('disk full')):
+        with patch('document_io.write_docx',side_effect=OSError('disk full')), patch.object(app.QMessageBox,'critical') as message:
             self.assertFalse(self.window.save_file())
+            message.assert_called_once()
         self.assertEqual(self.window.library.adaptive.count(),count)
 
     def test_explicit_export_failure_does_not_verify(self):
@@ -122,19 +135,18 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual(
             self.window.library.db.execute("SELECT count(*) FROM ai_sources").fetchone()[0],0)
 
-    def test_save_duplicate_dedup_and_new_verified_edit(self):
+    def test_export_duplicate_dedup_and_new_verified_edit(self):
         from test_adaptive_completion import SAMPLE
         target=Path(self.tmp.name)/'report.docx'
         self.window.editor.setPlainText(SAMPLE)
-        self.window.current_file=str(target)
-        self.assertTrue(self.window.save_file())
+        self.window.export_to_path(target)
         before=self.window.library.db.execute(
             "SELECT COALESCE(sum(uses),0) FROM adaptive_continuations").fetchone()[0]
         self.window.export_to_path(target)
         self.assertEqual(self.window.library.db.execute(
             "SELECT COALESCE(sum(uses),0) FROM adaptive_continuations").fetchone()[0],before)
         self.window.editor.setPlainText(SAMPLE.replace('локальной деформацией','умеренной деформацией'))
-        self.assertTrue(self.window.save_file())
+        self.window.export_to_path(target)
         self.assertGreater(self.window.library.db.execute(
             "SELECT COALESCE(sum(uses),0) FROM adaptive_continuations").fetchone()[0],before)
 
