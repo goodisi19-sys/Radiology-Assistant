@@ -711,6 +711,7 @@ class MainWindow(QMainWindow):
             self.status_timer.stop()
             if hasattr(self,'search_timer'):self.search_timer.stop()
             self.live_spelling.stop()
+            if hasattr(self,'correction_learning'):self.correction_learning.clear()
             if hasattr(self,'hybrid'): self.hybrid.close()
             if hasattr(self, 'shorthand_dialog'): self.shorthand_dialog.close()
             if hasattr(self, 'protocol_check_dialog'): self.protocol_check_dialog.close()
@@ -1186,8 +1187,9 @@ class MainWindow(QMainWindow):
             if cursor.selectedText()!=expected:return
             from completion_overlap import insertion_text
             right=cursor.block().text().encode('utf-16-le')[cursor.positionInBlock()*2:].decode('utf-16-le')
+            start=cursor.selectionStart()
             cursor.beginEditBlock();cursor.insertText(insertion_text(phrase,right));cursor.endEditBlock()
-            self.library.ai.confirm_correction(expected,phrase)
+            self.defer_correction(expected,phrase,start)
         elif continuation:
             before = cursor.block().text().encode('utf-16-le')[:cursor.positionInBlock()*2].decode('utf-16-le')
             stripped = before.rstrip(' \t')
@@ -1209,6 +1211,12 @@ class MainWindow(QMainWindow):
             self.library.ai.learn_text(' '.join(before.split()[-2:])+' '+continuation['text'],confirmed=True)
         self.editor.setTextCursor(cursor)
         self.completer.popup().hide()
+
+    def defer_correction(self,original,replacement,start):
+        if not hasattr(self,'correction_learning'):
+            from correction_learning import CorrectionLearning
+            self.correction_learning=CorrectionLearning(self)
+        self.correction_learning.add(original,replacement,start)
 
     def ai_context(self):
         state=self.protocol_context.update(self.editor.toPlainText(),self.editor.document().revision())

@@ -155,8 +155,9 @@ class SpellingDialog(QDialog):
         cursor = QTextCursor(self.window.editor.document())
         cursor.setPosition(qt_offset(self.snapshot, issue.start))
         cursor.setPosition(qt_offset(self.snapshot, issue.end), QTextCursor.MoveMode.KeepAnchor)
+        start=cursor.selectionStart()
         cursor.beginEditBlock(); cursor.insertText(replacement); cursor.endEditBlock()
-        self.window.library.ai.confirm_correction(issue.word,replacement)
+        self.window.defer_correction(issue.word,replacement,start)
         self.scan()
 
     def add_word(self):

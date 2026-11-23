@@ -73,9 +73,14 @@ class NeuralDeliveryTests(unittest.TestCase):
             correction_action=next(a for a in actions if a.text().startswith('Исправить:'))
             correction=correction_action.menu()
             self.assertEqual(correction.actions()[0].text(),choices[1])
+            weights_before=dict(ai.ranker.weights)
+            feedback_before=ai.db.execute('SELECT coalesce(sum(uses),0) FROM ai_corrections').fetchone()[0]
             QTest.keyClick(w.editor,Qt.Key.Key_Tab)
             self.assertTrue(w.editor.toPlainText().endswith('Поверхность '+choices[1]+'.'))
             w.editor.undo();self.assertEqual(w.editor.toPlainText(),text)
+            w.correction_learning.clock=lambda:float('inf');w.correction_learning.flush()
+            self.assertEqual(dict(ai.ranker.weights),weights_before)
+            self.assertEqual(ai.db.execute('SELECT coalesce(sum(uses),0) FROM ai_corrections').fetchone()[0],feedback_before)
     def test_unready_spelling_does_not_cache_empty_analysis(self):
         self.w.editor.setPlainText('Достаточно длинная строка.');self.w.hybrid.timer.stop()
         with patch.object(self.w.hybrid.backend,'semantic') as request:

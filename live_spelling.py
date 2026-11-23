@@ -142,10 +142,11 @@ class LiveSpelling(QSyntaxHighlighter):
             self.window.library.ai.ranker.feedback(original,candidate,options,accepted=False)
     def replace(self, cursor, expected, replacement):
         if cursor.document() is not self.window.editor.document() or cursor.selectedText() != expected: return False
+        start=cursor.selectionStart()
         cursor.beginEditBlock()
         cursor.insertText(replacement)
         cursor.endEditBlock()
-        self.window.library.ai.confirm_correction(expected,replacement)
+        self.window.defer_correction(expected,replacement,start)
         return True
 
     def accept(self, word):

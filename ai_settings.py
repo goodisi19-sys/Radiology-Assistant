@@ -54,6 +54,7 @@ class AISettings(QDialog):
         self.window.library.set_setting('ai_mode',value);self.window.library.ai.refresh_memory()
     def change(self,key,value):
         self.window.library.set_setting(key,'1' if value else '0')
+        if key=='self_learning' and not value and hasattr(self.window,'correction_learning'):self.window.correction_learning.clear()
         if key=='live_spelling':self.window.live_spelling.set_enabled(value)
         if key=='neural_enabled' and hasattr(self.window,'hybrid'):
             self.window.hybrid.reset();self.window.hybrid.resources()
@@ -100,7 +101,9 @@ class AISettings(QDialog):
 
     def clear(self):
         if QMessageBox.question(self,'Очистить память','Создать резервную копию и очистить статистику? Стандарты, словарь, избранное и документы сохранятся.',QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,QMessageBox.StandardButton.No)!=QMessageBox.StandardButton.Yes:return
-        self.window.library.backup();self.window.library.ai.clear();self.window.phrase_memory.clear()
+        self.window.library.backup()
+        if hasattr(self.window,'correction_learning'):self.window.correction_learning.clear()
+        self.window.library.ai.clear();self.window.phrase_memory.clear()
         with self.window.library.db:
             self.window.library.db.execute('DELETE FROM adaptive_continuations')
             self.window.library.db.execute('DELETE FROM adaptive_documents')
