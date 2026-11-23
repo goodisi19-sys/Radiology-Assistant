@@ -526,7 +526,18 @@ class MainWindow(QMainWindow):
         self.completion_model = QStringListModel(self.completer)
         self.completer.setModel(self.completion_model)
         self.completer.setWidget(self.editor)
-        self.completer.popup().setStyleSheet("QAbstractItemView {background:white;color:#202b38;selection-background-color:#dcecff;selection-color:#183b60;}")
+        self.completer.popup().setStyleSheet("""
+            QAbstractItemView {
+                background: white; color: #202b38; font-size: 12pt;
+                selection-background-color: #174679; selection-color: white;
+                show-decoration-selected: 1;
+            }
+            QAbstractItemView::item { padding: 3px 6px; }
+            QAbstractItemView::item:selected {
+                background: #174679; color: white;
+                border-left: 4px solid #ffca58;
+            }
+        """)
         self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
         self.completer.setMaxVisibleItems(5)
