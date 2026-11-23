@@ -6,6 +6,7 @@ from unittest.mock import patch
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QTextCursor
 import app
 
 class QuickSlotUITests(unittest.TestCase):
@@ -18,7 +19,7 @@ class QuickSlotUITests(unittest.TestCase):
     self.assertTrue(window.library.add_quick_line(source,'Позвоночник'))
     initial='\n'*7+'На уровне '
     window.editor.setPlainText(initial)
-    cursor=window.editor.textCursor();cursor.movePosition(cursor.MoveOperation.End)
+    cursor=window.editor.textCursor();cursor.movePosition(QTextCursor.MoveOperation.End)
     window.editor.setTextCursor(cursor)
     window.update_suggestions();qt.processEvents()
     label=next((x for x in window._library_options if x.startswith('Моя быстрая строка: ')),None)
