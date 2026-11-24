@@ -653,6 +653,7 @@ class MainWindow(QMainWindow):
         live = QAction("Подчёркивать опечатки", self); live.setCheckable(True)
         live.setChecked(self.live_spelling.enabled)
         live.toggled.connect(self.live_spelling.set_enabled); edit.addAction(live)
+        edit.addAction(self.action("Локальный ИИ — Gemma 4", "", self.show_gemma4))
         edit.addAction(self.action("Развернуть заметку", "Ctrl+Alt+R", self.show_shorthand))
         edit.addAction(self.action("Улучшить формулировку", "Ctrl+Alt+E", self.improve_fragment))
         edit.addAction(self.action("Найти…","Ctrl+F",self.find_text))
@@ -725,6 +726,8 @@ class MainWindow(QMainWindow):
             self.live_spelling.stop()
             if hasattr(self,'correction_learning'):self.correction_learning.clear()
             if hasattr(self,'hybrid'): self.hybrid.close()
+            for dialog in self.findChildren(QDialog, 'gemma4Experiment'):
+                dialog.close()
             if hasattr(self, 'shorthand_dialog'): self.shorthand_dialog.close()
             if hasattr(self, 'protocol_check_dialog'): self.protocol_check_dialog.close()
             self.completion_index.close()
@@ -871,6 +874,15 @@ class MainWindow(QMainWindow):
             cursor.setPosition(block.position())
             cursor.setPosition(block.position() + block.length() - 1, QTextCursor.MoveMode.KeepAnchor)
         return cursor
+
+    def show_gemma4(self):
+        from gemma4_dialog import GemmaDialog
+        dialog = self.findChild(GemmaDialog, 'gemma4Experiment')
+        if dialog is None:
+            dialog = GemmaDialog(self)
+            dialog.setObjectName('gemma4Experiment')
+        dialog.show()
+        dialog.raise_()
 
     def show_shorthand(self):
         self.open_local_fragment(True)

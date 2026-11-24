@@ -148,6 +148,7 @@ jobs:
           "@ | Set-Content package/ИНСТРУКЦИЯ.txt -Encoding UTF8
           Copy-Item layout-audit.json package/
           Copy-Item exe-smoke.json package/
+          if (Test-Path BENCHMARK_GEMMA4.md) { Copy-Item BENCHMARK_GEMMA4.md package/ }
           Copy-Item performance-results.json package/
           python package_licenses.py
           Compress-Archive -Path package/* -DestinationPath RadiologyAssistant-HybridAI-run${{ github.run_id }}.zip
@@ -162,7 +163,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish checked Windows ZIP
-        if: success()
+        if: success() && !startsWith(github.ref_name, 'experiment/')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -171,5 +172,5 @@ jobs:
           gh release create $tag "RadiologyAssistant-HybridAI-run${{ github.run_id }}.zip" --target "${{ github.sha }}" --prerelease --title "Radiology Assistant HybridAI run ${{ github.run_id }}" --notes "Windows EXE passed packaged smoke tests. Published from the verified workflow run."
           if ($LASTEXITCODE -ne 0) { throw "ZIP publication failed" }
       - name: Require a downloadable build
-        if: steps.artifact.outcome == 'failure' && github.event_name == 'pull_request'
-        run: throw "Actions artifact upload failed; dispatch this branch workflow to publish a release fallback"
+        if: steps.artifact.outcome == 'failure' && startsWith(github.ref_name, 'experiment/')
+        run: throw "Experimental artifact upload failed"
